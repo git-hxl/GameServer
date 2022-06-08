@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "dgSpecHash": "B4nL29tOzg8XRqcpDQj5IHhnyk8A6rTRJ0K0lx/Zm8a/V/HS6jGansb6OjulT3aFaiWZURseNYITqOG1DWewbg==",
+  "success": true,
+  "projectFilePath": "C:\\Projects\\GameServer\\MasterServer\\MasterServer.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\Hxl\\.nuget\\packages\\litenetlib\\0.9.5.2\\litenetlib.0.9.5.2.nupkg.sha512"
+  ],
+  "logs": []
+}
