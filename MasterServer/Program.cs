@@ -5,12 +5,10 @@
         static void Main(string[] args)
         {
             Console.WriteLine("Hello, World!");
-            MasterServer masterServer = new MasterServer();
-            masterServer.Init();
-
-            while(true)
+            MasterApplication.Instance.Init();
+            while (true)
             {
-                masterServer.Update();
+                MasterApplication.Instance.Update();
                 Thread.Sleep(15);
             }
 
