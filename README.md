@@ -1,5 +1,6 @@
 # GameServer
-一个轻量级的UDP游戏服务器  
+一个轻量级的UDP游戏服务器  支持高并发、分布式。
+
   
 强大的轮子：    
 [用于 Mono 和 .NET 的轻量级可靠 UDP 库](https://github.com/RevenantX/LiteNetLib)  
