@@ -2,10 +2,11 @@
 {
     public enum OperationCode
     {
-        Login = 0,
+        Connect = 0,
+        Disconnect,
+        Login,
         JoinLobby,
         LevelLobby,
-        Disconnect,
         CreateGame,
         JoinGame,
         JoinRandomGame,

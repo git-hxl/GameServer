@@ -19,22 +19,35 @@ namespace TestClient
                 Console.WriteLine("We got: {0} {1}", dataReader.GetString(100 /* max length of string */), dataReader.Position);
                 dataReader.Recycle();
             };
-            LoginRequest request = new LoginRequest();
-            request.TimeStamp = DateTimeEx.TimeStamp();
-            request.Account = "xxoo";
-            request.Password = "1234567";
-            NetDataWriter netDataWriter = new NetDataWriter();
-            netDataWriter.Put((byte)OperationCode.Login);
-            netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
 
-            peer.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
             while (!Console.KeyAvailable)
             {
+                string? operation = Console.ReadLine();
+                if(!string.IsNullOrEmpty(operation))
+                {
+                    if(operation == "Login")
+                    {
+                        Login(peer);
+                    }
+                }
                 client.PollEvents();
                 Thread.Sleep(15);
             }
 
             client.Stop();
+        }
+
+        static void Login(NetPeer peer)
+        {
+            LoginRequest request = new LoginRequest();
+            request.TimeStamp = DateTimeEx.TimeStamp();
+            request.Account = "xxoo";
+            request.Password = "123456";
+            NetDataWriter netDataWriter = new NetDataWriter();
+            netDataWriter.Put((byte)OperationCode.Login);
+            netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
+
+            peer.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
         }
     }
 }

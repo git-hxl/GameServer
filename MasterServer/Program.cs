@@ -6,11 +6,19 @@
         {
             Console.WriteLine("Hello, World!");
             MasterApplication.Instance.Init();
-            while (true)
+            try
             {
-                MasterApplication.Instance.Update();
-                Thread.Sleep(15);
+                while (true)
+                {
+                    MasterApplication.Instance.Update();
+                    Thread.Sleep(15);
+                }
             }
+            catch (Exception e)
+            {
+                Console.WriteLine(e);
+            }
+
         }
     }
 }

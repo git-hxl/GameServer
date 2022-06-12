@@ -90,24 +90,33 @@ namespace MasterServer
             LoginRequest loginRequest = MessagePackSerializer.Deserialize<LoginRequest>(requestData);
             using (var connection = new MySqlConnection(dbConnectStr))
             {
-                await connection.OpenAsync();
-                using (var command = new MySqlCommand("select * from user where account=(@account) && password=(@password) ;", connection))
+                try
                 {
-                    command.Parameters.AddWithValue("account", loginRequest.Account);
-                    command.Parameters.AddWithValue("password", loginRequest.Password);
-
-                    var reader = await command.ExecuteReaderAsync();
-                    var users = reader.Parse<UserTable>();
-                    if (users.Count() > 0)
+                    await connection.OpenAsync();
+                    string sql = $"select * from user where account='{loginRequest.Account}'&&password='{loginRequest.Password}'";
+                    using (var command = new MySqlCommand(sql, connection))
                     {
-                        foreach (var item in users)
+                        var reader = await command.ExecuteReaderAsync();
+                        var users = reader.Parse<UserTable>().ToList();
+                        if (users.Count() > 0)
                         {
-                            Console.WriteLine("id {0} account {1} password {2}", item.id, item.account, item.password);
+                            foreach (var item in users)
+                            {
+                                Console.WriteLine("id {0} account {1} password {2}", item.ID, item.Account, item.Password);
+                            }
+                            Console.WriteLine("{0}: Login Result {1}", DateTimeEx.ConvertToDateTime(loginRequest.TimeStamp).ToString(), "OK");
                         }
-                        Console.WriteLine("{0}: Login Result (1)", DateTimeEx.ConvertToDateTime(loginRequest.TimeStamp).ToString(), "OK");
+                        else
+                        {
+                            Console.WriteLine("{0}: Login Result {1}", DateTimeEx.ConvertToDateTime(loginRequest.TimeStamp).ToString(), "Failed");
+                        }
                     }
-
                 }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                }
+
             }
 
         }
