@@ -19,7 +19,6 @@ namespace MasterServer.Lobby
             if (!peers.Contains(netPeer))
             {
                 peers.Add(netPeer);
-
                 Console.WriteLine("{0} join lobby: {1}", netPeer.EndPoint.ToString(), LobbyName);
             }
         }

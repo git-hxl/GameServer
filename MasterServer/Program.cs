@@ -11,7 +11,6 @@
                 MasterApplication.Instance.Update();
                 Thread.Sleep(15);
             }
-
         }
     }
 }

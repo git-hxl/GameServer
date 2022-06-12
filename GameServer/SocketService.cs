@@ -14,7 +14,6 @@ namespace GameServer
         public void StartRecive(int port)
         {
             Socket = new UdpClient(port);
-
             Task.Run(async () =>
             {
                 while (true)
@@ -25,7 +24,6 @@ namespace GameServer
                     MsgManager.Instance.Enqueue(udpReceiveResult.Buffer);
                 }
             });
-
             Console.WriteLine("Server Run");
         }
 

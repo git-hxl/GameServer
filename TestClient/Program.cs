@@ -1,4 +1,6 @@
 ﻿using CommonLibrary.MessagePack;
+using CommonLibrary.Operations;
+using CommonLibrary.Utils;
 using LiteNetLib;
 using LiteNetLib.Utils;
 namespace TestClient
@@ -17,22 +19,18 @@ namespace TestClient
                 Console.WriteLine("We got: {0} {1}", dataReader.GetString(100 /* max length of string */), dataReader.Position);
                 dataReader.Recycle();
             };
-            int id = 0;
+            LoginRequest request = new LoginRequest();
+            request.TimeStamp = DateTimeEx.TimeStamp();
+            request.Account = "xxoo";
+            request.Password = "1234567";
+            NetDataWriter netDataWriter = new NetDataWriter();
+            netDataWriter.Put((byte)OperationCode.Login);
+            netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
 
+            peer.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
             while (!Console.KeyAvailable)
             {
                 client.PollEvents();
-                id++;
-                TestPack testPack = new TestPack()
-                {
-                    dateTime = DateTime.UtcNow.ToString(),
-                    id = id,
-                };
-                NetDataWriter writer = new NetDataWriter();
-                writer.Put(MessagePack.MessagePackSerializer.Serialize(testPack));
-                Random random = new Random();
-                byte channel = (byte)random.Next(3);
-                peer.Send(writer, channel, DeliveryMethod.ReliableOrdered);
                 Thread.Sleep(15);
             }
 
