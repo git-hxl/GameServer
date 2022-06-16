@@ -1,9 +1,11 @@
-﻿namespace CommonLibrary.Operations
+﻿using MessagePack;
+
+namespace CommonLibrary.Operations
 {
+    [MessagePackObject(keyAsPropertyName: true)]
     public class RequestBase
     {
-        public OperationCode OperationCode;
-        public string Token { get; set; }
+        public string Token { get; set; } = "";
         public long TimeStamp { get; set; }
     }
 }

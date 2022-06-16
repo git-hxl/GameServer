@@ -1,15 +1,27 @@
 ﻿using LiteNetLib;
 namespace MasterServer
 {
-    sealed class ClientPeer
+    public sealed class ClientPeer
     {
-        public int UserID { get; }
+        public string UserID { get; }
         public NetPeer NetPeer { get; }
+        public bool IsConnected { get; }
 
-        public ClientPeer(int userID, NetPeer netPeer)
+        public ClientPeer(string userID, NetPeer netPeer)
         {
             this.UserID = userID;
             this.NetPeer = netPeer;
+            this.IsConnected = true;
+        }
+
+        public void OnJoinLobby(Lobby.Lobby lobby)
+        {
+
+        }
+
+        public void OnLeaveLobby(Lobby.Lobby lobby)
+        {
+
         }
     }
 }

@@ -3,41 +3,90 @@ using CommonLibrary.Operations;
 using CommonLibrary.Utils;
 using LiteNetLib;
 using LiteNetLib.Utils;
+using MessagePack;
+
 namespace TestClient
 {
     internal class Program
     {
+        private static NetManager? client;
+        private static NetPeer? peer;
         static void Main(string[] args)
         {
             EventBasedNetListener listener = new EventBasedNetListener();
-            NetManager client = new NetManager(listener);
+            client = new NetManager(listener);
             client.Start();
-            client.ChannelsCount = 3;
-            NetPeer peer = client.Connect("192.168.0.104" /* host ip or name */, 8000 /* port */, "Hello" /* text key or NetDataWriter */);
-            listener.NetworkReceiveEvent += (fromPeer, dataReader, deliveryMethod) =>
+
+            listener.NetworkReceiveEvent += (fromPeer, reader, deliveryMethod) =>
             {
-                Console.WriteLine("We got: {0} {1}", dataReader.GetString(100 /* max length of string */), dataReader.Position);
-                dataReader.Recycle();
+                OperationCode operationCode = (OperationCode)reader.GetByte();
+
+                switch (operationCode)
+                {
+                    case OperationCode.Login:
+                        LoginResponse(reader.GetRemainingBytes());
+                        break;
+                    case OperationCode.JoinLobby:
+                        break;
+                    case OperationCode.LevelLobby:
+                        break;
+                    case OperationCode.Disconnect:
+                        break;
+                    case OperationCode.CreateGame:
+                        break;
+                    case OperationCode.JoinGame:
+                        break;
+                    case OperationCode.JoinRandomGame:
+                        break;
+                    case OperationCode.GetGameList:
+                        break;
+                    default:
+                        break;
+                }
+                reader.Recycle();
             };
 
-            while (!Console.KeyAvailable)
+            Task.Run(() =>
             {
-                string? operation = Console.ReadLine();
-                if(!string.IsNullOrEmpty(operation))
+                while(true)
                 {
-                    if(operation == "Login")
+                    string? operation = Console.ReadLine();
+                    if (!string.IsNullOrEmpty(operation))
                     {
-                        Login(peer);
+                        if (operation == "Connect")
+                        {
+                            Connect();
+                        }
+                        if (operation == "Login")
+                        {
+                            Login();
+                        }
                     }
                 }
-                client.PollEvents();
-                Thread.Sleep(15);
+            });
+
+            while (true)
+            {
+                try
+                {
+                    client.PollEvents();
+                    Thread.Sleep(15);
+                }
+                catch(Exception e)
+                {
+                    Console.WriteLine(e);
+                    break;
+                }
             }
 
-            client.Stop();
+            client?.Stop();
+        }
+        static void Connect()
+        {
+            peer = client?.Connect("192.168.0.104" /* host ip or name */, 8000 /* port */, "Hello" /* text key or NetDataWriter */);
         }
 
-        static void Login(NetPeer peer)
+        static void Login()
         {
             LoginRequest request = new LoginRequest();
             request.TimeStamp = DateTimeEx.TimeStamp();
@@ -46,8 +95,14 @@ namespace TestClient
             NetDataWriter netDataWriter = new NetDataWriter();
             netDataWriter.Put((byte)OperationCode.Login);
             netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
+            peer?.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
+        }
 
-            peer.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
+        static void LoginResponse(byte[] bytes)
+        {
+            LoginResponse loginResponse = MessagePackSerializer.Deserialize<LoginResponse>(bytes);
+
+            Console.WriteLine("{0}: LoginResult :{1}", loginResponse.ID, loginResponse.ReturnCode.ToString());
         }
     }
 }

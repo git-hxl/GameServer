@@ -2,21 +2,27 @@
 {
     internal class LobbyFactory
     {
-        private Dictionary<string, Lobby> lobbyDict = new Dictionary<string, Lobby>();
+        private List<Lobby> lobbies = new List<Lobby>();
+
         public Lobby GetOrCreateLobby(string lobbyName)
         {
-            Lobby? lobby = null;
-            if (!lobbyDict.TryGetValue(lobbyName, out lobby))
+            Lobby? lobby = lobbies.FirstOrDefault((a) => a.LobbyName == lobbyName);
+            if (lobby == null)
             {
                 lobby = new Lobby(lobbyName);
-                lobbyDict.Add(lobbyName, lobby);
+                lobbies.Add(lobby);
             }
             return lobby;
         }
 
-        //public Lobby GetLobbyByPeerID(int id)
-        //{
-        //   lobbyDict.
-        //}
+        public bool RemoveLobby(Lobby lobby)
+        {
+            if (lobbies.Contains(lobby))
+            {
+                lobbies.Remove(lobby);
+                return true;
+            }
+            return false;
+        }
     }
 }

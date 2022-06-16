@@ -4,6 +4,7 @@ using CommonLibrary.Operations;
 using CommonLibrary.Utils;
 using Dapper;
 using LiteNetLib;
+using LiteNetLib.Utils;
 using MessagePack;
 using MySqlConnector;
 namespace MasterServer
@@ -98,18 +99,21 @@ namespace MasterServer
                     {
                         var reader = await command.ExecuteReaderAsync();
                         var users = reader.Parse<UserTable>().ToList();
+                        LoginResponse loginResponse = new LoginResponse();
                         if (users.Count() > 0)
                         {
                             foreach (var item in users)
                             {
                                 Console.WriteLine("id {0} account {1} password {2}", item.ID, item.Account, item.Password);
+                                loginResponse.ID = item.ID;
                             }
-                            Console.WriteLine("{0}: Login Result {1}", DateTimeEx.ConvertToDateTime(loginRequest.TimeStamp).ToString(), "OK");
+                            loginResponse.ReturnCode = ReturnCode.Success;
                         }
                         else
                         {
-                            Console.WriteLine("{0}: Login Result {1}", DateTimeEx.ConvertToDateTime(loginRequest.TimeStamp).ToString(), "Failed");
+                            loginResponse.ReturnCode = ReturnCode.Failed;
                         }
+                        SendResponse(netPeer, loginResponse);
                     }
                 }
                 catch (Exception e)
@@ -121,6 +125,13 @@ namespace MasterServer
 
         }
 
+        private void SendResponse(NetPeer netPeer, LoginResponse responseBase)
+        {
+            NetDataWriter netDataWriter = new NetDataWriter();
+            netDataWriter.Put((byte)OperationCode.Login);
+            netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(responseBase));
+            netPeer.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
+        }
 
         private void AllocatePeerToDefaultLobby(NetPeer peer)
         {

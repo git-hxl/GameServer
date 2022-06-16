@@ -1,36 +1,48 @@
 ﻿using LiteNetLib;
-
 namespace MasterServer.Lobby
 {
-    internal class Lobby
+    public class Lobby
     {
-        public readonly string LobbyName;
-        public readonly int MaxPeers;
-        private List<NetPeer> peers = new List<NetPeer>();
+        public string LobbyName { get; } = "";
+        public byte MaxPeers { get; }
+        private Dictionary<string, ClientPeer> clientPeers = new Dictionary<string, ClientPeer>();
 
-        public Lobby(string name)
+        public Lobby(string lobbyName)
         {
-            this.LobbyName = name;
-            MaxPeers = -1;
+            this.LobbyName = lobbyName;
+            MaxPeers = 255;
         }
 
-        public void OnJoinLobby(NetPeer netPeer)
+        public bool IsFull => clientPeers.Values.Count >= MaxPeers;
+
+        public void JoinClientPeer(ClientPeer clientPeer)
         {
-            if (!peers.Contains(netPeer))
+            if (!clientPeers.ContainsKey(clientPeer.UserID))
             {
-                peers.Add(netPeer);
-                Console.WriteLine("{0} join lobby: {1}", netPeer.EndPoint.ToString(), LobbyName);
+                clientPeers.Add(clientPeer.UserID, clientPeer);
+                clientPeer.OnJoinLobby(this);
+                Console.WriteLine("{0} join lobby: {1}", clientPeer.NetPeer.EndPoint.ToString(), LobbyName);
             }
+            else
+            {
+                Console.WriteLine("{0} join lobby Failed: {1}", clientPeer.NetPeer.EndPoint.ToString(), LobbyName);
+            }
+
         }
 
-        public void OnLeaveLobby(NetPeer netPeer)
+        public void RemoveClientPeer(ClientPeer clientPeer)
         {
-            if (peers.Contains(netPeer))
+            if (clientPeers.ContainsKey(clientPeer.UserID))
             {
-                peers.Remove(netPeer);
-
-                Console.WriteLine("{0} Leave lobby: {1}", netPeer.EndPoint.ToString(), LobbyName);
+                clientPeers.Remove(clientPeer.UserID);
+                clientPeer.OnLeaveLobby(this);
+                Console.WriteLine("{0} Leave lobby: {1}", clientPeer.NetPeer.EndPoint.ToString(), LobbyName);
             }
+            else
+            {
+                Console.WriteLine("{0} Leave lobby Failed, not exits in: {1}", clientPeer.NetPeer.EndPoint.ToString(), LobbyName);
+            }
+
         }
     }
 }

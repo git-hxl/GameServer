@@ -4,9 +4,8 @@ using MessagePack;
 namespace CommonLibrary.MessagePack
 {
     [MessagePackObject(keyAsPropertyName: true)]
-    public class LoginRequest : RequestBase
+    public class LoginResponse: ResponseBase
     {
-        public string Account { get; set; } = "";
-        public string Password { get; set; } = "";
+        public string ID { get; set; } = "";
     }
 }
