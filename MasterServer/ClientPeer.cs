@@ -5,6 +5,7 @@ using LiteNetLib;
 using MasterServer.DB;
 using MasterServer.Operations;
 using MessagePack;
+using Dapper;
 namespace MasterServer
 {
     public sealed class ClientPeer
@@ -29,28 +30,28 @@ namespace MasterServer
             if (dbConnection != null)
             {
                 string sql = $"select * from user where account='{registerRequestPack.Account}'";
-                var users = await DBHelper.SqlSelect<UserTable>(dbConnection, sql);
+                var users = dbConnection.Query<UserTable>(sql).ToList();//await DBHelper.SqlSelect<UserTable>(dbConnection, sql);
                 if (users == null || users.Count == 0)
                 {
                     string account = registerRequestPack.Account;
                     string password = registerRequestPack.Password;
                     DateTime lastlogintime = DateTime.UtcNow;
                     string sql2 = $"insert into user (id,account,password,lastlogintime) values ({0},'{account}','{password}','{lastlogintime.ToString()}')";
-                    int result = await DBHelper.SqlQuery(dbConnection, sql2);
+                    int result = dbConnection.Execute(sql2); //await DBHelper.SqlQuery(dbConnection, sql2);
                     if (result == 0)
                     {
                         loginResponsePack.DebugMsg = ErrorMsg.RegisterFailed;
                     }
                     string sql3 = $"select * from user where account='{account}'&&password='{password}'";
-                    users = await DBHelper.SqlSelect<UserTable>(dbConnection, sql3);
+                    users = dbConnection.Query<UserTable>(sql3).ToList(); //await DBHelper.SqlSelect<UserTable>(dbConnection, sql3);
                     if (users != null && users.Count == 1)
                     {
                         this.UserID = users[0].ID;
                         loginResponsePack.ID = users[0].ID;
                         loginResponsePack.ReturnCode = ReturnCode.Success;
                     }
-                    dbConnection.Close();
                 }
+                dbConnection.Close();
             }
             else
             {
@@ -90,8 +91,8 @@ namespace MasterServer
         }
 
         public async Task<HandleResponse?> JoinLobbyRequest(OperationCode operationCode, byte[] requestData) {
-            
-        
+
+            return null;
         }
 
         public void LeaveLobbyRequest(byte[] requestData) { }
