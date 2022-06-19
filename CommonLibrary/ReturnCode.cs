@@ -2,7 +2,7 @@
 {
     public enum ReturnCode
     {
+        Failed = 0,
         Success,
-        Failed
     }
 }

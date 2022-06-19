@@ -17,12 +17,17 @@ namespace TestClient
             client = new NetManager(listener);
             client.Start();
 
+            listener.PeerConnectedEvent += Listener_PeerConnectedEvent;
+
             listener.NetworkReceiveEvent += (fromPeer, reader, deliveryMethod) =>
             {
                 OperationCode operationCode = (OperationCode)reader.GetByte();
 
                 switch (operationCode)
                 {
+                    case OperationCode.Register:
+                        RegisterResponse(reader.GetRemainingBytes());
+                        break;
                     case OperationCode.Login:
                         LoginResponse(reader.GetRemainingBytes());
                         break;
@@ -48,18 +53,25 @@ namespace TestClient
 
             Task.Run(() =>
             {
-                while(true)
+                while (true)
                 {
                     string? operation = Console.ReadLine();
                     if (!string.IsNullOrEmpty(operation))
                     {
-                        if (operation == "Connect")
+                        if (operation.Contains("Connect"))
                         {
                             Connect();
                         }
-                        if (operation == "Login")
+                        if (operation.Contains("Register"))
                         {
-                            Login();
+                            string[] msg = operation.Split(" ");
+                            Register(msg[1], msg[2]);
+                        }
+
+                        if (operation.Contains("Login"))
+                        {
+                            string[] msg = operation.Split(" ");
+                            Login(msg[1], msg[2]);
                         }
                     }
                 }
@@ -69,40 +81,64 @@ namespace TestClient
             {
                 try
                 {
+
                     client.PollEvents();
                     Thread.Sleep(15);
                 }
-                catch(Exception e)
+                catch (Exception e)
                 {
                     Console.WriteLine(e);
                     break;
                 }
             }
-
+            Console.ReadKey();
             client?.Stop();
         }
+
+        private static void Listener_PeerConnectedEvent(NetPeer peer)
+        {
+            Console.WriteLine("Connect to server:" + peer.Id);
+        }
+
         static void Connect()
         {
             peer = client?.Connect("192.168.0.104" /* host ip or name */, 8000 /* port */, "Hello" /* text key or NetDataWriter */);
         }
 
-        static void Login()
+        static void Register(string account, string password)
         {
-            LoginRequest request = new LoginRequest();
-            request.TimeStamp = DateTimeEx.TimeStamp();
-            request.Account = "xxoo";
-            request.Password = "123456";
+            RegisterRequestPack request = new RegisterRequestPack();
+            request.Account = account;
+            request.Password = password;
+            NetDataWriter netDataWriter = new NetDataWriter();
+            netDataWriter.Put((byte)OperationCode.Register);
+            netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
+            peer?.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
+        }
+
+        static void Login(string account, string password)
+        {
+            LoginRequestPack request = new LoginRequestPack();
+            request.Account = account;
+            request.Password = password;
             NetDataWriter netDataWriter = new NetDataWriter();
             netDataWriter.Put((byte)OperationCode.Login);
             netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
             peer?.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
         }
 
+        static void RegisterResponse(byte[] bytes)
+        {
+            LoginResponsePack response = MessagePackSerializer.Deserialize<LoginResponsePack>(bytes);
+            Console.WriteLine("{0}: RegisterResult:{1} SendTime {2} Ping:{3}", response.ID,response.ReturnCode.ToString(), response.TimeStamp, DateTimeEx.TimeStamp - response.TimeStamp);
+        }
+
         static void LoginResponse(byte[] bytes)
         {
-            LoginResponse loginResponse = MessagePackSerializer.Deserialize<LoginResponse>(bytes);
-
-            Console.WriteLine("{0}: LoginResult :{1}", loginResponse.ID, loginResponse.ReturnCode.ToString());
+            LoginResponsePack response = MessagePackSerializer.Deserialize<LoginResponsePack>(bytes);
+            Console.WriteLine("{0}: LoginResult:{1} SendTime {2} Ping:{3}", response.ID, response.ReturnCode.ToString(), response.TimeStamp, DateTimeEx.TimeStamp - response.TimeStamp);
         }
+
+
     }
 }

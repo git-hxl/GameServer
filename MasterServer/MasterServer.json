@@ -1,0 +1,5 @@
+﻿{
+  "Port": 8000,
+  "ConnectKey": "Hello",
+  "DBConnectStr": "server=localhost;user=root;password=123456;database=database"
+}

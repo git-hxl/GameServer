@@ -12,6 +12,7 @@
                 lobby = new Lobby(lobbyName);
                 lobbies.Add(lobby);
             }
+
             return lobby;
         }
 

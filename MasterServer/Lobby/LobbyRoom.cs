@@ -1,12 +1,13 @@
 ﻿using System.Collections;
 
-namespace MasterServer.Room
+namespace MasterServer.Lobby
 {
-    internal class Room
+    internal class LobbyRoom
     {
         public string LobbyName { get; }
+        public byte MaxPeers { get; }
         public Hashtable roomProperties { get; }
-        public Room(string lobbyName,Hashtable roomProperties)
+        public LobbyRoom(string lobbyName, Hashtable roomProperties)
         {
             this.LobbyName = lobbyName;
             this.roomProperties = roomProperties;

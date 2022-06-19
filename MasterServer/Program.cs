@@ -4,8 +4,8 @@
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("Hello, World!");
-            MasterApplication.Instance.Init();
+            Console.WriteLine("Start Server!");
+            MasterApplication.Instance.Start();
             try
             {
                 while (true)
@@ -19,6 +19,7 @@
                 Console.WriteLine(e);
             }
 
+            MasterApplication.Instance.Close();
         }
     }
 }
