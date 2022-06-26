@@ -1,111 +1,139 @@
-﻿using CommonLibrary.MessagePack;
-using CommonLibrary.Operations;
-using CommonLibrary.Table;
+﻿using CommonLibrary.Operations;
 using LiteNetLib;
-using MasterServer.DB;
+using MasterServer.Lobby;
 using MasterServer.Operations;
-using MessagePack;
-using Dapper;
+using System.Collections;
+
 namespace MasterServer
 {
     public sealed class ClientPeer
     {
         public int UserID { get; set; }
-        public NetPeer NetPeer { get; }
-        public bool IsConnected { get; }
+        public bool IsLogin { get; set; }
+        public bool IsInLobby { get; set; }
+        public string LobbyName { get; set; }
+
+        public bool IsInRoom { get; set; }
+        public string RoomID { get; set; }
+
+        public NetPeer NetPeer { get; private set; }
+
         private OperationHandleBase handle;
         public ClientPeer(NetPeer netPeer)
         {
+            this.LobbyName = "";
             this.NetPeer = netPeer;
-            this.IsConnected = true;
             this.handle = new OperationHandleBase();
         }
 
-        public async Task<HandleResponse?> RegisterRequest(OperationCode operationCode, byte[] requestData)
+        public void Login(int userID)
         {
-            RegisterRequestPack registerRequestPack = MessagePackSerializer.Deserialize<RegisterRequestPack>(requestData);
-            HandleResponse handleResponse = new HandleResponse(this, operationCode);
-            LoginResponsePack loginResponsePack = new LoginResponsePack();
-            var dbConnection = await DBHelper.CreateConnection();
-            if (dbConnection != null)
-            {
-                string sql = $"select * from user where account='{registerRequestPack.Account}'";
-                var users = dbConnection.Query<UserTable>(sql).ToList();//await DBHelper.SqlSelect<UserTable>(dbConnection, sql);
-                if (users == null || users.Count == 0)
-                {
-                    string account = registerRequestPack.Account;
-                    string password = registerRequestPack.Password;
-                    DateTime lastlogintime = DateTime.UtcNow;
-                    string sql2 = $"insert into user (id,account,password,lastlogintime) values ({0},'{account}','{password}','{lastlogintime.ToString()}')";
-                    int result = dbConnection.Execute(sql2); //await DBHelper.SqlQuery(dbConnection, sql2);
-                    if (result == 0)
-                    {
-                        loginResponsePack.DebugMsg = ErrorMsg.RegisterFailed;
-                    }
-                    string sql3 = $"select * from user where account='{account}'&&password='{password}'";
-                    users = dbConnection.Query<UserTable>(sql3).ToList(); //await DBHelper.SqlSelect<UserTable>(dbConnection, sql3);
-                    if (users != null && users.Count == 1)
-                    {
-                        this.UserID = users[0].ID;
-                        loginResponsePack.ID = users[0].ID;
-                        loginResponsePack.ReturnCode = ReturnCode.Success;
-                    }
-                }
-                dbConnection.Close();
-            }
-            else
-            {
-                loginResponsePack.DebugMsg = ErrorMsg.SqlConnectFailed;
-            }
-            handleResponse.ResponseData = MessagePackSerializer.Serialize<LoginResponsePack>(loginResponsePack);
-            return handleResponse;
+            this.UserID = userID;
+            this.IsLogin = true;
         }
 
-        public async Task<HandleResponse?> LoginRequest(OperationCode operationCode, byte[] requestData)
+        public bool JoinLobby(string lobbyName)
         {
-            LoginRequestPack loginRequest = MessagePackSerializer.Deserialize<LoginRequestPack>(requestData);
-            HandleResponse handleResponse = new HandleResponse(this, operationCode);
-            LoginResponsePack loginResponsePack = new LoginResponsePack();
-            var dbConnection = await DBHelper.CreateConnection();
-            if (dbConnection != null)
+            if (!string.IsNullOrEmpty(lobbyName))
             {
-                string sql = $"select * from user where account='{loginRequest.Account}'&&password='{loginRequest.Password}'";
-                var users = await DBHelper.SqlSelect<UserTable>(dbConnection, sql);
-                if (users != null && users.Count() == 1)
+                if (this.LobbyName != lobbyName)
                 {
-                    loginResponsePack.ID = users[0].ID;
-                    loginResponsePack.ReturnCode = ReturnCode.Success;
+                    LeaveLobby();
+                    Lobby.Lobby? lobby = LobbyFactory.Instance.GetOrCreateLobby(lobbyName);
+                    if (lobby != null)
+                    {
+                        lobby.AddClientPeer(this);
+                        this.LobbyName = lobbyName;
+                        this.IsInLobby = true;
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        public void LeaveLobby()
+        {
+            if (!string.IsNullOrEmpty(this.LobbyName))
+            {
+                Lobby.Lobby? lobby = LobbyFactory.Instance.GetLobby(LobbyName);
+                if (lobby != null)
+                {
+                    lobby.RemoveClientPeer(this);
+                    this.IsInLobby = false;
+                    this.LobbyName = "";
                 }
                 else
                 {
-                    loginResponsePack.DebugMsg = ErrorMsg.LoginFailed;
+                    Console.WriteLine("Leave Lobby error,No existed lobby");
                 }
-                dbConnection.Close();
             }
-            else
-            {
-                loginResponsePack.DebugMsg = ErrorMsg.SqlConnectFailed;
-            }
-            handleResponse.ResponseData = MessagePackSerializer.Serialize<LoginResponsePack>(loginResponsePack);
-            return handleResponse;
         }
 
-        public async Task<HandleResponse?> JoinLobbyRequest(OperationCode operationCode, byte[] requestData) {
-
+        public LobbyRoom? CreateRoom(string roomName, int maxPeers, Hashtable roomProperties)
+        {
+            if (!string.IsNullOrEmpty(roomName) && IsInLobby && !IsInRoom)
+            {
+                Lobby.Lobby? lobby = LobbyFactory.Instance.GetLobby(LobbyName);
+                if (lobby != null)
+                {
+                    return lobby.CreateRoom(this, roomName, maxPeers, roomProperties);
+                }
+            }
             return null;
         }
 
-        public void LeaveLobbyRequest(byte[] requestData) { }
-
-        public void GetRoomListRequest(byte[] requestData) { }
-
-        public void CreatRoomRequest(byte[] requestData) { }
-
-        public void JoinRoomRequset(byte[] requestData) { }
-
-        private void CreateAuthToken(string id)
+        public bool JoinRoom(string roomID,out LobbyRoom? lobbyRoom)
         {
+            lobbyRoom = null;
+            if (!string.IsNullOrEmpty(roomID) && IsInLobby && !IsInRoom)
+            {
+                Lobby.Lobby? lobby = LobbyFactory.Instance.GetLobby(LobbyName);
+                if (lobby != null)
+                {
+                    lobbyRoom = lobby.GetRoom(roomID);
+                    if (lobbyRoom != null)
+                    {
+                        lobbyRoom.AddClientPeer(this);
+                        this.IsInRoom = true;
+                        this.RoomID = roomID;
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
 
+        public void LeaveRoom()
+        {
+            if (IsInRoom)
+            {
+                Lobby.Lobby? lobby = LobbyFactory.Instance.GetLobby(LobbyName);
+                if (lobby != null)
+                {
+                    var lobbyRoom = lobby.GetRoom(RoomID);
+                    if (lobbyRoom != null)
+                    {
+                        lobbyRoom.RemoveClientPeer(this);
+                        this.IsInRoom = false;
+                        this.RoomID = "";
+                    }
+                }
+            }
+        }
+
+
+
+        public void OnDisConnected()
+        {
+            LeaveLobby();
+        }
+
+        public void HandleRequest(OperationCode operationCode, byte[] requestData)
+        {
+            HandleRequest handleRequest = new HandleRequest(this, operationCode, requestData);
+
+            handle.HandleRequest(handleRequest);
         }
 
     }

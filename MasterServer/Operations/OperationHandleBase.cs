@@ -1,70 +1,184 @@
 ﻿using CommonLibrary.MessagePack;
 using CommonLibrary.Operations;
-using CommonLibrary.Utils;
+using CommonLibrary.Table;
+using Dapper;
 using LiteNetLib;
 using LiteNetLib.Utils;
+using MasterServer.DB;
+using MasterServer.Lobby;
+using MessagePack;
 using System.Diagnostics;
 
 namespace MasterServer.Operations
 {
     public class OperationHandleBase
     {
-        public async void HandleRequest(HandleRequest handleRequest)
+        public void HandleRequest(HandleRequest handleRequest)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
-            HandleResponse? handleResponse = null;
             switch (handleRequest.OperationCode)
             {
                 case OperationCode.Register:
-                    handleResponse = await handleRequest.ClientPeer.RegisterRequest(handleRequest.OperationCode, handleRequest.RequestData);
+                    RegisterRequest(handleRequest);
                     break;
                 case OperationCode.Login:
-                    handleResponse = await handleRequest.ClientPeer.LoginRequest(handleRequest.OperationCode,handleRequest.RequestData);
+                    LoginRequest(handleRequest);
                     break;
                 case OperationCode.JoinLobby:
-                    handleResponse = await handleRequest.ClientPeer.JoinLobbyRequest(handleRequest.OperationCode, handleRequest.RequestData);
+                    JoinLobbyRequest(handleRequest);
                     break;
                 case OperationCode.LevelLobby:
 
-                case OperationCode.CreateGame:
+                case OperationCode.CreateRoom:
+                    CreateRoomRequest(handleRequest);
+                    break;
+                case OperationCode.JoinRoom:
+                    JoinRoomRequest(handleRequest);
+                    break;
+                case OperationCode.LeaveRoom:
 
-                case OperationCode.JoinGame:
-
-                case OperationCode.JoinRandomGame:
-
-                case OperationCode.GetGameList:
+                case OperationCode.GetRoomList:
 
                 case OperationCode.Disconnect:
 
                 default:
+                    SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.InvalidRequest);
                     break;
             }
-            if (handleResponse == null)
-                handleResponse = CreateFailedResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ErrorMsg.InvalidRequest);
-            SendResponse(handleResponse);
-            Console.WriteLine("代码耗时：{0}, SendTime：{1}" ,stopwatch.ElapsedMilliseconds,DateTimeEx.TimeStamp);
+            Console.WriteLine("{0}：{1} 代码耗时：{2}", DateTime.Now.ToLongTimeString(), handleRequest.OperationCode.ToString(), stopwatch.ElapsedMilliseconds);
         }
 
-        public void SendResponse(HandleResponse handleResponse)
+        private void SendResponse(ClientPeer clientPeer, OperationCode operationCode, ReturnCode returnCode, byte[]? responseData = null)
         {
-            if (handleResponse == null)
-                return;
             NetDataWriter netDataWriter = new NetDataWriter();
-            netDataWriter.Put((byte)handleResponse.OperationCode);
-            if (handleResponse.ResponseData != null && handleResponse.ResponseData.Length > 0)
-                netDataWriter.Put(handleResponse.ResponseData);
-            handleResponse.ClientPeer.NetPeer.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
+            netDataWriter.Put((byte)operationCode);
+            netDataWriter.Put((byte)returnCode);
+            if (responseData != null)
+                netDataWriter.Put(responseData);
+            clientPeer.NetPeer.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
         }
 
-        private HandleResponse CreateFailedResponse(ClientPeer clientPeer, OperationCode operationCode, string msg)
+        private async void RegisterRequest(HandleRequest handleRequest)
         {
-            HandleResponse handleResponse = new HandleResponse(clientPeer, operationCode);
-            ResponseBasePack responseBasePack = new ResponseBasePack();
-            responseBasePack.ReturnCode = ReturnCode.Failed;
-            responseBasePack.DebugMsg = msg;
-            handleResponse.ResponseData = MessagePack.MessagePackSerializer.Serialize(responseBasePack);
-            return handleResponse;
+            RegisterRequestPack registerRequestPack = MessagePackSerializer.Deserialize<RegisterRequestPack>(handleRequest.RequestData);
+            using (var dbConnection = await DBHelper.CreateConnection())
+            {
+                if (dbConnection != null)
+                {
+                    string queryAccount = $"select * from user where account='{registerRequestPack.Account}'";
+                    var existAccount = dbConnection.QueryFirstOrDefault<UserTable>(queryAccount);
+                    if (existAccount == null)
+                    {
+                        string account = registerRequestPack.Account;
+                        string password = registerRequestPack.Password;
+                        DateTime lastlogintime = DateTime.UtcNow;
+                        string insertAccount = $"insert into user (id,account,password,lastlogintime) values ({0},'{account}','{password}','{lastlogintime.ToString()}')";
+                        int result = dbConnection.Execute(insertAccount);
+                        if (result == 1)
+                        {
+                            //string queryThisAccount = $"select * from user where account='{account}'&&password='{password}'";
+                            //existAccount = dbConnection.QueryFirstOrDefault<UserTable>(queryThisAccount);
+                            //handleRequest.ClientPeer.UserID = existAccount.ID;
+                            //LoginResponsePack loginResponsePack = new LoginResponsePack();
+                            //loginResponsePack.ID = existAccount.ID;
+                            //byte[] responseData = MessagePackSerializer.Serialize<LoginResponsePack>(loginResponsePack);
+                            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success);
+                            return;
+                        }
+                    }
+                }
+            }
+            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.RegisterFailed);
         }
 
+        private async void LoginRequest(HandleRequest handleRequest)
+        {
+            if (handleRequest.ClientPeer.IsLogin == false)
+            {
+                LoginRequestPack loginRequestPack = MessagePackSerializer.Deserialize<LoginRequestPack>(handleRequest.RequestData);
+                using (var dbConnection = await DBHelper.CreateConnection())
+                {
+                    if (dbConnection != null)
+                    {
+                        string queryThisAccount = $"select * from user where account='{loginRequestPack.Account}'&&password='{loginRequestPack.Password}'";
+                        var existAccount = dbConnection.QueryFirstOrDefault<UserTable>(queryThisAccount);
+                        if (existAccount != null)
+                        {
+                            string updateField = $"update user set lastlogintime='{DateTime.UtcNow.ToString()}' where account='{loginRequestPack.Account}'";
+                            dbConnection.Execute(updateField);
+                            handleRequest.ClientPeer.Login(existAccount.ID);
+                            LoginResponsePack loginResponsePack = new LoginResponsePack();
+                            loginResponsePack.ID = existAccount.ID;
+                            byte[] responseData = MessagePackSerializer.Serialize<LoginResponsePack>(loginResponsePack);
+                            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success, responseData);
+                            return;
+                        }
+                    }
+                }
+            }
+            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.LoginFailed);
+        }
+
+        private void JoinLobbyRequest(HandleRequest handleRequest)
+        {
+            if (handleRequest.ClientPeer.IsLogin)
+            {
+                JoinLobbyRequestPack joinLobbyRequestPack = MessagePackSerializer.Deserialize<JoinLobbyRequestPack>(handleRequest.RequestData);
+                if (!string.IsNullOrEmpty(joinLobbyRequestPack.LobbyName))
+                {
+                    if (handleRequest.ClientPeer.JoinLobby(joinLobbyRequestPack.LobbyName))
+                    {
+                        SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success);
+                        return;
+                    }
+                }
+            }
+            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.JoinLobbyFailed);
+        }
+
+        private void CreateRoomRequest(HandleRequest handleRequest)
+        {
+            if (handleRequest.ClientPeer.IsLogin && handleRequest.ClientPeer.IsInLobby)
+            {
+                CreateRoomRequestPack pack = MessagePackSerializer.Deserialize<CreateRoomRequestPack>(handleRequest.RequestData);
+                LobbyRoom? lobbyRoom = handleRequest.ClientPeer.CreateRoom(pack.RoomName, pack.MaxPlayers, pack.RoomProperties);
+                if (lobbyRoom != null)
+                {
+                    if (handleRequest.ClientPeer.JoinRoom(lobbyRoom.RoomID, out lobbyRoom))
+                    {
+                        JoinRoomResponsePack joinRoomResponsePack = new JoinRoomResponsePack();
+                        joinRoomResponsePack.RoomID = lobbyRoom.RoomID;
+                        joinRoomResponsePack.RoomName = lobbyRoom.RoomName;
+                        joinRoomResponsePack.OwnerID = lobbyRoom.Owner.UserID;
+                        joinRoomResponsePack.Players = lobbyRoom.ClientPeers.Select((a) => a.UserID).ToList();
+                        byte[] responseData = MessagePackSerializer.Serialize<JoinRoomResponsePack>(joinRoomResponsePack);
+                        SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success, responseData);
+                        return;
+                    }
+                }
+            }
+            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.CreateRommFailed);
+        }
+
+        private void JoinRoomRequest(HandleRequest handleRequest)
+        {
+            if (handleRequest.ClientPeer.IsLogin && handleRequest.ClientPeer.IsInLobby)
+            {
+                JoinRoomRequestPack pack = MessagePackSerializer.Deserialize<JoinRoomRequestPack>(handleRequest.RequestData);
+                LobbyRoom? lobbyRoom;
+                if (handleRequest.ClientPeer.JoinRoom(pack.RoomID, out lobbyRoom))
+                {
+                    JoinRoomResponsePack joinRoomResponsePack = new JoinRoomResponsePack();
+                    joinRoomResponsePack.RoomID = lobbyRoom.RoomID;
+                    joinRoomResponsePack.RoomName = lobbyRoom.RoomName;
+                    joinRoomResponsePack.OwnerID = lobbyRoom.Owner.UserID;
+                    joinRoomResponsePack.Players = lobbyRoom.ClientPeers.Select((a) => a.UserID).ToList();
+                    byte[] responseData = MessagePackSerializer.Serialize<JoinRoomResponsePack>(joinRoomResponsePack);
+                    SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success, responseData);
+                    return;
+                }
+            }
+            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.JoinRoomFailed);
+        }
     }
 }

@@ -2,7 +2,20 @@
 {
     public enum ReturnCode
     {
-        Failed = 0,
-        Success,
+        Success = 0,
+        RegisterFailed,
+        LoginFailed,
+
+        JoinLobbyFailed,
+        LeaveLobbyFailed,
+
+        CreateRommFailed,
+        JoinRoomFailed,
+        LeaveRoomFailed,
+
+        RPCFailed,
+
+        InvalidRequest,
     }
+
 }

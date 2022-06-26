@@ -6,10 +6,10 @@
         Login,
         JoinLobby,
         LevelLobby,
-        CreateGame,
-        JoinGame,
-        JoinRandomGame,
-        GetGameList,
+        CreateRoom,
+        JoinRoom,
+        GetRoomList,
+        LeaveRoom,
         Disconnect,
     }
 }

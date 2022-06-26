@@ -22,7 +22,7 @@ namespace MasterServer
             Console.WriteLine("Init Config");
             try
             {
-                string config = File.ReadAllText("./MasterServer.json");
+                string config = File.ReadAllText("./MasterServerConfig.json");
                 if (!string.IsNullOrEmpty(config))
                     ServerConfig = JsonConvert.DeserializeObject<MasterServerConfig>(config);
             }
@@ -34,7 +34,7 @@ namespace MasterServer
 
         public void Start()
         {
-            if(ServerConfig == null)
+            if (ServerConfig == null)
             {
                 Console.WriteLine("No Config Loaded!");
                 return;
@@ -90,6 +90,7 @@ namespace MasterServer
 
             if (clientPeers.ContainsKey(peer.EndPoint.ToString()))
             {
+                clientPeers[peer.EndPoint.ToString()].OnDisConnected();
                 clientPeers.Remove(peer.EndPoint.ToString());
             }
         }
@@ -100,8 +101,7 @@ namespace MasterServer
             {
                 ClientPeer clientPeer = clientPeers[peer.EndPoint.ToString()];
                 OperationCode operationCode = (OperationCode)reader.GetByte();
-                HandleRequest? handleRequest = new HandleRequest(clientPeer, operationCode, reader.GetRemainingBytes());
-                operationHandle?.HandleRequest(handleRequest);
+                clientPeer.HandleRequest(operationCode, reader.GetRemainingBytes());
             }
             else
             {

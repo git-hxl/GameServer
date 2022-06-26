@@ -2,15 +2,49 @@
 
 namespace MasterServer.Lobby
 {
-    internal class LobbyRoom
+    public class LobbyRoom
     {
-        public string LobbyName { get; }
+        public string RoomID { get; }
+        public string RoomName { get; }
         public byte MaxPeers { get; }
-        public Hashtable roomProperties { get; }
-        public LobbyRoom(string lobbyName, Hashtable roomProperties)
+        public Hashtable RoomProperties { get; }
+        public ClientPeer Owner { get; set; }
+        public List<ClientPeer> ClientPeers = new List<ClientPeer>();
+        private Lobby lobby;
+        public LobbyRoom(Lobby lobby, ClientPeer clientPeer, string roomName, int maxPeers, Hashtable roomProperties)
         {
-            this.LobbyName = lobbyName;
-            this.roomProperties = roomProperties;
+            this.lobby = lobby;
+            this.Owner = clientPeer;
+            this.RoomID = Guid.NewGuid().ToString();
+            this.RoomName = roomName;
+            this.RoomProperties = roomProperties;
+        }
+
+        public void AddClientPeer(ClientPeer clientPeer)
+        {
+            if (!ClientPeers.Contains(clientPeer))
+            {
+                ClientPeers.Add(clientPeer);
+            }
+        }
+
+        public void RemoveClientPeer(ClientPeer clientPeer)
+        {
+            if (!ClientPeers.Contains(clientPeer))
+            {
+                ClientPeers.Remove(clientPeer);
+                if (ClientPeers.Count > 0)
+                {
+                    if (Owner == clientPeer)
+                    {
+                        Owner = ClientPeers[0];
+                    }
+                }
+                else
+                {
+                    lobby.RemoveRoom(this);
+                }
+            }
         }
     }
 }

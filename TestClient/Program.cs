@@ -22,7 +22,12 @@ namespace TestClient
             listener.NetworkReceiveEvent += (fromPeer, reader, deliveryMethod) =>
             {
                 OperationCode operationCode = (OperationCode)reader.GetByte();
+                ReturnCode returnCode = (ReturnCode)reader.GetByte();
 
+                Console.WriteLine("{0} request result: {1}", operationCode.ToString(), returnCode.ToString());
+
+                if (returnCode != ReturnCode.Success)
+                    return;
                 switch (operationCode)
                 {
                     case OperationCode.Register:
@@ -32,18 +37,19 @@ namespace TestClient
                         LoginResponse(reader.GetRemainingBytes());
                         break;
                     case OperationCode.JoinLobby:
+
                         break;
                     case OperationCode.LevelLobby:
                         break;
                     case OperationCode.Disconnect:
                         break;
-                    case OperationCode.CreateGame:
+                    case OperationCode.CreateRoom:
+                        CreateRoom(reader.GetRemainingBytes());
                         break;
-                    case OperationCode.JoinGame:
+                    case OperationCode.JoinRoom:
+                        CreateRoom(reader.GetRemainingBytes());
                         break;
-                    case OperationCode.JoinRandomGame:
-                        break;
-                    case OperationCode.GetGameList:
+                    case OperationCode.LeaveRoom:
                         break;
                     default:
                         break;
@@ -60,7 +66,8 @@ namespace TestClient
                     {
                         if (operation.Contains("Connect"))
                         {
-                            Connect();
+                            string[] msg = operation.Split(" ");
+                            Connect(msg[1], int.Parse(msg[2]));
                         }
                         if (operation.Contains("Register"))
                         {
@@ -72,6 +79,24 @@ namespace TestClient
                         {
                             string[] msg = operation.Split(" ");
                             Login(msg[1], msg[2]);
+                        }
+
+                        if (operation.Contains("JoinLobby"))
+                        {
+                            string[] msg = operation.Split(" ");
+                            JoinLobby(msg[1]);
+                        }
+
+                        if (operation.Contains("CreateRoom"))
+                        {
+                            string[] msg = operation.Split(" ");
+                            CreateRoom(msg[1]);
+                        }
+
+                        if (operation.Contains("JoinRoom"))
+                        {
+                            string[] msg = operation.Split(" ");
+                            JoinRoom(msg[1]);
                         }
                     }
                 }
@@ -100,9 +125,9 @@ namespace TestClient
             Console.WriteLine("Connect to server:" + peer.Id);
         }
 
-        static void Connect()
+        static void Connect(string ip, int port)
         {
-            peer = client?.Connect("192.168.0.104" /* host ip or name */, 8000 /* port */, "Hello" /* text key or NetDataWriter */);
+            peer = client?.Connect(ip, port, "Hello");
         }
 
         static void Register(string account, string password)
@@ -126,19 +151,52 @@ namespace TestClient
             netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
             peer?.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
         }
+        static void JoinLobby(string lobbyName)
+        {
+            JoinLobbyRequestPack request = new JoinLobbyRequestPack();
+            request.LobbyName = lobbyName;
+            NetDataWriter netDataWriter = new NetDataWriter();
+            netDataWriter.Put((byte)OperationCode.JoinLobby);
+            netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
+            peer?.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
+        }
+        static void CreateRoom(string rommName)
+        {
+            CreateRoomRequestPack request = new CreateRoomRequestPack();
+            request.RoomName = rommName;
+            NetDataWriter netDataWriter = new NetDataWriter();
+            netDataWriter.Put((byte)OperationCode.CreateRoom);
+            netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
+            peer?.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
+        }
+
+        static void JoinRoom(string roomid)
+        {
+            JoinRoomRequestPack request = new JoinRoomRequestPack();
+            request.RoomID = roomid;
+            NetDataWriter netDataWriter = new NetDataWriter();
+            netDataWriter.Put((byte)OperationCode.JoinRoom);
+            netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
+            peer?.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
+        }
 
         static void RegisterResponse(byte[] bytes)
         {
             LoginResponsePack response = MessagePackSerializer.Deserialize<LoginResponsePack>(bytes);
-            Console.WriteLine("{0}: RegisterResult:{1} SendTime {2} Ping:{3}", response.ID,response.ReturnCode.ToString(), response.TimeStamp, DateTimeEx.TimeStamp - response.TimeStamp);
+            Console.WriteLine("注册成功 id:{0} ", response.ID);
         }
 
         static void LoginResponse(byte[] bytes)
         {
             LoginResponsePack response = MessagePackSerializer.Deserialize<LoginResponsePack>(bytes);
-            Console.WriteLine("{0}: LoginResult:{1} SendTime {2} Ping:{3}", response.ID, response.ReturnCode.ToString(), response.TimeStamp, DateTimeEx.TimeStamp - response.TimeStamp);
+            Console.WriteLine("登录成功 id:{0} ", response.ID);
         }
 
+        static void CreateRoom(byte[] bytes)
+        {
+            JoinRoomResponsePack response = MessagePackSerializer.Deserialize<JoinRoomResponsePack>(bytes);
+            Console.WriteLine("加入房间 id:{0} ", response.RoomID);
+        }
 
     }
 }

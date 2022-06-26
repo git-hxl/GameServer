@@ -1,18 +1,35 @@
 ﻿namespace MasterServer.Lobby
 {
-    internal class LobbyFactory
+    public class LobbyFactory
     {
+        private static LobbyFactory? instance;
+        public static LobbyFactory Instance
+        {
+            get
+            {
+                if (instance == null)
+                    instance = new LobbyFactory();
+                return instance;
+            }
+            private set { }
+        }
+
         private List<Lobby> lobbies = new List<Lobby>();
 
-        public Lobby GetOrCreateLobby(string lobbyName)
+        public Lobby? GetLobby(string lobbyName)
         {
             Lobby? lobby = lobbies.FirstOrDefault((a) => a.LobbyName == lobbyName);
+            return lobby;
+        }
+
+        public Lobby? GetOrCreateLobby(string lobbyName = "Default")
+        {
+            Lobby? lobby = lobbies.FirstOrDefault((a) => a.LobbyName == lobbyName && a.IsFullLobby == false);
             if (lobby == null)
             {
                 lobby = new Lobby(lobbyName);
                 lobbies.Add(lobby);
             }
-
             return lobby;
         }
 
