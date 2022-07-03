@@ -8,14 +8,15 @@ namespace MasterServer.Lobby
     {
         public string LobbyName { get; }
         public ushort MaxPeers { get; }
-        public byte MaxRooms { get; }
+        public ushort MaxRooms { get; }
 
         private List<ClientPeer> clientPeers = new List<ClientPeer>();
         private List<LobbyRoom> lobbyRooms = new List<LobbyRoom>();
         public Lobby(string lobbyName)
         {
             this.LobbyName = lobbyName;
-            MaxPeers = 1000;
+            MaxPeers = 5000;
+            MaxRooms = 1000;
         }
 
         public bool IsFullLobby => clientPeers.Count >= MaxPeers;

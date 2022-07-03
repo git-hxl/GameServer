@@ -57,6 +57,8 @@ namespace TestClient
                 reader.Recycle();
             };
 
+            Connect("127.0.0.1", 8000);
+
             Task.Run(() =>
             {
                 while (true)
@@ -64,11 +66,11 @@ namespace TestClient
                     string? operation = Console.ReadLine();
                     if (!string.IsNullOrEmpty(operation))
                     {
-                        if (operation.Contains("Connect"))
-                        {
-                            string[] msg = operation.Split(" ");
-                            Connect(msg[1], int.Parse(msg[2]));
-                        }
+                        //if (operation.Contains("Connect"))
+                        //{
+                        //    string[] msg = operation.Split(" ");
+                        //    Connect(msg[1], int.Parse(msg[2]));
+                        //}
                         if (operation.Contains("Register"))
                         {
                             string[] msg = operation.Split(" ");
@@ -97,6 +99,11 @@ namespace TestClient
                         {
                             string[] msg = operation.Split(" ");
                             JoinRoom(msg[1]);
+                        }
+
+                        if (operation.Contains("LeaveRoom"))
+                        {
+                            LeaveRoom();
                         }
                     }
                 }
@@ -176,6 +183,15 @@ namespace TestClient
             request.RoomID = roomid;
             NetDataWriter netDataWriter = new NetDataWriter();
             netDataWriter.Put((byte)OperationCode.JoinRoom);
+            netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
+            peer?.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
+        }
+
+        static void LeaveRoom()
+        {
+            RequsetBasePack request = new RequsetBasePack();
+            NetDataWriter netDataWriter = new NetDataWriter();
+            netDataWriter.Put((byte)OperationCode.LeaveRoom);
             netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
             peer?.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
         }

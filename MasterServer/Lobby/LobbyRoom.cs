@@ -18,14 +18,17 @@ namespace MasterServer.Lobby
             this.RoomID = Guid.NewGuid().ToString();
             this.RoomName = roomName;
             this.RoomProperties = roomProperties;
+            ClientPeers.Add(clientPeer);
         }
 
-        public void AddClientPeer(ClientPeer clientPeer)
+        public bool AddClientPeer(ClientPeer clientPeer)
         {
             if (!ClientPeers.Contains(clientPeer))
             {
                 ClientPeers.Add(clientPeer);
+                return true;
             }
+            return false;
         }
 
         public void RemoveClientPeer(ClientPeer clientPeer)

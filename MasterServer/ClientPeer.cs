@@ -22,6 +22,7 @@ namespace MasterServer
         public ClientPeer(NetPeer netPeer)
         {
             this.LobbyName = "";
+            this.RoomID = "";
             this.NetPeer = netPeer;
             this.handle = new OperationHandleBase();
         }
@@ -34,7 +35,7 @@ namespace MasterServer
 
         public bool JoinLobby(string lobbyName)
         {
-            if (!string.IsNullOrEmpty(lobbyName))
+            if (IsLogin && !IsInRoom && !string.IsNullOrEmpty(lobbyName))
             {
                 if (this.LobbyName != lobbyName)
                 {
@@ -54,7 +55,7 @@ namespace MasterServer
 
         public void LeaveLobby()
         {
-            if (!string.IsNullOrEmpty(this.LobbyName))
+            if (IsLogin && IsInLobby && !IsInRoom && !string.IsNullOrEmpty(this.LobbyName))
             {
                 Lobby.Lobby? lobby = LobbyFactory.Instance.GetLobby(LobbyName);
                 if (lobby != null)
@@ -77,36 +78,53 @@ namespace MasterServer
                 Lobby.Lobby? lobby = LobbyFactory.Instance.GetLobby(LobbyName);
                 if (lobby != null)
                 {
-                    return lobby.CreateRoom(this, roomName, maxPeers, roomProperties);
+                    LobbyRoom? lobbyRoom = lobby.CreateRoom(this, roomName, maxPeers, roomProperties);
+                    if (lobbyRoom != null)
+                    {
+                        this.IsInRoom = true;
+                        this.RoomID = lobbyRoom.RoomID;
+                        return lobbyRoom;
+                    }
                 }
             }
             return null;
         }
 
-        public bool JoinRoom(string roomID,out LobbyRoom? lobbyRoom)
+        public LobbyRoom? JoinRoom(string roomID)
         {
-            lobbyRoom = null;
             if (!string.IsNullOrEmpty(roomID) && IsInLobby && !IsInRoom)
             {
                 Lobby.Lobby? lobby = LobbyFactory.Instance.GetLobby(LobbyName);
                 if (lobby != null)
                 {
-                    lobbyRoom = lobby.GetRoom(roomID);
+                    var lobbyRoom = lobby.GetRoom(roomID);
                     if (lobbyRoom != null)
                     {
-                        lobbyRoom.AddClientPeer(this);
-                        this.IsInRoom = true;
-                        this.RoomID = roomID;
-                        return true;
+                        if (JoinRoom(lobbyRoom))
+                            return lobbyRoom;
                     }
+                }
+            }
+            return null;
+        }
+
+        private bool JoinRoom(LobbyRoom lobbyRoom)
+        {
+            if (lobbyRoom != null)
+            {
+                if (lobbyRoom.AddClientPeer(this))
+                {
+                    this.IsInRoom = true;
+                    this.RoomID = lobbyRoom.RoomID;
+                    return true;
                 }
             }
             return false;
         }
 
-        public void LeaveRoom()
+        public bool LeaveRoom()
         {
-            if (IsInRoom)
+            if (IsLogin && IsInLobby && IsInRoom)
             {
                 Lobby.Lobby? lobby = LobbyFactory.Instance.GetLobby(LobbyName);
                 if (lobby != null)
@@ -117,12 +135,12 @@ namespace MasterServer
                         lobbyRoom.RemoveClientPeer(this);
                         this.IsInRoom = false;
                         this.RoomID = "";
+                        return true;
                     }
                 }
             }
+            return false;
         }
-
-
 
         public void OnDisConnected()
         {
