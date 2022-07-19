@@ -2,10 +2,12 @@
 
 namespace CommonLibrary.MessagePack
 {
-    [MessagePackObject(true)]
+    [MessagePackObject]
     public class LoginResponsePack : ResponseBasePack
     {
-        public int ID { get; set; }
-        public string Token { get; set; } = "";
+        [Key(1)]
+        public int ID;
+        [Key(2)]
+        public string Token = "";
     }
 }

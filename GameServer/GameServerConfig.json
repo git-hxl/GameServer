@@ -1,0 +1,5 @@
+{
+  "Port": 8001,
+  "MasterIP": "127.0.0.1",
+  "MasterPort": 8000
+}

@@ -1,20 +1,23 @@
-﻿using CommonLibrary.Operations;
-using CommonLibrary.Utils;
+﻿using CommonLibrary.Utils;
+using GameServer.Operations;
 using LiteNetLib;
-using MasterServer.Operations;
 using Newtonsoft.Json;
 using Serilog;
 
-namespace MasterServer
+namespace GameServer
 {
-    internal class MasterApplication : Singleton<MasterApplication>
+    internal class GameApplication : Singleton<GameApplication>
     {
         private NetManager server;
         private EventBasedNetListener listener;
         private OperationHandleBase operationHandle;
-        private Dictionary<string, ClientPeer> clientPeers = new Dictionary<string, ClientPeer>();
-        public MasterServerConfig? ServerConfig { get; }
-        public MasterApplication()
+        public GameServerConfig? ServerConfig { get; }
+
+        public NetPeer? MasterServer;
+
+        private Dictionary<string, NetPeer> clientPeers = new Dictionary<string, NetPeer>();
+        private List<Game> games = new List<Game>();
+        public GameApplication()
         {
             listener = new EventBasedNetListener();
             server = new NetManager(listener);
@@ -22,9 +25,9 @@ namespace MasterServer
             Log.Information("Load Config");
             try
             {
-                string config = File.ReadAllText("./MasterServerConfig.json");
+                string config = File.ReadAllText("./GameServerConfig.json");
                 if (!string.IsNullOrEmpty(config))
-                    ServerConfig = JsonConvert.DeserializeObject<MasterServerConfig>(config);
+                    ServerConfig = JsonConvert.DeserializeObject<GameServerConfig>(config);
             }
             catch (Exception e)
             {
@@ -45,13 +48,15 @@ namespace MasterServer
             server.ReconnectDelay = 500;
             //最大连接尝试次数
             server.MaxConnectAttempts = 10;
-
             listener.ConnectionRequestEvent += Listener_ConnectionRequestEvent;
             listener.PeerConnectedEvent += Listener_PeerConnectedEvent;
             listener.PeerDisconnectedEvent += Listener_PeerDisconnectedEvent;
             listener.NetworkReceiveEvent += Listener_NetworkReceiveEvent;
 
             Log.Information("Start listener Successed");
+            Log.Information("Connect To Master");
+
+            MasterServer = server.Connect(ServerConfig.MasterIP, ServerConfig.MasterPort,"");
         }
 
         public void Close()
@@ -70,8 +75,11 @@ namespace MasterServer
 
         private void Listener_ConnectionRequestEvent(ConnectionRequest request)
         {
-            if (server != null && ServerConfig != null && server.ConnectedPeersCount < 5000)
-                request.AcceptIfKey(ServerConfig.ConnectKey);
+            if (server != null && server.ConnectedPeersCount < 5000)
+            {
+                //TODO:Token 
+                request.Accept();
+            }
             else
             {
                 request.Reject();
@@ -82,8 +90,7 @@ namespace MasterServer
         private void Listener_PeerConnectedEvent(NetPeer peer)
         {
             Log.Information("We got connection: {0} id:{1}", peer.EndPoint, peer.Id);
-            ClientPeer clientPeer = new ClientPeer(peer);
-            clientPeers[peer.EndPoint.ToString()] = clientPeer;
+            clientPeers[peer.EndPoint.ToString()] = peer;
         }
 
         private void Listener_PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
@@ -92,7 +99,6 @@ namespace MasterServer
 
             if (clientPeers.ContainsKey(peer.EndPoint.ToString()))
             {
-                clientPeers[peer.EndPoint.ToString()].OnDisConnected();
                 clientPeers.Remove(peer.EndPoint.ToString());
             }
         }
@@ -101,15 +107,26 @@ namespace MasterServer
         {
             if (clientPeers.ContainsKey(peer.EndPoint.ToString()))
             {
-                ClientPeer clientPeer = clientPeers[peer.EndPoint.ToString()];
-                OperationCode operationCode = (OperationCode)reader.GetByte();
-                HandleRequest handleRequest = new HandleRequest(clientPeer, operationCode, reader.GetRemainingBytes());
+                //ClientPeer clientPeer = clientPeers[peer.EndPoint.ToString()];
+                GameOperationCode operationCode = (GameOperationCode)reader.GetByte();
+                HandleRequest handleRequest = new HandleRequest(peer, operationCode, reader.GetRemainingBytes());
                 operationHandle.HandleRequest(handleRequest);
             }
             else
             {
                 Log.Information("Client {0} not connected!", peer.EndPoint.ToString());
             }
+        }
+
+        public Game GetOrCreateGame(string id)
+        {
+            Game? game = games.FirstOrDefault((a) => a.GameID == id);
+            if (game == null)
+            {
+                game = new Game(id);
+                games.Add(game);
+            }
+            return game;
         }
     }
 }

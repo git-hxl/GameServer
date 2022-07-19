@@ -3,6 +3,8 @@
     public class LobbyFactory
     {
         private static LobbyFactory? instance;
+        private List<Lobby> lobbies = new List<Lobby>();
+
         public static LobbyFactory Instance
         {
             get
@@ -14,15 +16,13 @@
             private set { }
         }
 
-        private List<Lobby> lobbies = new List<Lobby>();
-
         public Lobby? GetLobby(string lobbyName)
         {
             Lobby? lobby = lobbies.FirstOrDefault((a) => a.LobbyName == lobbyName);
             return lobby;
         }
 
-        public Lobby? GetOrCreateLobby(string lobbyName = "Default")
+        public Lobby? GetOrCreateLobby(string lobbyName)
         {
             Lobby? lobby = lobbies.FirstOrDefault((a) => a.LobbyName == lobbyName && a.IsFullLobby == false);
             if (lobby == null)

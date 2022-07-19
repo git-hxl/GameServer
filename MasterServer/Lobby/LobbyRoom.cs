@@ -6,24 +6,30 @@ namespace MasterServer.Lobby
     {
         public string RoomID { get; }
         public string RoomName { get; }
-        public byte MaxPeers { get; }
+        public bool IsVisible { get; }
+        public string Password { get; }
+        public int MaxPeers { get; }
         public Hashtable RoomProperties { get; }
-        public ClientPeer Owner { get; set; }
-        public List<ClientPeer> ClientPeers = new List<ClientPeer>();
+        public List<ClientPeer> ClientPeers { get; }
+
         private Lobby lobby;
-        public LobbyRoom(Lobby lobby, ClientPeer clientPeer, string roomName, int maxPeers, Hashtable roomProperties)
+        public LobbyRoom(Lobby lobby, ClientPeer clientPeer, string roomName, bool isVisible, string password, int maxPeers, Hashtable roomProperties)
         {
             this.lobby = lobby;
-            this.Owner = clientPeer;
             this.RoomID = Guid.NewGuid().ToString();
             this.RoomName = roomName;
+            this.IsVisible = isVisible;
+            this.Password = password;
+            this.MaxPeers = maxPeers;
             this.RoomProperties = roomProperties;
+
+            ClientPeers = new List<ClientPeer>();
             ClientPeers.Add(clientPeer);
         }
 
         public bool AddClientPeer(ClientPeer clientPeer)
         {
-            if (!ClientPeers.Contains(clientPeer))
+            if (!ClientPeers.Contains(clientPeer) && ClientPeers.Count < MaxPeers)
             {
                 ClientPeers.Add(clientPeer);
                 return true;
@@ -33,17 +39,10 @@ namespace MasterServer.Lobby
 
         public void RemoveClientPeer(ClientPeer clientPeer)
         {
-            if (!ClientPeers.Contains(clientPeer))
+            if (ClientPeers.Contains(clientPeer))
             {
                 ClientPeers.Remove(clientPeer);
-                if (ClientPeers.Count > 0)
-                {
-                    if (Owner == clientPeer)
-                    {
-                        Owner = ClientPeers[0];
-                    }
-                }
-                else
+                if (ClientPeers.Count <=0)
                 {
                     lobby.RemoveRoom(this);
                 }

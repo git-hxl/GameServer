@@ -4,15 +4,17 @@ using MessagePack;
 
 namespace CommonLibrary.MessagePack
 {
-    [MessagePackObject(true)]
+    [MessagePackObject]
     public class RequsetBasePack
     {
-        public string Token { get; set; } = "";
-        public long TimeStamp { get; set; }
+        [Key(0)]
+        public string Token = "";
+        [Key(1)]
+        public long TimeStamp;
 
         public RequsetBasePack()
         {
-            this.TimeStamp = DateTimeEx.TimeStamp;
+            TimeStamp = DateTimeEx.TimeStamp;
         }
     }
 }

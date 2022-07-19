@@ -1,7 +1,6 @@
-﻿using CommonLibrary.Operations;
-using LiteNetLib;
+﻿using LiteNetLib;
 using MasterServer.Lobby;
-using MasterServer.Operations;
+using Serilog;
 using System.Collections;
 
 namespace MasterServer
@@ -9,45 +8,33 @@ namespace MasterServer
     public sealed class ClientPeer
     {
         public int UserID { get; set; }
-        public bool IsLogin { get; set; }
-        public bool IsInLobby { get; set; }
-        public string LobbyName { get; set; }
-
-        public bool IsInRoom { get; set; }
-        public string RoomID { get; set; }
 
         public NetPeer NetPeer { get; private set; }
 
-        private OperationHandleBase handle;
+        private Lobby.Lobby? curLobby;
+        private LobbyRoom? curRoom;
+
         public ClientPeer(NetPeer netPeer)
         {
-            this.LobbyName = "";
-            this.RoomID = "";
             this.NetPeer = netPeer;
-            this.handle = new OperationHandleBase();
         }
 
         public void Login(int userID)
         {
             this.UserID = userID;
-            this.IsLogin = true;
+            //join lobby
+            JoinLobby();
         }
 
-        public bool JoinLobby(string lobbyName)
+        public bool JoinLobby(string lobbyName = "Default")
         {
-            if (IsLogin && !IsInRoom && !string.IsNullOrEmpty(lobbyName))
+            LeaveLobby();
+            if (curLobby == null)
             {
-                if (this.LobbyName != lobbyName)
+                curLobby = LobbyFactory.Instance.GetOrCreateLobby(lobbyName);
+                if (curLobby != null)
                 {
-                    LeaveLobby();
-                    Lobby.Lobby? lobby = LobbyFactory.Instance.GetOrCreateLobby(lobbyName);
-                    if (lobby != null)
-                    {
-                        lobby.AddClientPeer(this);
-                        this.LobbyName = lobbyName;
-                        this.IsInLobby = true;
-                        return true;
-                    }
+                    return curLobby.AddClientPeer(this);
                 }
             }
             return false;
@@ -55,104 +42,53 @@ namespace MasterServer
 
         public void LeaveLobby()
         {
-            if (IsLogin && IsInLobby && !IsInRoom && !string.IsNullOrEmpty(this.LobbyName))
+            if (curLobby != null)
             {
-                Lobby.Lobby? lobby = LobbyFactory.Instance.GetLobby(LobbyName);
-                if (lobby != null)
-                {
-                    lobby.RemoveClientPeer(this);
-                    this.IsInLobby = false;
-                    this.LobbyName = "";
-                }
-                else
-                {
-                    Console.WriteLine("Leave Lobby error,No existed lobby");
-                }
+                curLobby.RemoveClientPeer(this);
+                curLobby = null;
             }
         }
 
-        public LobbyRoom? CreateRoom(string roomName, int maxPeers, Hashtable roomProperties)
+        public LobbyRoom? CreateRoom(string roomName, bool isVisible, string password, int maxPeers, Hashtable roomProperties)
         {
-            if (!string.IsNullOrEmpty(roomName) && IsInLobby && !IsInRoom)
+            if (curLobby != null && curRoom == null)
             {
-                Lobby.Lobby? lobby = LobbyFactory.Instance.GetLobby(LobbyName);
-                if (lobby != null)
-                {
-                    LobbyRoom? lobbyRoom = lobby.CreateRoom(this, roomName, maxPeers, roomProperties);
-                    if (lobbyRoom != null)
-                    {
-                        this.IsInRoom = true;
-                        this.RoomID = lobbyRoom.RoomID;
-                        return lobbyRoom;
-                    }
-                }
+                LobbyRoom? lobbyRoom = curLobby.CreateRoom(this, roomName, isVisible, password, maxPeers, roomProperties);
+                curRoom = lobbyRoom;
+                return curRoom;
             }
             return null;
         }
 
-        public LobbyRoom? JoinRoom(string roomID)
+        public LobbyRoom? JoinRoom(string roomID, string password)
         {
-            if (!string.IsNullOrEmpty(roomID) && IsInLobby && !IsInRoom)
-            {
-                Lobby.Lobby? lobby = LobbyFactory.Instance.GetLobby(LobbyName);
-                if (lobby != null)
-                {
-                    var lobbyRoom = lobby.GetRoom(roomID);
-                    if (lobbyRoom != null)
-                    {
-                        if (JoinRoom(lobbyRoom))
-                            return lobbyRoom;
-                    }
-                }
-            }
-            return null;
-        }
+            LobbyRoom? lobbyRoom = curLobby?.GetRoom(roomID);
 
-        private bool JoinRoom(LobbyRoom lobbyRoom)
-        {
-            if (lobbyRoom != null)
+            if (curRoom == null && lobbyRoom != null && lobbyRoom.Password.Equals(password))
             {
                 if (lobbyRoom.AddClientPeer(this))
                 {
-                    this.IsInRoom = true;
-                    this.RoomID = lobbyRoom.RoomID;
-                    return true;
+                    curRoom = lobbyRoom;
+                    return curRoom;
                 }
             }
-            return false;
+            return null;
         }
 
         public bool LeaveRoom()
         {
-            if (IsLogin && IsInLobby && IsInRoom)
+            if (curRoom != null)
             {
-                Lobby.Lobby? lobby = LobbyFactory.Instance.GetLobby(LobbyName);
-                if (lobby != null)
-                {
-                    var lobbyRoom = lobby.GetRoom(RoomID);
-                    if (lobbyRoom != null)
-                    {
-                        lobbyRoom.RemoveClientPeer(this);
-                        this.IsInRoom = false;
-                        this.RoomID = "";
-                        return true;
-                    }
-                }
+                curRoom.RemoveClientPeer(this);
+                curRoom = null;
+                return true;
             }
             return false;
         }
 
         public void OnDisConnected()
         {
-            LeaveLobby();
+
         }
-
-        public void HandleRequest(OperationCode operationCode, byte[] requestData)
-        {
-            HandleRequest handleRequest = new HandleRequest(this, operationCode, requestData);
-
-            handle.HandleRequest(handleRequest);
-        }
-
     }
 }

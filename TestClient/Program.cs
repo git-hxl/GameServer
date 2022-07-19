@@ -198,8 +198,8 @@ namespace TestClient
 
         static void RegisterResponse(byte[] bytes)
         {
-            LoginResponsePack response = MessagePackSerializer.Deserialize<LoginResponsePack>(bytes);
-            Console.WriteLine("注册成功 id:{0} ", response.ID);
+            ResponseBasePack response = MessagePackSerializer.Deserialize<ResponseBasePack>(bytes);
+            Console.WriteLine("注册成功 {0} ",DateTimeEx.ConvertToLocalDateTime(response.TimeStamp));
         }
 
         static void LoginResponse(byte[] bytes)

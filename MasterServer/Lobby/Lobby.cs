@@ -50,21 +50,19 @@ namespace MasterServer.Lobby
             }
         }
 
-        public LobbyRoom? CreateRoom(ClientPeer clientPeer, string roomName, int maxPeers, Hashtable roomProperties)
+        public LobbyRoom? CreateRoom(ClientPeer clientPeer, string roomName, bool isVisible, string password,int maxPlayers, Hashtable roomProperties)
         {
-            if (clientPeer.IsInLobby && !clientPeer.IsInRoom)
-            {
-                LobbyRoom lobbyRoom = new LobbyRoom(this, clientPeer, roomName, maxPeers, roomProperties);
-                lobbyRooms.Add(lobbyRoom);
-                return lobbyRoom;
-            }
-            return null;
+            LobbyRoom lobbyRoom = new LobbyRoom(this, clientPeer, roomName,isVisible,password, maxPlayers, roomProperties);
+            lobbyRooms.Add(lobbyRoom);
+            return lobbyRoom;
         }
 
         public LobbyRoom? GetRoom(string roomID)
         {
             return lobbyRooms.FirstOrDefault((a) => a.RoomID == roomID);
         }
+
+
         public void RemoveRoom(LobbyRoom lobbyRoom)
         {
             if(lobbyRooms.Contains(lobbyRoom))

@@ -1,11 +1,17 @@
-﻿namespace MasterServer
+﻿using Serilog;
+
+namespace MasterServer
 {
     internal class Program
     {
         static void Main(string[] args)
         {
-            Console.WriteLine("Start Server!");
+            Log.Logger = new LoggerConfiguration().WriteTo.Console().WriteTo.File("log.txt").CreateLogger();
+
+            Log.Information("Start Server");
+
             MasterApplication.Instance.Start();
+
             try
             {
                 while (true)
@@ -20,6 +26,8 @@
             }
 
             MasterApplication.Instance.Close();
+
+            Log.CloseAndFlush();
         }
     }
 }

@@ -71,12 +71,13 @@ namespace MasterServer.Operations
                     {
                         string account = registerRequestPack.Account;
                         string password = registerRequestPack.Password;
-                        DateTime lastlogintime = DateTime.UtcNow;
-                        string insertAccount = $"insert into user (id,account,password,lastlogintime) values ({0},'{account}','{password}','{lastlogintime.ToString()}')";
+                        DateTime lastlogintime = DateTime.Now;
+                        string insertAccount = $"insert into user (id,account,password,lastlogintime) values ({0},'{account}','{password}','{lastlogintime}')";
                         int result = dbConnection.Execute(insertAccount);
                         if (result == 1)
                         {
-                            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success);
+                            byte[] responseData = MessagePackSerializer.Serialize<ResponseBasePack>(new ResponseBasePack());
+                            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success, responseData);
                             return;
                         }
                     }
@@ -96,7 +97,7 @@ namespace MasterServer.Operations
                     var existAccount = dbConnection.QueryFirstOrDefault<UserTable>(queryThisAccount);
                     if (existAccount != null)
                     {
-                        string updateField = $"update user set lastlogintime='{DateTime.UtcNow.ToString()}' where account='{loginRequestPack.Account}'";
+                        string updateField = $"update user set lastlogintime='{DateTime.Now}' where account='{loginRequestPack.Account}'";
                         dbConnection.Execute(updateField);
                         handleRequest.ClientPeer.Login(existAccount.ID);
                         LoginResponsePack loginResponsePack = new LoginResponsePack();
@@ -127,13 +128,12 @@ namespace MasterServer.Operations
         private void CreateRoomRequest(HandleRequest handleRequest)
         {
             CreateRoomRequestPack pack = MessagePackSerializer.Deserialize<CreateRoomRequestPack>(handleRequest.RequestData);
-            LobbyRoom? lobbyRoom = handleRequest.ClientPeer.CreateRoom(pack.RoomName, pack.MaxPlayers, pack.RoomProperties);
+            LobbyRoom? lobbyRoom = handleRequest.ClientPeer.CreateRoom(pack.RoomName, pack.IsVisible, pack.Password, pack.MaxPlayers, pack.RoomProperties);
             if (lobbyRoom != null)
             {
                 JoinRoomResponsePack joinRoomResponsePack = new JoinRoomResponsePack();
                 joinRoomResponsePack.RoomID = lobbyRoom.RoomID;
                 joinRoomResponsePack.RoomName = lobbyRoom.RoomName;
-                joinRoomResponsePack.OwnerID = lobbyRoom.Owner.UserID;
                 joinRoomResponsePack.Players = lobbyRoom.ClientPeers.Select((a) => a.UserID).ToList();
                 byte[] responseData = MessagePackSerializer.Serialize<JoinRoomResponsePack>(joinRoomResponsePack);
                 SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success, responseData);
@@ -145,13 +145,12 @@ namespace MasterServer.Operations
         private void JoinRoomRequest(HandleRequest handleRequest)
         {
             JoinRoomRequestPack pack = MessagePackSerializer.Deserialize<JoinRoomRequestPack>(handleRequest.RequestData);
-            LobbyRoom? lobbyRoom = handleRequest.ClientPeer.JoinRoom(pack.RoomID);
+            LobbyRoom? lobbyRoom = handleRequest.ClientPeer.JoinRoom(pack.RoomID,pack.Password);
             if (lobbyRoom != null)
             {
                 JoinRoomResponsePack joinRoomResponsePack = new JoinRoomResponsePack();
                 joinRoomResponsePack.RoomID = lobbyRoom.RoomID;
                 joinRoomResponsePack.RoomName = lobbyRoom.RoomName;
-                joinRoomResponsePack.OwnerID = lobbyRoom.Owner.UserID;
                 joinRoomResponsePack.Players = lobbyRoom.ClientPeers.Select((a) => a.UserID).ToList();
                 byte[] responseData = MessagePackSerializer.Serialize<JoinRoomResponsePack>(joinRoomResponsePack);
                 SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success, responseData);
