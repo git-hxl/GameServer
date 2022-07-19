@@ -1,6 +1,7 @@
 ﻿using CommonLibrary.MessagePack;
 using CommonLibrary.Operations;
 using CommonLibrary.Utils;
+using GameServer.Operations;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using MessagePack;
@@ -21,43 +22,43 @@ namespace TestClient
 
             listener.NetworkReceiveEvent += (fromPeer, reader, deliveryMethod) =>
             {
-                OperationCode operationCode = (OperationCode)reader.GetByte();
+                GameOperationCode operationCode = (GameOperationCode)reader.GetByte();
                 ReturnCode returnCode = (ReturnCode)reader.GetByte();
 
                 Console.WriteLine("{0} request result: {1}", operationCode.ToString(), returnCode.ToString());
 
-                if (returnCode != ReturnCode.Success)
-                    return;
-                switch (operationCode)
-                {
-                    case OperationCode.Register:
-                        RegisterResponse(reader.GetRemainingBytes());
-                        break;
-                    case OperationCode.Login:
-                        LoginResponse(reader.GetRemainingBytes());
-                        break;
-                    case OperationCode.JoinLobby:
+                //if (returnCode != ReturnCode.Success)
+                //    return;
+                //switch (operationCode)
+                //{
+                //    case OperationCode.Register:
+                //        RegisterResponse(reader.GetRemainingBytes());
+                //        break;
+                //    case OperationCode.Login:
+                //        LoginResponse(reader.GetRemainingBytes());
+                //        break;
+                //    case OperationCode.JoinLobby:
 
-                        break;
-                    case OperationCode.LevelLobby:
-                        break;
-                    case OperationCode.Disconnect:
-                        break;
-                    case OperationCode.CreateRoom:
-                        CreateRoom(reader.GetRemainingBytes());
-                        break;
-                    case OperationCode.JoinRoom:
-                        CreateRoom(reader.GetRemainingBytes());
-                        break;
-                    case OperationCode.LeaveRoom:
-                        break;
-                    default:
-                        break;
-                }
+                //        break;
+                //    case OperationCode.LevelLobby:
+                //        break;
+                //    case OperationCode.Disconnect:
+                //        break;
+                //    case OperationCode.CreateRoom:
+                //        CreateRoom(reader.GetRemainingBytes());
+                //        break;
+                //    case OperationCode.JoinRoom:
+                //        CreateRoom(reader.GetRemainingBytes());
+                //        break;
+                //    case OperationCode.LeaveRoom:
+                //        break;
+                //    default:
+                //        break;
+                //}
                 reader.Recycle();
             };
 
-            Connect("127.0.0.1", 8000);
+            Connect("127.0.0.1", 8001);
 
             Task.Run(() =>
             {
@@ -104,6 +105,16 @@ namespace TestClient
                         if (operation.Contains("LeaveRoom"))
                         {
                             LeaveRoom();
+                        }
+
+                        if (operation.Contains("JoinGame"))
+                        {
+                            JoinGame();
+                        }
+
+                        if (operation.Contains("ExitGame"))
+                        {
+                            ExitGame();
                         }
                     }
                 }
@@ -212,6 +223,30 @@ namespace TestClient
         {
             JoinRoomResponsePack response = MessagePackSerializer.Deserialize<JoinRoomResponsePack>(bytes);
             Console.WriteLine("加入房间 id:{0} ", response.RoomID);
+        }
+
+        static int userid = Random.Shared.Next(0, 1000000);
+        static void JoinGame()
+        {
+            RpcPack request = new RpcPack();
+            request.RoomID = "asd";
+            request.UserID = userid;
+            userid = request.UserID;
+            NetDataWriter netDataWriter = new NetDataWriter();
+            netDataWriter.Put((byte)GameOperationCode.JoinGame);
+            netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
+            peer?.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
+        }
+
+        static void ExitGame()
+        {
+            RpcPack request = new RpcPack();
+            request.RoomID = "asd";
+            request.UserID = userid;
+            NetDataWriter netDataWriter = new NetDataWriter();
+            netDataWriter.Put((byte)GameOperationCode.ExitGame);
+            netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
+            peer?.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
         }
 
     }

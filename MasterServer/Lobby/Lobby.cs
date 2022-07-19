@@ -10,7 +10,7 @@ namespace MasterServer.Lobby
         public ushort MaxPeers { get; }
         public ushort MaxRooms { get; }
 
-        private List<ClientPeer> clientPeers = new List<ClientPeer>();
+        private List<MasterPeer> clientPeers = new List<MasterPeer>();
         private List<LobbyRoom> lobbyRooms = new List<LobbyRoom>();
         public Lobby(string lobbyName)
         {
@@ -22,7 +22,7 @@ namespace MasterServer.Lobby
         public bool IsFullLobby => clientPeers.Count >= MaxPeers;
         public bool IsFullRoom => lobbyRooms.Count >= MaxRooms;
 
-        public bool AddClientPeer(ClientPeer clientPeer)
+        public bool AddClientPeer(MasterPeer clientPeer)
         {
             if (!clientPeers.Contains(clientPeer))
             {
@@ -33,7 +33,7 @@ namespace MasterServer.Lobby
             return false;
         }
 
-        public void RemoveClientPeer(ClientPeer clientPeer)
+        public void RemoveClientPeer(MasterPeer clientPeer)
         {
             if (clientPeers.Contains(clientPeer))
             {
@@ -50,7 +50,7 @@ namespace MasterServer.Lobby
             }
         }
 
-        public LobbyRoom? CreateRoom(ClientPeer clientPeer, string roomName, bool isVisible, string password,int maxPlayers, Hashtable roomProperties)
+        public LobbyRoom? CreateRoom(MasterPeer clientPeer, string roomName, bool isVisible, string password,int maxPlayers, Hashtable roomProperties)
         {
             LobbyRoom lobbyRoom = new LobbyRoom(this, clientPeer, roomName,isVisible,password, maxPlayers, roomProperties);
             lobbyRooms.Add(lobbyRoom);

@@ -10,10 +10,10 @@ namespace MasterServer.Lobby
         public string Password { get; }
         public int MaxPeers { get; }
         public Hashtable RoomProperties { get; }
-        public List<ClientPeer> ClientPeers { get; }
+        public List<MasterPeer> ClientPeers { get; }
 
         private Lobby lobby;
-        public LobbyRoom(Lobby lobby, ClientPeer clientPeer, string roomName, bool isVisible, string password, int maxPeers, Hashtable roomProperties)
+        public LobbyRoom(Lobby lobby, MasterPeer clientPeer, string roomName, bool isVisible, string password, int maxPeers, Hashtable roomProperties)
         {
             this.lobby = lobby;
             this.RoomID = Guid.NewGuid().ToString();
@@ -23,11 +23,11 @@ namespace MasterServer.Lobby
             this.MaxPeers = maxPeers;
             this.RoomProperties = roomProperties;
 
-            ClientPeers = new List<ClientPeer>();
+            ClientPeers = new List<MasterPeer>();
             ClientPeers.Add(clientPeer);
         }
 
-        public bool AddClientPeer(ClientPeer clientPeer)
+        public bool AddClientPeer(MasterPeer clientPeer)
         {
             if (!ClientPeers.Contains(clientPeer) && ClientPeers.Count < MaxPeers)
             {
@@ -37,12 +37,12 @@ namespace MasterServer.Lobby
             return false;
         }
 
-        public void RemoveClientPeer(ClientPeer clientPeer)
+        public void RemoveClientPeer(MasterPeer clientPeer)
         {
             if (ClientPeers.Contains(clientPeer))
             {
                 ClientPeers.Remove(clientPeer);
-                if (ClientPeers.Count <=0)
+                if (ClientPeers.Count <= 0)
                 {
                     lobby.RemoveRoom(this);
                 }

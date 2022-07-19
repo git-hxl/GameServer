@@ -11,12 +11,11 @@ namespace GameServer
         private NetManager server;
         private EventBasedNetListener listener;
         private OperationHandleBase operationHandle;
-        public GameServerConfig? ServerConfig { get; }
-
-        public NetPeer? MasterServer;
-
-        private Dictionary<string, NetPeer> clientPeers = new Dictionary<string, NetPeer>();
         private List<Game> games = new List<Game>();
+        private Dictionary<string, GamePeer> gamePeers = new Dictionary<string, GamePeer>();
+        public GameServerConfig? ServerConfig { get; private set; }
+        public NetPeer? MasterServer { get; private set; }
+
         public GameApplication()
         {
             listener = new EventBasedNetListener();
@@ -56,7 +55,7 @@ namespace GameServer
             Log.Information("Start listener Successed");
             Log.Information("Connect To Master");
 
-            MasterServer = server.Connect(ServerConfig.MasterIP, ServerConfig.MasterPort,"");
+            MasterServer = server.Connect(ServerConfig.MasterIP, ServerConfig.MasterPort, "Hello");
         }
 
         public void Close()
@@ -90,32 +89,34 @@ namespace GameServer
         private void Listener_PeerConnectedEvent(NetPeer peer)
         {
             Log.Information("We got connection: {0} id:{1}", peer.EndPoint, peer.Id);
-            clientPeers[peer.EndPoint.ToString()] = peer;
+            GamePeer gamePeer = new GamePeer(peer);
+            gamePeers[peer.EndPoint.ToString()] = gamePeer;
         }
 
         private void Listener_PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
         {
             Log.Information("We got disconnection: {0}", peer.EndPoint);
-
-            if (clientPeers.ContainsKey(peer.EndPoint.ToString()))
+            if (gamePeers.ContainsKey(peer.EndPoint.ToString()))
             {
-                clientPeers.Remove(peer.EndPoint.ToString());
+                gamePeers[peer.EndPoint.ToString()].OnDisConnected();
+                gamePeers.Remove(peer.EndPoint.ToString());
             }
         }
 
         private void Listener_NetworkReceiveEvent(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
         {
-            if (clientPeers.ContainsKey(peer.EndPoint.ToString()))
+            GameOperationCode operationCode = (GameOperationCode)reader.GetByte();
+            HandleRequest handleRequest = new HandleRequest(peer, operationCode, reader.GetRemainingBytes());
+            operationHandle.HandleRequest(handleRequest);
+        }
+
+        public GamePeer? GetGamePeer(NetPeer netPeer)
+        {
+            if (gamePeers.ContainsKey(netPeer.EndPoint.ToString()))
             {
-                //ClientPeer clientPeer = clientPeers[peer.EndPoint.ToString()];
-                GameOperationCode operationCode = (GameOperationCode)reader.GetByte();
-                HandleRequest handleRequest = new HandleRequest(peer, operationCode, reader.GetRemainingBytes());
-                operationHandle.HandleRequest(handleRequest);
+                return gamePeers[netPeer.EndPoint.ToString()];
             }
-            else
-            {
-                Log.Information("Client {0} not connected!", peer.EndPoint.ToString());
-            }
+            return null;
         }
 
         public Game GetOrCreateGame(string id)

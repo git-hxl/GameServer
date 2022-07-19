@@ -3,11 +3,11 @@ namespace MasterServer.Operations
 {
     public class HandleRequest
     {
-        public ClientPeer ClientPeer;
+        public MasterPeer ClientPeer;
         public OperationCode OperationCode;
         public byte[] RequestData;
 
-        public HandleRequest(ClientPeer clientPeer, OperationCode operationCode, byte[] requestData)
+        public HandleRequest(MasterPeer clientPeer, OperationCode operationCode, byte[] requestData)
         {
             ClientPeer = clientPeer;
             OperationCode = operationCode;

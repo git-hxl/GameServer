@@ -48,7 +48,7 @@ namespace MasterServer.Operations
             Console.WriteLine("{0}：{1} 代码耗时：{2}", DateTime.Now.ToLongTimeString(), handleRequest.OperationCode.ToString(), stopwatch.ElapsedMilliseconds);
         }
 
-        private void SendResponse(ClientPeer clientPeer, OperationCode operationCode, ReturnCode returnCode, byte[]? responseData = null)
+        private void SendResponse(MasterPeer clientPeer, OperationCode operationCode, ReturnCode returnCode, byte[]? responseData = null)
         {
             NetDataWriter netDataWriter = new NetDataWriter();
             netDataWriter.Put((byte)operationCode);

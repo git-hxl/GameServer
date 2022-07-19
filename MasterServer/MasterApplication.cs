@@ -12,7 +12,7 @@ namespace MasterServer
         private NetManager server;
         private EventBasedNetListener listener;
         private OperationHandleBase operationHandle;
-        private Dictionary<string, ClientPeer> clientPeers = new Dictionary<string, ClientPeer>();
+        private Dictionary<string, MasterPeer> clientPeers = new Dictionary<string, MasterPeer>();
         public MasterServerConfig? ServerConfig { get; }
         public MasterApplication()
         {
@@ -82,7 +82,7 @@ namespace MasterServer
         private void Listener_PeerConnectedEvent(NetPeer peer)
         {
             Log.Information("We got connection: {0} id:{1}", peer.EndPoint, peer.Id);
-            ClientPeer clientPeer = new ClientPeer(peer);
+            MasterPeer clientPeer = new MasterPeer(peer);
             clientPeers[peer.EndPoint.ToString()] = clientPeer;
         }
 
@@ -101,7 +101,7 @@ namespace MasterServer
         {
             if (clientPeers.ContainsKey(peer.EndPoint.ToString()))
             {
-                ClientPeer clientPeer = clientPeers[peer.EndPoint.ToString()];
+                MasterPeer clientPeer = clientPeers[peer.EndPoint.ToString()];
                 OperationCode operationCode = (OperationCode)reader.GetByte();
                 HandleRequest handleRequest = new HandleRequest(clientPeer, operationCode, reader.GetRemainingBytes());
                 operationHandle.HandleRequest(handleRequest);

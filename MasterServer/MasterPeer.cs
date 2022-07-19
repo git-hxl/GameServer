@@ -5,7 +5,7 @@ using System.Collections;
 
 namespace MasterServer
 {
-    public sealed class ClientPeer
+    public sealed class MasterPeer
     {
         public int UserID { get; set; }
 
@@ -14,7 +14,7 @@ namespace MasterServer
         private Lobby.Lobby? curLobby;
         private LobbyRoom? curRoom;
 
-        public ClientPeer(NetPeer netPeer)
+        public MasterPeer(NetPeer netPeer)
         {
             this.NetPeer = netPeer;
         }
@@ -64,7 +64,7 @@ namespace MasterServer
         {
             LobbyRoom? lobbyRoom = curLobby?.GetRoom(roomID);
 
-            if (curRoom == null && lobbyRoom != null && lobbyRoom.Password.Equals(password))
+            if (curRoom == null && lobbyRoom != null && lobbyRoom.IsVisible && lobbyRoom.Password.Equals(password))
             {
                 if (lobbyRoom.AddClientPeer(this))
                 {
@@ -88,7 +88,11 @@ namespace MasterServer
 
         public void OnDisConnected()
         {
-
+            LeaveRoom();
+            if (curLobby != null)
+            {
+                curLobby.RemoveClientPeer(this);
+            }
         }
     }
 }
