@@ -16,15 +16,27 @@ namespace GameServer
         {
             this.NetPeer = netPeer;
         }
-
-        public void OnJoinGame(Game game)
+        public bool JoinGame(Game game, int userID)
         {
-            CurGame = game;
+            if (CurGame == null)
+            {
+                this.UserID = userID;
+                CurGame = game;
+                CurGame.AddPeer(this);
+                return true;
+            }
+            return false;
         }
 
-        public void OnExitGame()
+        public bool ExitGame()
         {
-            CurGame = null;
+            if (CurGame != null)
+            {
+                CurGame.RemovePeer(this);
+                CurGame = null;
+                return true;
+            }
+            return false;
         }
 
         public void OnDisConnected()
@@ -32,6 +44,7 @@ namespace GameServer
             if (CurGame != null)
             {
                 CurGame.RemovePeer(this);
+                CurGame = null;
             }
         }
     }

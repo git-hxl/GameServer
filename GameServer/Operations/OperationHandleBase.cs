@@ -23,15 +23,14 @@ namespace GameServer.Operations
                 case GameOperationCode.RPC:
 
                     break;
-
                 default:
-                    SendResponse(handleRequest.Peer, handleRequest.OperationCode, ReturnCode.InvalidRequest);
+                    SendResponse(handleRequest.GamePeer, handleRequest.OperationCode, ReturnCode.InvalidRequest, DeliveryMethod.ReliableOrdered);
                     break;
             }
             Console.WriteLine("{0}：{1} 代码耗时：{2}", DateTime.Now.ToLongTimeString(), handleRequest.OperationCode.ToString(), stopwatch.ElapsedMilliseconds);
         }
 
-        private void SendResponse(NetPeer peer, GameOperationCode operationCode, ReturnCode returnCode, byte[]? responseData = null)
+        private void SendResponse(GamePeer peer, GameOperationCode operationCode, ReturnCode returnCode, DeliveryMethod deliveryMethod, byte[]? responseData = null)
         {
             NetDataWriter netDataWriter = new NetDataWriter();
             netDataWriter.Put((byte)operationCode);
@@ -39,7 +38,7 @@ namespace GameServer.Operations
             if (responseData != null)
                 netDataWriter.Put(responseData);
             //游戏数据只保证最新的数据包
-            peer.Send(netDataWriter, DeliveryMethod.ReliableSequenced);
+            peer.NetPeer.Send(netDataWriter, deliveryMethod);
         }
 
         private void JoinGame(HandleRequest handleRequest)
@@ -48,17 +47,16 @@ namespace GameServer.Operations
             Game game = GameApplication.Instance.GetOrCreateGame(pack.RoomID);
             if (game != null)
             {
-                if (game.AddPeer(handleRequest.Peer, pack.UserID))
+                if (handleRequest.GamePeer.JoinGame(game, pack.UserID))
                 {
                     foreach (var item in game.GamePeers)
                     {
-                        SendResponse(item.NetPeer, handleRequest.OperationCode, ReturnCode.Success, handleRequest.RequestData);
+                        SendResponse(item, handleRequest.OperationCode, ReturnCode.Success, handleRequest.DeliveryMethod, handleRequest.RequestData);
                     }
                     return;
                 }
-
             }
-            SendResponse(handleRequest.Peer, handleRequest.OperationCode, ReturnCode.InvalidRequest);
+            SendResponse(handleRequest.GamePeer, handleRequest.OperationCode, ReturnCode.InvalidRequest, handleRequest.DeliveryMethod);
         }
 
         private void ExitGame(HandleRequest handleRequest)
@@ -67,17 +65,16 @@ namespace GameServer.Operations
             Game game = GameApplication.Instance.GetOrCreateGame(pack.RoomID);
             if (game != null)
             {
-                GamePeer? gamePeer = GameApplication.Instance.GetGamePeer(handleRequest.Peer);
-                if (gamePeer != null && game.RemovePeer(gamePeer))
+                if (handleRequest.GamePeer.ExitGame())
                 {
                     foreach (var item in game.GamePeers)
                     {
-                        SendResponse(item.NetPeer, handleRequest.OperationCode, ReturnCode.Success, handleRequest.RequestData);
+                        SendResponse(item, handleRequest.OperationCode, ReturnCode.Success, handleRequest.DeliveryMethod, handleRequest.RequestData);
                     }
                     return;
                 }
             }
-            SendResponse(handleRequest.Peer, handleRequest.OperationCode, ReturnCode.InvalidRequest);
+            SendResponse(handleRequest.GamePeer, handleRequest.OperationCode, ReturnCode.InvalidRequest, handleRequest.DeliveryMethod);
         }
     }
 }

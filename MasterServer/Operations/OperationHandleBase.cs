@@ -42,20 +42,20 @@ namespace MasterServer.Operations
                 case OperationCode.Disconnect:
 
                 default:
-                    SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.InvalidRequest);
+                    SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.InvalidRequest,DeliveryMethod.ReliableOrdered);
                     break;
             }
             Console.WriteLine("{0}：{1} 代码耗时：{2}", DateTime.Now.ToLongTimeString(), handleRequest.OperationCode.ToString(), stopwatch.ElapsedMilliseconds);
         }
 
-        private void SendResponse(MasterPeer clientPeer, OperationCode operationCode, ReturnCode returnCode, byte[]? responseData = null)
+        private void SendResponse(MasterPeer clientPeer, OperationCode operationCode, ReturnCode returnCode, DeliveryMethod deliveryMethod, byte[]? responseData = null)
         {
             NetDataWriter netDataWriter = new NetDataWriter();
             netDataWriter.Put((byte)operationCode);
             netDataWriter.Put((byte)returnCode);
             if (responseData != null)
                 netDataWriter.Put(responseData);
-            clientPeer.NetPeer.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
+            clientPeer.NetPeer.Send(netDataWriter, deliveryMethod);
         }
 
         private async void RegisterRequest(HandleRequest handleRequest)
@@ -77,13 +77,13 @@ namespace MasterServer.Operations
                         if (result == 1)
                         {
                             byte[] responseData = MessagePackSerializer.Serialize<ResponseBasePack>(new ResponseBasePack());
-                            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success, responseData);
+                            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success, handleRequest.DeliveryMethod, responseData);
                             return;
                         }
                     }
                 }
             }
-            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.RegisterFailed);
+            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.RegisterFailed,handleRequest.DeliveryMethod);
         }
 
         private async void LoginRequest(HandleRequest handleRequest)
@@ -103,12 +103,12 @@ namespace MasterServer.Operations
                         LoginResponsePack loginResponsePack = new LoginResponsePack();
                         loginResponsePack.ID = existAccount.ID;
                         byte[] responseData = MessagePackSerializer.Serialize<LoginResponsePack>(loginResponsePack);
-                        SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success, responseData);
+                        SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success, handleRequest.DeliveryMethod, responseData);
                         return;
                     }
                 }
             }
-            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.LoginFailed);
+            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.LoginFailed, handleRequest.DeliveryMethod);
         }
 
         private void JoinLobbyRequest(HandleRequest handleRequest)
@@ -118,11 +118,11 @@ namespace MasterServer.Operations
             {
                 if (handleRequest.ClientPeer.JoinLobby(joinLobbyRequestPack.LobbyName))
                 {
-                    SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success);
+                    SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success, handleRequest.DeliveryMethod);
                     return;
                 }
             }
-            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.JoinLobbyFailed);
+            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.JoinLobbyFailed, handleRequest.DeliveryMethod);
         }
 
         private void CreateRoomRequest(HandleRequest handleRequest)
@@ -136,10 +136,10 @@ namespace MasterServer.Operations
                 joinRoomResponsePack.RoomName = lobbyRoom.RoomName;
                 joinRoomResponsePack.Players = lobbyRoom.ClientPeers.Select((a) => a.UserID).ToList();
                 byte[] responseData = MessagePackSerializer.Serialize<JoinRoomResponsePack>(joinRoomResponsePack);
-                SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success, responseData);
+                SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success, handleRequest.DeliveryMethod, responseData);
                 return;
             }
-            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.CreateRommFailed);
+            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.CreateRommFailed, handleRequest.DeliveryMethod);
         }
 
         private void JoinRoomRequest(HandleRequest handleRequest)
@@ -153,10 +153,10 @@ namespace MasterServer.Operations
                 joinRoomResponsePack.RoomName = lobbyRoom.RoomName;
                 joinRoomResponsePack.Players = lobbyRoom.ClientPeers.Select((a) => a.UserID).ToList();
                 byte[] responseData = MessagePackSerializer.Serialize<JoinRoomResponsePack>(joinRoomResponsePack);
-                SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success, responseData);
+                SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success, handleRequest.DeliveryMethod, responseData);
                 return;
             }
-            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.JoinRoomFailed);
+            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.JoinRoomFailed, handleRequest.DeliveryMethod);
         }
 
         private void LeaveRoomRequest(HandleRequest handleRequest)
@@ -166,10 +166,10 @@ namespace MasterServer.Operations
             {
                 ResponseBasePack responseBasePack = new ResponseBasePack();
                 byte[] responseData = MessagePackSerializer.Serialize<ResponseBasePack>(responseBasePack);
-                SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success, responseData);
+                SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success, handleRequest.DeliveryMethod, responseData);
                 return;
             }
-            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.LeaveRoomFailed);
+            SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.LeaveRoomFailed, handleRequest.DeliveryMethod);
         }
     }
 }

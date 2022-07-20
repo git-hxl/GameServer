@@ -103,7 +103,7 @@ namespace MasterServer
             {
                 MasterPeer clientPeer = clientPeers[peer.EndPoint.ToString()];
                 OperationCode operationCode = (OperationCode)reader.GetByte();
-                HandleRequest handleRequest = new HandleRequest(clientPeer, operationCode, reader.GetRemainingBytes());
+                HandleRequest handleRequest = new HandleRequest(clientPeer, operationCode, reader.GetRemainingBytes(), deliveryMethod);
                 operationHandle.HandleRequest(handleRequest);
             }
             else

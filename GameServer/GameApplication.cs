@@ -105,9 +105,17 @@ namespace GameServer
 
         private void Listener_NetworkReceiveEvent(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
         {
-            GameOperationCode operationCode = (GameOperationCode)reader.GetByte();
-            HandleRequest handleRequest = new HandleRequest(peer, operationCode, reader.GetRemainingBytes());
-            operationHandle.HandleRequest(handleRequest);
+            if (gamePeers.ContainsKey(peer.EndPoint.ToString()))
+            {
+                GamePeer gamePeer = gamePeers[peer.EndPoint.ToString()];
+                GameOperationCode operationCode = (GameOperationCode)reader.GetByte();
+                HandleRequest handleRequest = new HandleRequest(gamePeer, operationCode, reader.GetRemainingBytes(), deliveryMethod);
+                operationHandle.HandleRequest(handleRequest);
+            }
+            else
+            {
+                Log.Information("Client {0} not connected!", peer.EndPoint.ToString());
+            }
         }
 
         public GamePeer? GetGamePeer(NetPeer netPeer)

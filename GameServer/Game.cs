@@ -12,14 +12,11 @@ namespace GameServer
             this.GameID = id;
         }
 
-        public bool AddPeer(NetPeer netPeer, int userID)
+        public bool AddPeer(GamePeer gamePeer)
         {
-            GamePeer? gamePeer = GameApplication.Instance.GetGamePeer(netPeer);
             if (gamePeer != null && !GamePeers.Contains(gamePeer))
             {
-                gamePeer.UserID = userID;
                 GamePeers.Add(gamePeer);
-                gamePeer.OnJoinGame(this);
                 return true;
             }
             return false;
@@ -29,7 +26,6 @@ namespace GameServer
         {
             if (gamePeer != null && GamePeers.Contains(gamePeer))
             {
-                gamePeer.OnExitGame();
                 GamePeers.Remove(gamePeer);
                 return true;
             }

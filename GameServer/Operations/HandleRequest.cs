@@ -5,15 +5,16 @@ namespace GameServer.Operations
 {
     internal class HandleRequest
     {
-        public NetPeer Peer;
+        public GamePeer GamePeer;
         public GameOperationCode OperationCode;
         public byte[] RequestData;
-
-        public HandleRequest(NetPeer peer, GameOperationCode operationCode, byte[] requestData)
+        public DeliveryMethod DeliveryMethod;
+        public HandleRequest(GamePeer clientPeer, GameOperationCode operationCode, byte[] requestData, DeliveryMethod deliveryMethod)
         {
-            Peer = peer;
+            GamePeer = clientPeer;
             OperationCode = operationCode;
             RequestData = requestData;
+            DeliveryMethod = deliveryMethod;
         }
     }
 }
