@@ -25,10 +25,23 @@ namespace TestClient
                 GameOperationCode operationCode = (GameOperationCode)reader.GetByte();
                 ReturnCode returnCode = (ReturnCode)reader.GetByte();
 
-                Console.WriteLine("{0} request result: {1}", operationCode.ToString(), returnCode.ToString());
+                Console.WriteLine("{0} request result: {1} ping{2}", operationCode.ToString(), returnCode.ToString(), fromPeer.Ping);
 
-                //if (returnCode != ReturnCode.Success)
-                //    return;
+                if (returnCode != ReturnCode.Success)
+                    return;
+                switch (operationCode)
+                {
+                    case GameOperationCode.JoinGame:
+                        RPCResponse(reader.GetRemainingBytes());
+                        break;
+                    case GameOperationCode.ExitGame:
+                        RPCResponse(reader.GetRemainingBytes());
+                        break;
+                    case GameOperationCode.RPC:
+                        RPCResponse(reader.GetRemainingBytes());
+                        break;
+                }
+
                 //switch (operationCode)
                 //{
                 //    case OperationCode.Register:
@@ -67,11 +80,6 @@ namespace TestClient
                     string? operation = Console.ReadLine();
                     if (!string.IsNullOrEmpty(operation))
                     {
-                        //if (operation.Contains("Connect"))
-                        //{
-                        //    string[] msg = operation.Split(" ");
-                        //    Connect(msg[1], int.Parse(msg[2]));
-                        //}
                         if (operation.Contains("Register"))
                         {
                             string[] msg = operation.Split(" ");
@@ -116,9 +124,23 @@ namespace TestClient
                         {
                             ExitGame();
                         }
+
+                        if (operation.Contains("Rpc"))
+                        {
+                            Task.Run(() =>
+                            {
+                                while (true)
+                                {
+                                    SendRpc();
+                                    Thread.Sleep(15);
+                                }
+                            });
+                        }
                     }
                 }
             });
+
+
 
             while (true)
             {
@@ -126,7 +148,7 @@ namespace TestClient
                 {
 
                     client.PollEvents();
-                    Thread.Sleep(15);
+                    Thread.Sleep(1);
                 }
                 catch (Exception e)
                 {
@@ -210,7 +232,7 @@ namespace TestClient
         static void RegisterResponse(byte[] bytes)
         {
             ResponseBasePack response = MessagePackSerializer.Deserialize<ResponseBasePack>(bytes);
-            Console.WriteLine("注册成功 {0} ",DateTimeEx.ConvertToLocalDateTime(response.TimeStamp));
+            Console.WriteLine("注册成功 {0} ", DateTimeEx.ConvertToLocalDateTime(response.TimeStamp));
         }
 
         static void LoginResponse(byte[] bytes)
@@ -249,5 +271,23 @@ namespace TestClient
             peer?.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
         }
 
+        static int sendindex = 0;
+        static void SendRpc()
+        {
+            RpcPack request = new RpcPack();
+            request.RoomID = "asd";
+            request.UserID = userid;
+            request.Param.Add(0, sendindex++);
+            NetDataWriter netDataWriter = new NetDataWriter();
+            netDataWriter.Put((byte)GameOperationCode.RPC);
+            netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
+            peer?.Send(netDataWriter, DeliveryMethod.ReliableSequenced);
+        }
+
+        static void RPCResponse(byte[] bytes)
+        {
+            RpcPack response = MessagePackSerializer.Deserialize<RpcPack>(bytes);
+            Console.WriteLine("消息Index{0}, 延迟:{1}", response.Param[0], DateTimeEx.TimeStamp - response.TimeStamp);
+        }
     }
 }

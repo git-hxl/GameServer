@@ -21,7 +21,7 @@ namespace GameServer.Operations
                     ExitGame(handleRequest);
                     break;
                 case GameOperationCode.RPC:
-
+                    Rpc(handleRequest);
                     break;
                 default:
                     SendResponse(handleRequest.GamePeer, handleRequest.OperationCode, ReturnCode.InvalidRequest, DeliveryMethod.ReliableOrdered);
@@ -75,6 +75,19 @@ namespace GameServer.Operations
                 }
             }
             SendResponse(handleRequest.GamePeer, handleRequest.OperationCode, ReturnCode.InvalidRequest, handleRequest.DeliveryMethod);
+        }
+
+        private void Rpc(HandleRequest handleRequest)
+        {
+            RpcPack pack = MessagePackSerializer.Deserialize<RpcPack>(handleRequest.RequestData);
+            Game game = GameApplication.Instance.GetOrCreateGame(pack.RoomID);
+            if (game != null)
+            {
+                foreach (var item in game.GamePeers)
+                {
+                    SendResponse(item, handleRequest.OperationCode, ReturnCode.Success, handleRequest.DeliveryMethod, handleRequest.RequestData);
+                }
+            }
         }
     }
 }
