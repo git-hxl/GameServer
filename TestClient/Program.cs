@@ -16,6 +16,7 @@ namespace TestClient
         {
             EventBasedNetListener listener = new EventBasedNetListener();
             client = new NetManager(listener);
+            //client.UnsyncedEvents = true;
             client.Start();
 
             listener.PeerConnectedEvent += Listener_PeerConnectedEvent;
@@ -132,7 +133,7 @@ namespace TestClient
                                 while (true)
                                 {
                                     SendRpc();
-                                    Thread.Sleep(15);
+                                    Thread.Sleep(1);
                                 }
                             });
                         }
@@ -140,13 +141,10 @@ namespace TestClient
                 }
             });
 
-
-
             while (true)
             {
                 try
                 {
-
                     client.PollEvents();
                     Thread.Sleep(1);
                 }
@@ -282,6 +280,7 @@ namespace TestClient
             netDataWriter.Put((byte)GameOperationCode.RPC);
             netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
             peer?.Send(netDataWriter, DeliveryMethod.ReliableSequenced);
+            client.TriggerUpdate();
         }
 
         static void RPCResponse(byte[] bytes)

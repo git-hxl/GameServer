@@ -8,18 +8,17 @@ namespace GameServer
 {
     internal class GameApplication : Singleton<GameApplication>
     {
-        private NetManager server;
         private EventBasedNetListener listener;
         private OperationHandleBase operationHandle;
         private List<Game> games = new List<Game>();
         private Dictionary<string, GamePeer> gamePeers = new Dictionary<string, GamePeer>();
         public GameServerConfig? ServerConfig { get; private set; }
         public NetPeer? MasterServer { get; private set; }
-
+        public NetManager Server { get; private set; }
         public GameApplication()
         {
             listener = new EventBasedNetListener();
-            server = new NetManager(listener);
+            Server = new NetManager(listener);
             operationHandle = new OperationHandleBase();
             Log.Information("Load Config");
             try
@@ -41,12 +40,14 @@ namespace GameServer
                 Log.Error("No Config Loaded!");
                 return;
             }
-            server.Start(ServerConfig.Port);
-            server.PingInterval = 1000;
-            server.DisconnectTimeout = 5000;
-            server.ReconnectDelay = 500;
+            Server.PingInterval = 1000;
+            Server.DisconnectTimeout = 5000;
+            Server.ReconnectDelay = 500;
             //最大连接尝试次数
-            server.MaxConnectAttempts = 10;
+            Server.MaxConnectAttempts = 10;
+            Server.UnsyncedEvents = true;
+            Server.Start(ServerConfig.Port);
+
             listener.ConnectionRequestEvent += Listener_ConnectionRequestEvent;
             listener.PeerConnectedEvent += Listener_PeerConnectedEvent;
             listener.PeerDisconnectedEvent += Listener_PeerDisconnectedEvent;
@@ -55,26 +56,26 @@ namespace GameServer
             Log.Information("Start listener Successed");
             Log.Information("Connect To Master");
 
-            MasterServer = server.Connect(ServerConfig.MasterIP, ServerConfig.MasterPort, "Hello");
+            MasterServer = Server.Connect(ServerConfig.MasterIP, ServerConfig.MasterPort, "Hello");
         }
 
         public void Close()
         {
-            if (server != null)
-                server.Stop(true);
+            if (Server != null)
+                Server.Stop(true);
         }
 
         public void Update()
         {
-            if (server != null)
+            if (Server != null)
             {
-                server.PollEvents();
+                Server.PollEvents();
             }
         }
 
         private void Listener_ConnectionRequestEvent(ConnectionRequest request)
         {
-            if (server != null && server.ConnectedPeersCount < 5000)
+            if (Server != null && Server.ConnectedPeersCount < 5000)
             {
                 //TODO:Token 
                 request.Accept();

@@ -39,6 +39,7 @@ namespace GameServer.Operations
                 netDataWriter.Put(responseData);
             //游戏数据只保证最新的数据包
             peer.NetPeer.Send(netDataWriter, deliveryMethod);
+            GameApplication.Instance.Server.TriggerUpdate();
         }
 
         private void JoinGame(HandleRequest handleRequest)
