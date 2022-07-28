@@ -106,6 +106,7 @@ namespace GameServer
 
         private void Listener_NetworkReceiveEvent(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
         {
+
             if (gamePeers.ContainsKey(peer.EndPoint.ToString()))
             {
                 GamePeer gamePeer = gamePeers[peer.EndPoint.ToString()];

@@ -3,11 +3,11 @@
 namespace CommonLibrary.MessagePack
 {
     [MessagePackObject]
-    public class RegisterRequestPack : RequsetBasePack
+    public class JoinRoomRequest
     {
-        [Key(2)]
-        public string Account = "";
-        [Key(3)]
+        [Key(0)]
+        public string RoomID = "";
+        [Key(1)]
         public string Password = "";
     }
 }

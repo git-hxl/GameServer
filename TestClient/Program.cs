@@ -1,5 +1,6 @@
 ﻿using CommonLibrary.MessagePack;
-using CommonLibrary.Operations;
+using CommonLibrary.MessagePack.Operation;
+using CommonLibrary.MessagePack.Response;
 using CommonLibrary.Utils;
 using GameServer.Operations;
 using LiteNetLib;
@@ -170,7 +171,7 @@ namespace TestClient
 
         static void Register(string account, string password)
         {
-            RegisterRequestPack request = new RegisterRequestPack();
+            RegisterRequest request = new RegisterRequest();
             request.Account = account;
             request.Password = password;
             NetDataWriter netDataWriter = new NetDataWriter();
@@ -181,7 +182,7 @@ namespace TestClient
 
         static void Login(string account, string password)
         {
-            LoginRequestPack request = new LoginRequestPack();
+            LoginRequest request = new LoginRequest();
             request.Account = account;
             request.Password = password;
             NetDataWriter netDataWriter = new NetDataWriter();
@@ -200,7 +201,7 @@ namespace TestClient
         }
         static void CreateRoom(string rommName)
         {
-            CreateRoomRequestPack request = new CreateRoomRequestPack();
+            RequestCreateRoom request = new RequestCreateRoom();
             request.RoomName = rommName;
             NetDataWriter netDataWriter = new NetDataWriter();
             netDataWriter.Put((byte)OperationCode.CreateRoom);
@@ -229,7 +230,7 @@ namespace TestClient
 
         static void RegisterResponse(byte[] bytes)
         {
-            ResponseBasePack response = MessagePackSerializer.Deserialize<ResponseBasePack>(bytes);
+            ResponsePack response = MessagePackSerializer.Deserialize<ResponsePack>(bytes);
             Console.WriteLine("注册成功 {0} ", DateTimeEx.ConvertToLocalDateTime(response.TimeStamp));
         }
 

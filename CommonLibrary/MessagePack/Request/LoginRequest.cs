@@ -3,11 +3,11 @@
 namespace CommonLibrary.MessagePack
 {
     [MessagePackObject]
-    public class LoginRequestPack : RequsetBasePack
+    public class LoginRequest
     {
-        [Key(2)]
+        [Key(0)]
         public string Account = "";
-        [Key(3)]
+        [Key(1)]
         public string Password = "";
     }
 }

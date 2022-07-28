@@ -4,15 +4,11 @@ using System.Collections;
 namespace CommonLibrary.MessagePack
 {
     [MessagePackObject]
-    public class RpcPack : RequsetBasePack
+    public class RpcPack
     {
-        [Key(2)]
-        public string RoomID = "";
-        [Key(3)]
-        public int UserID;
-        [Key(4)]
+        [Key(0)]
         public string MethodName = "";
-        [Key(5)]
+        [Key(1)]
         public Hashtable Param = new Hashtable();
     }
 }

@@ -4,17 +4,17 @@ using System.Collections;
 namespace CommonLibrary.MessagePack
 {
     [MessagePackObject]
-    public class CreateRoomRequestPack : RequsetBasePack
+    public class CreateRoomRequest
     {
-        [Key(2)]
-        public string RoomName = "";
-        [Key(3)]
+        [Key(0)]
         public bool IsVisible;
-        [Key(4)]
+        [Key(1)]
+        public bool NeedPassword;
+        [Key(2)]
         public string Password = "";
-        [Key(5)]
+        [Key(3)]
         public int MaxPlayers;
-        [Key(6)]
+        [Key(4)]
         public Hashtable RoomProperties = new Hashtable();
     }
 }

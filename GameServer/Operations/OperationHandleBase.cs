@@ -1,5 +1,5 @@
 ﻿using CommonLibrary.MessagePack;
-using CommonLibrary.Operations;
+using CommonLibrary.MessagePack.Operation;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using MessagePack;

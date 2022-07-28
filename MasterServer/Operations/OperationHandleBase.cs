@@ -1,5 +1,6 @@
 ﻿using CommonLibrary.MessagePack;
-using CommonLibrary.Operations;
+using CommonLibrary.MessagePack.Operation;
+using CommonLibrary.MessagePack.Response;
 using CommonLibrary.Table;
 using Dapper;
 using LiteNetLib;
@@ -39,8 +40,6 @@ namespace MasterServer.Operations
                     break;
                 case OperationCode.GetRoomList:
 
-                case OperationCode.Disconnect:
-
                 default:
                     SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.InvalidRequest,DeliveryMethod.ReliableOrdered);
                     break;
@@ -60,7 +59,7 @@ namespace MasterServer.Operations
 
         private async void RegisterRequest(HandleRequest handleRequest)
         {
-            RegisterRequestPack registerRequestPack = MessagePackSerializer.Deserialize<RegisterRequestPack>(handleRequest.RequestData);
+            RegisterRequest registerRequestPack = MessagePackSerializer.Deserialize<RegisterRequest>(handleRequest.RequestData);
             using (var dbConnection = await DBHelper.CreateConnection())
             {
                 if (dbConnection != null)
@@ -76,7 +75,7 @@ namespace MasterServer.Operations
                         int result = dbConnection.Execute(insertAccount);
                         if (result == 1)
                         {
-                            byte[] responseData = MessagePackSerializer.Serialize<ResponseBasePack>(new ResponseBasePack());
+                            byte[] responseData = MessagePackSerializer.Serialize<ResponsePack>(new ResponsePack());
                             SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success, handleRequest.DeliveryMethod, responseData);
                             return;
                         }
@@ -88,7 +87,7 @@ namespace MasterServer.Operations
 
         private async void LoginRequest(HandleRequest handleRequest)
         {
-            LoginRequestPack loginRequestPack = MessagePackSerializer.Deserialize<LoginRequestPack>(handleRequest.RequestData);
+            LoginMsg loginRequestPack = MessagePackSerializer.Deserialize<LoginMsg>(handleRequest.RequestData);
             using (var dbConnection = await DBHelper.CreateConnection())
             {
                 if (dbConnection != null)
@@ -127,7 +126,7 @@ namespace MasterServer.Operations
 
         private void CreateRoomRequest(HandleRequest handleRequest)
         {
-            CreateRoomRequestPack pack = MessagePackSerializer.Deserialize<CreateRoomRequestPack>(handleRequest.RequestData);
+            RequestCreateRoom pack = MessagePackSerializer.Deserialize<RequestCreateRoom>(handleRequest.RequestData);
             LobbyRoom? lobbyRoom = handleRequest.ClientPeer.CreateRoom(pack.RoomName, pack.IsVisible, pack.Password, pack.MaxPlayers, pack.RoomProperties);
             if (lobbyRoom != null)
             {
@@ -164,8 +163,8 @@ namespace MasterServer.Operations
             RequsetBasePack pack = MessagePackSerializer.Deserialize<RequsetBasePack>(handleRequest.RequestData);
             if (handleRequest.ClientPeer.LeaveRoom())
             {
-                ResponseBasePack responseBasePack = new ResponseBasePack();
-                byte[] responseData = MessagePackSerializer.Serialize<ResponseBasePack>(responseBasePack);
+                ResponsePack responseBasePack = new ResponsePack();
+                byte[] responseData = MessagePackSerializer.Serialize<ResponsePack>(responseBasePack);
                 SendResponse(handleRequest.ClientPeer, handleRequest.OperationCode, ReturnCode.Success, handleRequest.DeliveryMethod, responseData);
                 return;
             }

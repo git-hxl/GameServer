@@ -8,8 +8,6 @@ namespace MasterServer
         {
             Log.Logger = new LoggerConfiguration().WriteTo.Console().WriteTo.File("log.txt").CreateLogger();
 
-            Log.Information("Start Server");
-
             MasterApplication.Instance.Start();
 
             try

@@ -1,57 +1,31 @@
-﻿using CommonLibrary.MessagePack.Operation;
-using CommonLibrary.Utils;
-using LiteNetLib;
-using MasterServer.Operations;
-using Newtonsoft.Json;
+﻿using LiteNetLib;
 using Serilog;
 
-namespace MasterServer
+namespace CommonLibrary.Core
 {
-    internal class MasterApplication : Singleton<MasterApplication>
+    public abstract class ApplicationBase
     {
         private NetManager server;
         private EventBasedNetListener listener;
         private OperationHandleBase operationHandle;
-        private Dictionary<string, MasterPeer> clientPeers = new Dictionary<string, MasterPeer>();
-        public MasterServerConfig? ServerConfig { get; }
-        public MasterApplication()
+
+        public ApplicationBase(OperationHandleBase operationHandle)
         {
+            this.operationHandle = operationHandle;
             listener = new EventBasedNetListener();
+            listener.ConnectionRequestEvent += Listener_ConnectionRequestEvent; ;
+            listener.PeerConnectedEvent += Listener_PeerConnectedEvent; ;
+            listener.PeerDisconnectedEvent += Listener_PeerDisconnectedEvent; ;
+            listener.NetworkReceiveEvent += Listener_NetworkReceiveEvent; ;
             server = new NetManager(listener);
-            operationHandle = new OperationHandleBase();
-            Log.Information("Load Config");
-            try
-            {
-                string config = File.ReadAllText("./MasterServerConfig.json");
-                if (!string.IsNullOrEmpty(config))
-                    ServerConfig = JsonConvert.DeserializeObject<MasterServerConfig>(config);
-            }
-            catch (Exception e)
-            {
-                Log.Error(e.ToString());
-            };
         }
+
+        protected abstract void InitConfig();
 
         public void Start()
         {
-            if (ServerConfig == null)
-            {
-                Log.Error("No Config Loaded!");
-                return;
-            }
-            server.Start(ServerConfig.Port);
-            server.PingInterval = 1000;
-            server.DisconnectTimeout = 5000;
-            server.ReconnectDelay = 500;
-            //最大连接尝试次数
-            server.MaxConnectAttempts = 10;
-
-            listener.ConnectionRequestEvent += Listener_ConnectionRequestEvent;
-            listener.PeerConnectedEvent += Listener_PeerConnectedEvent;
-            listener.PeerDisconnectedEvent += Listener_PeerDisconnectedEvent;
-            listener.NetworkReceiveEvent += Listener_NetworkReceiveEvent;
-
-            Log.Information("Start listener Successed");
+            InitConfig();
+            server.Start();
         }
 
         public void Close()

@@ -1,4 +1,5 @@
-﻿using CommonLibrary.Operations;
+﻿using CommonLibrary.MessagePack.Operation;
+
 namespace MasterServer.Operations
 {
     public class HandleResponse

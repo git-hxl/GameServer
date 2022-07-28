@@ -1,16 +1,21 @@
-﻿namespace CommonLibrary.Operations
+﻿namespace CommonLibrary.MessagePack.Operation
 {
     public enum ReturnCode
     {
-        Success = 0,
+        Success,
+
         RegisterFailed,
+
         LoginFailed,
 
         JoinLobbyFailed,
+
         LeaveLobbyFailed,
 
         CreateRommFailed,
+
         JoinRoomFailed,
+
         LeaveRoomFailed,
 
         RPCFailed,

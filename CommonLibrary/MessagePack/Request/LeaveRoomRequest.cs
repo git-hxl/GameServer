@@ -1,13 +1,10 @@
 ﻿using MessagePack;
-
 namespace CommonLibrary.MessagePack
 {
     [MessagePackObject]
-    public class JoinRoomRequestPack : RequsetBasePack
+    public class LeaveRoomRequest
     {
-        [Key(2)]
+        [Key(0)]
         public string RoomID = "";
-        [Key(3)]
-        public string Password = "";
     }
 }
