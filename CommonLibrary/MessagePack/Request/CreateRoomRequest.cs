@@ -7,14 +7,16 @@ namespace CommonLibrary.MessagePack
     public class CreateRoomRequest
     {
         [Key(0)]
-        public bool IsVisible;
+        public string RoomName = "";
         [Key(1)]
-        public bool NeedPassword;
+        public bool IsVisible;
         [Key(2)]
-        public string Password = "";
+        public bool NeedPassword;
         [Key(3)]
-        public int MaxPlayers;
+        public string Password = "";
         [Key(4)]
+        public int MaxPlayers;
+        [Key(5)]
         public Hashtable RoomProperties = new Hashtable();
     }
 }

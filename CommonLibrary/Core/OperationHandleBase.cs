@@ -1,10 +1,11 @@
-﻿using CommonLibrary.MessagePack.Operation;
+﻿using CommonLibrary.MessagePack;
+using CommonLibrary.MessagePack.Operation;
 using LiteNetLib;
 namespace CommonLibrary.Core
 {
     public abstract class OperationHandleBase
     {
         public OperationHandleBase() { }
-        public abstract void HandleRequest(OperationCode operationCode, byte[] data, DeliveryMethod deliveryMethod);
+        public abstract void HandleRequest(NetPeer netPeer, MsgPack msgPack, DeliveryMethod deliveryMethod);
     }
 }

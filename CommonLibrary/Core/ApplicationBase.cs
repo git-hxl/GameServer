@@ -5,9 +5,9 @@ namespace CommonLibrary.Core
 {
     public abstract class ApplicationBase
     {
-        private NetManager server;
-        private EventBasedNetListener listener;
-        private OperationHandleBase operationHandle;
+        protected NetManager server;
+        protected EventBasedNetListener listener;
+        protected OperationHandleBase operationHandle;
 
         public ApplicationBase(OperationHandleBase operationHandle)
         {
@@ -42,48 +42,9 @@ namespace CommonLibrary.Core
             }
         }
 
-        private void Listener_ConnectionRequestEvent(ConnectionRequest request)
-        {
-            if (server != null && ServerConfig != null && server.ConnectedPeersCount < 5000)
-                request.AcceptIfKey(ServerConfig.ConnectKey);
-            else
-            {
-                request.Reject();
-                Log.Information("Reject Connect:{0}", request.RemoteEndPoint.ToString());
-            }
-        }
-
-        private void Listener_PeerConnectedEvent(NetPeer peer)
-        {
-            Log.Information("We got connection: {0} id:{1}", peer.EndPoint, peer.Id);
-            MasterPeer clientPeer = new MasterPeer(peer);
-            clientPeers[peer.EndPoint.ToString()] = clientPeer;
-        }
-
-        private void Listener_PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
-        {
-            Log.Information("We got disconnection: {0}", peer.EndPoint);
-
-            if (clientPeers.ContainsKey(peer.EndPoint.ToString()))
-            {
-                clientPeers[peer.EndPoint.ToString()].OnDisConnected();
-                clientPeers.Remove(peer.EndPoint.ToString());
-            }
-        }
-
-        private void Listener_NetworkReceiveEvent(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
-        {
-            if (clientPeers.ContainsKey(peer.EndPoint.ToString()))
-            {
-                MasterPeer clientPeer = clientPeers[peer.EndPoint.ToString()];
-                OperationCode operationCode = (OperationCode)reader.GetByte();
-                HandleRequest handleRequest = new HandleRequest(clientPeer, operationCode, reader.GetRemainingBytes(), deliveryMethod);
-                operationHandle.HandleRequest(handleRequest);
-            }
-            else
-            {
-                Log.Information("Client {0} not connected!", peer.EndPoint.ToString());
-            }
-        }
+        protected abstract void Listener_ConnectionRequestEvent(ConnectionRequest request);
+        protected abstract void Listener_PeerConnectedEvent(NetPeer peer);
+        protected abstract void Listener_PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo);
+        protected abstract void Listener_NetworkReceiveEvent(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod);
     }
 }

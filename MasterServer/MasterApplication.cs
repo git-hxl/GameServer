@@ -1,5 +1,5 @@
-﻿using CommonLibrary.MessagePack.Operation;
-using CommonLibrary.Utils;
+﻿using CommonLibrary.Core;
+using CommonLibrary.MessagePack;
 using LiteNetLib;
 using MasterServer.Operations;
 using Newtonsoft.Json;
@@ -7,70 +7,42 @@ using Serilog;
 
 namespace MasterServer
 {
-    internal class MasterApplication : Singleton<MasterApplication>
+    public class MasterApplication : ApplicationBase
     {
-        private NetManager server;
-        private EventBasedNetListener listener;
-        private OperationHandleBase operationHandle;
-        private Dictionary<string, MasterPeer> clientPeers = new Dictionary<string, MasterPeer>();
-        public MasterServerConfig? ServerConfig { get; }
-        public MasterApplication()
-        {
-            listener = new EventBasedNetListener();
-            server = new NetManager(listener);
-            operationHandle = new OperationHandleBase();
-            Log.Information("Load Config");
-            try
-            {
-                string config = File.ReadAllText("./MasterServerConfig.json");
-                if (!string.IsNullOrEmpty(config))
-                    ServerConfig = JsonConvert.DeserializeObject<MasterServerConfig>(config);
-            }
-            catch (Exception e)
-            {
-                Log.Error(e.ToString());
-            };
-        }
+        private Dictionary<int, MasterPeer> clientPeers = new Dictionary<int, MasterPeer>();
+        public MasterServerConfig? ServerConfig { get; private set; }
+        public static MasterApplication Instance = new MasterApplication();
+        public MasterApplication() : base(new MasterOperationHandle())
+        { }
 
-        public void Start()
+        protected override void InitConfig()
         {
+            string config = File.ReadAllText("./MasterServerConfig.json");
+            if (!string.IsNullOrEmpty(config))
+                ServerConfig = JsonConvert.DeserializeObject<MasterServerConfig>(config);
+
             if (ServerConfig == null)
             {
                 Log.Error("No Config Loaded!");
                 return;
             }
-            server.Start(ServerConfig.Port);
-            server.PingInterval = 1000;
-            server.DisconnectTimeout = 5000;
-            server.ReconnectDelay = 500;
-            //最大连接尝试次数
-            server.MaxConnectAttempts = 10;
+
+            server.PingInterval = ServerConfig.PingInterval;
+            server.DisconnectTimeout = ServerConfig.DisconnectTimeout;
+            server.ReconnectDelay = ServerConfig.ReconnectDelay;
+            server.MaxConnectAttempts = ServerConfig.MaxConnectAttempts;
 
             listener.ConnectionRequestEvent += Listener_ConnectionRequestEvent;
             listener.PeerConnectedEvent += Listener_PeerConnectedEvent;
             listener.PeerDisconnectedEvent += Listener_PeerDisconnectedEvent;
             listener.NetworkReceiveEvent += Listener_NetworkReceiveEvent;
 
-            Log.Information("Start listener Successed");
+            Log.Information("Start Master Server");
         }
 
-        public void Close()
+        protected override void Listener_ConnectionRequestEvent(ConnectionRequest request)
         {
-            if (server != null)
-                server.Stop(true);
-        }
-
-        public void Update()
-        {
-            if (server != null)
-            {
-                server.PollEvents();
-            }
-        }
-
-        private void Listener_ConnectionRequestEvent(ConnectionRequest request)
-        {
-            if (server != null && ServerConfig != null && server.ConnectedPeersCount < 5000)
+            if (ServerConfig != null && server.ConnectedPeersCount < ServerConfig.MaxPeers)
                 request.AcceptIfKey(ServerConfig.ConnectKey);
             else
             {
@@ -79,37 +51,40 @@ namespace MasterServer
             }
         }
 
-        private void Listener_PeerConnectedEvent(NetPeer peer)
+        protected override void Listener_PeerConnectedEvent(NetPeer peer)
         {
             Log.Information("We got connection: {0} id:{1}", peer.EndPoint, peer.Id);
-            MasterPeer clientPeer = new MasterPeer(peer);
-            clientPeers[peer.EndPoint.ToString()] = clientPeer;
         }
 
-        private void Listener_PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
+        protected override void Listener_PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
         {
             Log.Information("We got disconnection: {0}", peer.EndPoint);
 
-            if (clientPeers.ContainsKey(peer.EndPoint.ToString()))
+            if (clientPeers.ContainsKey(peer.Id))
             {
-                clientPeers[peer.EndPoint.ToString()].OnDisConnected();
-                clientPeers.Remove(peer.EndPoint.ToString());
+                clientPeers[peer.Id].OnDisConnected();
+                clientPeers.Remove(peer.Id);
             }
         }
 
-        private void Listener_NetworkReceiveEvent(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
+        protected override void Listener_NetworkReceiveEvent(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
         {
-            if (clientPeers.ContainsKey(peer.EndPoint.ToString()))
+            MsgPack msgPack = MessagePack.MessagePackSerializer.Deserialize<MsgPack>(reader.GetRemainingBytes());
+            operationHandle.HandleRequest(peer, msgPack, deliveryMethod);
+        }
+
+        public void AddClientPeer(MasterPeer masterPeer)
+        {
+            clientPeers[masterPeer.NetPeer.Id] = masterPeer;
+        }
+
+        public MasterPeer? GetClientPeer(int id)
+        {
+            if (clientPeers.ContainsKey(id))
             {
-                MasterPeer clientPeer = clientPeers[peer.EndPoint.ToString()];
-                OperationCode operationCode = (OperationCode)reader.GetByte();
-                HandleRequest handleRequest = new HandleRequest(clientPeer, operationCode, reader.GetRemainingBytes(), deliveryMethod);
-                operationHandle.HandleRequest(handleRequest);
+                return clientPeers[id];
             }
-            else
-            {
-                Log.Information("Client {0} not connected!", peer.EndPoint.ToString());
-            }
+            return null;
         }
     }
 }

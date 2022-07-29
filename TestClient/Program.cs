@@ -182,7 +182,7 @@ namespace TestClient
 
         static void Login(string account, string password)
         {
-            LoginRequest request = new LoginRequest();
+            LoginMsg request = new LoginMsg();
             request.Account = account;
             request.Password = password;
             NetDataWriter netDataWriter = new NetDataWriter();

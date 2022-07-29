@@ -1,30 +1,30 @@
 ﻿using System.Collections;
 
-namespace MasterServer.Lobby
+namespace MasterServer
 {
-    public class LobbyRoom
+    public class Room
     {
         public string RoomID { get; }
         public string RoomName { get; }
         public bool IsVisible { get; }
+        public bool NeedPassword { get; }
         public string Password { get; }
         public int MaxPeers { get; }
         public Hashtable RoomProperties { get; }
         public List<MasterPeer> ClientPeers { get; }
-
-        private Lobby lobby;
-        public LobbyRoom(Lobby lobby, MasterPeer clientPeer, string roomName, bool isVisible, string password, int maxPeers, Hashtable roomProperties)
+        public Lobby Lobby { get; }
+        public Room(Lobby lobby, MasterPeer clientPeer, string roomName, bool isVisible, bool needPassword, string password, int maxPeers, Hashtable roomProperties)
         {
-            this.lobby = lobby;
-            this.RoomID = Guid.NewGuid().ToString();
-            this.RoomName = roomName;
-            this.IsVisible = isVisible;
-            this.Password = password;
-            this.MaxPeers = maxPeers;
-            this.RoomProperties = roomProperties;
-
+            Lobby = lobby;
+            RoomID = Guid.NewGuid().ToString();
+            RoomName = roomName;
+            IsVisible = isVisible;
+            NeedPassword = needPassword;
+            Password = password;
+            MaxPeers = maxPeers;
+            RoomProperties = roomProperties;
             ClientPeers = new List<MasterPeer>();
-            ClientPeers.Add(clientPeer);
+            AddClientPeer(clientPeer);
         }
 
         public bool AddClientPeer(MasterPeer clientPeer)
@@ -44,7 +44,7 @@ namespace MasterServer.Lobby
                 ClientPeers.Remove(clientPeer);
                 if (ClientPeers.Count <= 0)
                 {
-                    lobby.RemoveRoom(this);
+                    Lobby.RemoveRoom(this);
                 }
             }
         }

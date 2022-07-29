@@ -10,7 +10,7 @@ namespace CommonLibrary.MessagePack
         [Key(0)]
         public OperationCode OperationCode;
         [Key(1)]
-        public long TimeStamp;
+        public long TimeStamp = DateTimeEx.TimeStamp;
         [Key(2)]
         public byte[] Data = new byte[0];
     }

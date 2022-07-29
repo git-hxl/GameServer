@@ -15,12 +15,15 @@
         CreateRommFailed,
 
         JoinRoomFailed,
+        OnOtherJoinedRoom,
 
         LeaveRoomFailed,
+        OnOtherLeaveRoom,
 
         RPCFailed,
 
         InvalidRequest,
+
     }
 
 }

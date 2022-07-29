@@ -8,6 +8,6 @@ namespace CommonLibrary.MessagePack
         [Key(0)]
         public int ID;
         [Key(1)]
-        public int NickName;
+        public string NickName = "";
     }
 }

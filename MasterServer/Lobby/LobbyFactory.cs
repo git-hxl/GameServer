@@ -1,4 +1,4 @@
-﻿namespace MasterServer.Lobby
+﻿namespace MasterServer
 {
     public class LobbyFactory
     {
@@ -16,18 +16,18 @@
             private set { }
         }
 
-        public Lobby? GetLobby(string lobbyName)
+        public Lobby? GetLobby(string lobbyID)
         {
-            Lobby? lobby = lobbies.FirstOrDefault((a) => a.LobbyName == lobbyName);
+            Lobby? lobby = lobbies.FirstOrDefault((a) => a.LobbyID == lobbyID);
             return lobby;
         }
 
-        public Lobby? GetOrCreateLobby(string lobbyName)
+        public Lobby GetOrCreateLobby()
         {
-            Lobby? lobby = lobbies.FirstOrDefault((a) => a.LobbyName == lobbyName && a.IsFullLobby == false);
+            Lobby? lobby = lobbies.FirstOrDefault((a) =>a.IsFullLobby == false);
             if (lobby == null)
             {
-                lobby = new Lobby(lobbyName);
+                lobby = new Lobby();
                 lobbies.Add(lobby);
             }
             return lobby;

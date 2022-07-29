@@ -1,98 +1,48 @@
-﻿using LiteNetLib;
-using MasterServer.Lobby;
-using Serilog;
-using System.Collections;
-
+﻿using CommonLibrary.Table;
+using LiteNetLib;
 namespace MasterServer
 {
     public sealed class MasterPeer
     {
-        public int UserID { get; set; }
-
+        public UserTable User { get; private set; }
         public NetPeer NetPeer { get; private set; }
 
-        private Lobby.Lobby? curLobby;
-        private LobbyRoom? curRoom;
+        public Lobby? CurLobby { get; private set; }
+        public Room? CurRoom { get; private set; }
 
-        public MasterPeer(NetPeer netPeer)
+        public bool IsInLooby { get { return CurLobby != null; } }
+        public bool IsInRoom { get { return CurRoom != null; } }
+        public bool IsMaster { get; private set; }
+        public MasterPeer(NetPeer netPeer, UserTable user)
         {
-            this.NetPeer = netPeer;
+            NetPeer = netPeer;
+            User = user;
         }
 
-        public void Login(int userID)
+        public void OnJoinLobby(Lobby lobby)
         {
-            this.UserID = userID;
-            //join lobby
-            JoinLobby();
+            CurLobby = lobby;
         }
 
-        public bool JoinLobby(string lobbyName = "Default")
+        public void OnLeaveLobby()
         {
-            LeaveLobby();
-            if (curLobby == null)
-            {
-                curLobby = LobbyFactory.Instance.GetOrCreateLobby(lobbyName);
-                if (curLobby != null)
-                {
-                    return curLobby.AddClientPeer(this);
-                }
-            }
-            return false;
+            CurLobby = null;
         }
 
-        public void LeaveLobby()
+        public void OnJoinRoom(Room room)
         {
-            if (curLobby != null)
-            {
-                curLobby.RemoveClientPeer(this);
-                curLobby = null;
-            }
+            CurRoom = room;
         }
 
-        public LobbyRoom? CreateRoom(string roomName, bool isVisible, string password, int maxPeers, Hashtable roomProperties)
+        public void OnLeaveRoom()
         {
-            if (curLobby != null && curRoom == null)
-            {
-                LobbyRoom? lobbyRoom = curLobby.CreateRoom(this, roomName, isVisible, password, maxPeers, roomProperties);
-                curRoom = lobbyRoom;
-                return curRoom;
-            }
-            return null;
-        }
-
-        public LobbyRoom? JoinRoom(string roomID, string password)
-        {
-            LobbyRoom? lobbyRoom = curLobby?.GetRoom(roomID);
-
-            if (curRoom == null && lobbyRoom != null && lobbyRoom.IsVisible && lobbyRoom.Password.Equals(password))
-            {
-                if (lobbyRoom.AddClientPeer(this))
-                {
-                    curRoom = lobbyRoom;
-                    return curRoom;
-                }
-            }
-            return null;
-        }
-
-        public bool LeaveRoom()
-        {
-            if (curRoom != null)
-            {
-                curRoom.RemoveClientPeer(this);
-                curRoom = null;
-                return true;
-            }
-            return false;
+            CurRoom = null;
         }
 
         public void OnDisConnected()
         {
-            LeaveRoom();
-            if (curLobby != null)
-            {
-                curLobby.RemoveClientPeer(this);
-            }
+            OnLeaveRoom();
+            OnLeaveLobby();
         }
     }
 }

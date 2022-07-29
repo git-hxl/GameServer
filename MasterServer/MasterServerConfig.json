@@ -1,5 +1,10 @@
 ﻿{
   "Port": 8000,
   "ConnectKey": "Hello",
-  "DBConnectStr": "server=localhost;user=root;password=123456;database=database"
+  "DBConnectStr": "server=localhost;user=root;password=123456;database=database",
+  "MaxPeers": 5000,
+  "PingInterval": 1000,
+  "DisconnectTimeout": 5000,
+  "ReconnectDelay": 500,
+  "MaxConnectAttempts": 10
 }

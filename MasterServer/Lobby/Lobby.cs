@@ -1,33 +1,28 @@
 ﻿using LiteNetLib;
 using System.Collections;
-using System.Linq;
-
-namespace MasterServer.Lobby
+namespace MasterServer
 {
     public class Lobby
     {
-        public string LobbyName { get; }
+        public string LobbyID { get; }
         public ushort MaxPeers { get; }
         public ushort MaxRooms { get; }
-
-        private List<MasterPeer> clientPeers = new List<MasterPeer>();
-        private List<LobbyRoom> lobbyRooms = new List<LobbyRoom>();
-        public Lobby(string lobbyName)
+        public List<MasterPeer> ClientPeers { get; } = new List<MasterPeer>();
+        public List<Room> Rooms { get; } = new List<Room>();
+        public Lobby()
         {
-            this.LobbyName = lobbyName;
-            MaxPeers = 5000;
-            MaxRooms = 1000;
+            LobbyID = Guid.NewGuid().ToString();
+            MaxPeers = 1000;
         }
 
-        public bool IsFullLobby => clientPeers.Count >= MaxPeers;
-        public bool IsFullRoom => lobbyRooms.Count >= MaxRooms;
+        public bool IsFullLobby => ClientPeers.Count >= MaxPeers;
 
         public bool AddClientPeer(MasterPeer clientPeer)
         {
-            if (!clientPeers.Contains(clientPeer))
+            if (!ClientPeers.Contains(clientPeer))
             {
-                clientPeers.Add(clientPeer);
-                Console.WriteLine("{0} join lobby: {1}", clientPeer.NetPeer.EndPoint.ToString(), LobbyName);
+                ClientPeers.Add(clientPeer);
+                Console.WriteLine("{0} join lobby: {1}", clientPeer.NetPeer.EndPoint.ToString(), LobbyID);
                 return true;
             }
             return false;
@@ -35,49 +30,47 @@ namespace MasterServer.Lobby
 
         public void RemoveClientPeer(MasterPeer clientPeer)
         {
-            if (clientPeers.Contains(clientPeer))
+            if (ClientPeers.Contains(clientPeer))
             {
-                clientPeers.Remove(clientPeer);
-                Console.WriteLine("{0} Leave lobby: {1}", clientPeer.NetPeer.EndPoint.ToString(), LobbyName);
-                if (clientPeers.Count <= 0)
+                ClientPeers.Remove(clientPeer);
+                Console.WriteLine("{0} Leave lobby: {1}", clientPeer.NetPeer.EndPoint.ToString(), LobbyID);
+                if (ClientPeers.Count <= 0)
                 {
                     LobbyFactory.Instance.RemoveLobby(this);
                 }
             }
             else
             {
-                Console.WriteLine("{0} Leave lobby Failed, not exits in: {1}", clientPeer.NetPeer.EndPoint.ToString(), LobbyName);
+                Console.WriteLine("{0} Leave lobby Failed, not exits in: {1}", clientPeer.NetPeer.EndPoint.ToString(), LobbyID);
             }
         }
 
-        public LobbyRoom? CreateRoom(MasterPeer clientPeer, string roomName, bool isVisible, string password,int maxPlayers, Hashtable roomProperties)
+        public Room? CreateRoom(MasterPeer clientPeer, string roomName, bool isVisible, bool needPassword, string password, int maxPlayers, Hashtable roomProperties)
         {
-            LobbyRoom lobbyRoom = new LobbyRoom(this, clientPeer, roomName,isVisible,password, maxPlayers, roomProperties);
-            lobbyRooms.Add(lobbyRoom);
+            Room lobbyRoom = new Room(this, clientPeer, roomName, isVisible, needPassword, password, maxPlayers, roomProperties);
+            Rooms.Add(lobbyRoom);
             return lobbyRoom;
         }
 
-        public LobbyRoom? GetRoom(string roomID)
+        public Room? GetRoom(string roomID)
         {
-            return lobbyRooms.FirstOrDefault((a) => a.RoomID == roomID);
+            return Rooms.FirstOrDefault((a) => a.RoomID == roomID);
         }
 
 
-        public void RemoveRoom(LobbyRoom lobbyRoom)
+        public void RemoveRoom(Room lobbyRoom)
         {
-            if(lobbyRooms.Contains(lobbyRoom))
+            if (Rooms.Contains(lobbyRoom))
             {
-                lobbyRooms.Remove(lobbyRoom);
+                Rooms.Remove(lobbyRoom);
             }
         }
 
         public void RemoveRoom(string roomID)
         {
-            LobbyRoom? lobbyRoom = lobbyRooms.FirstOrDefault((a) => a.RoomID == roomID);
+            Room? lobbyRoom = Rooms.FirstOrDefault((a) => a.RoomID == roomID);
             if (lobbyRoom != null)
-            {
-                lobbyRooms.Remove(lobbyRoom);
-            }
+                RemoveRoom(lobbyRoom);
         }
     }
 }

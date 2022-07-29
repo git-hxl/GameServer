@@ -12,6 +12,6 @@
         JoinRoom,
         LeaveRoom,
 
-        GetRoomList,
+        UpdateLobby,
     }
 }
