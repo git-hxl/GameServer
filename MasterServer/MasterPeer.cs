@@ -1,5 +1,6 @@
-﻿using CommonLibrary.Table;
-using LiteNetLib;
+﻿using LiteNetLib;
+using MasterServer.DB.Table;
+
 namespace MasterServer
 {
     public sealed class MasterPeer
@@ -41,7 +42,9 @@ namespace MasterServer
 
         public void OnDisConnected()
         {
+            CurRoom?.RemoveClientPeer(this);
             OnLeaveRoom();
+            CurLobby?.RemoveClientPeer(this);
             OnLeaveLobby();
         }
     }

@@ -4,32 +4,30 @@ namespace GameServer
 {
     public class Game
     {
-        public string GameID { get; private set; }
-        public List<GamePeer> GamePeers { get; private set; } = new List<GamePeer>();
-
-        public Game(string id)
+        public string GameID { get; }
+        public List<GamePeer> ClientPeers { get; }
+        public Game(string roomID)
         {
-            this.GameID = id;
+            GameID = roomID;
+            ClientPeers = new List<GamePeer>();
         }
 
-        public bool AddPeer(GamePeer gamePeer)
+        public bool AddClientPeer(GamePeer clientPeer)
         {
-            if (gamePeer != null && !GamePeers.Contains(gamePeer))
+            if (!ClientPeers.Contains(clientPeer))
             {
-                GamePeers.Add(gamePeer);
+                ClientPeers.Add(clientPeer);
                 return true;
             }
             return false;
         }
 
-        public bool RemovePeer(GamePeer gamePeer)
+        public void RemoveClientPeer(GamePeer clientPeer)
         {
-            if (gamePeer != null && GamePeers.Contains(gamePeer))
+            if (ClientPeers.Contains(clientPeer))
             {
-                GamePeers.Remove(gamePeer);
-                return true;
+                ClientPeers.Remove(clientPeer);
             }
-            return false;
         }
     }
 }

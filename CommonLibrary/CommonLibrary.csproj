@@ -11,7 +11,7 @@
     <PackageReference Include="LiteNetLib" Version="0.9.5.2" />
     <PackageReference Include="MessagePack" Version="2.4.35" />
     <PackageReference Include="MessagePackAnalyzer" Version="2.4.35">
-      <PrivateAssets>all</PrivateAssets>
+      <PrivateAssets></PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="MySqlConnector" Version="2.1.11" />

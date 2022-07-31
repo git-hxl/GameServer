@@ -6,46 +6,31 @@ namespace GameServer
 {
     public sealed class GamePeer
     {
-        public int UserID { get; set; }
+        public int UserID { get; private set; }
 
         public NetPeer NetPeer { get; private set; }
 
-        private Game? CurGame;
+        public Game? CurGame { get; private set; }
 
-        public GamePeer(NetPeer netPeer)
+        public GamePeer(NetPeer netPeer ,int userID)
         {
-            this.NetPeer = netPeer;
+            NetPeer = netPeer;
+            UserID = userID;
         }
-        public bool JoinGame(Game game, int userID)
+        public void OnJoinGame(Game game)
         {
-            if (CurGame == null)
-            {
-                this.UserID = userID;
-                CurGame = game;
-                CurGame.AddPeer(this);
-                return true;
-            }
-            return false;
+            CurGame = game;
         }
 
-        public bool ExitGame()
+        public void OnLeaveGame()
         {
-            if (CurGame != null)
-            {
-                CurGame.RemovePeer(this);
-                CurGame = null;
-                return true;
-            }
-            return false;
+            CurGame = null;
         }
 
         public void OnDisConnected()
         {
-            if (CurGame != null)
-            {
-                CurGame.RemovePeer(this);
-                CurGame = null;
-            }
+            CurGame?.RemoveClientPeer(this);
+            OnLeaveGame();
         }
     }
 }

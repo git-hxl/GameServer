@@ -1,4 +1,5 @@
 ﻿using LiteNetLib;
+using Newtonsoft.Json;
 using Serilog;
 
 namespace CommonLibrary.Core
@@ -7,25 +8,44 @@ namespace CommonLibrary.Core
     {
         protected NetManager server;
         protected EventBasedNetListener listener;
-        protected OperationHandleBase operationHandle;
+        public ServerBaseConfig? ServerConfig { get; protected set; }
+        public string ServerConfigPath { get; protected set; }
 
-        public ApplicationBase(OperationHandleBase operationHandle)
+        public ApplicationBase(string configPath)
         {
-            this.operationHandle = operationHandle;
             listener = new EventBasedNetListener();
-            listener.ConnectionRequestEvent += Listener_ConnectionRequestEvent; ;
-            listener.PeerConnectedEvent += Listener_PeerConnectedEvent; ;
-            listener.PeerDisconnectedEvent += Listener_PeerDisconnectedEvent; ;
-            listener.NetworkReceiveEvent += Listener_NetworkReceiveEvent; ;
             server = new NetManager(listener);
+            ServerConfig = new ServerBaseConfig();
+            ServerConfigPath = configPath;
+            InitConfig();
         }
 
-        protected abstract void InitConfig();
+        private void InitConfig()
+        {
+            string config = File.ReadAllText(ServerConfigPath);
+            if (!string.IsNullOrEmpty(config))
+                ServerConfig = JsonConvert.DeserializeObject<ServerBaseConfig>(config);
+        }
 
         public void Start()
         {
-            InitConfig();
-            server.Start();
+            if (ServerConfig == null)
+            {
+                Log.Error("No Config Loaded!");
+                return;
+            }
+            server.PingInterval = ServerConfig.PingInterval;
+            server.DisconnectTimeout = ServerConfig.DisconnectTimeout;
+            server.ReconnectDelay = ServerConfig.ReconnectDelay;
+            server.MaxConnectAttempts = ServerConfig.MaxConnectAttempts;
+
+            listener.ConnectionRequestEvent += Listener_ConnectionRequestEvent;
+            listener.PeerConnectedEvent += Listener_PeerConnectedEvent;
+            listener.PeerDisconnectedEvent += Listener_PeerDisconnectedEvent;
+            listener.NetworkReceiveEvent += Listener_NetworkReceiveEvent;
+
+            server.Start(ServerConfig.Port);
+            Log.Information("Start Master Server");
         }
 
         public void Close()

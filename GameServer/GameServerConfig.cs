@@ -1,9 +1,8 @@
 ﻿namespace GameServer
 {
-    public class GameServerConfig
+    public class GameServerConfig : ServerBaseConfig
     {
-        public int Port;
-        public string MasterIP = "";
+        public string MasterIP;
         public int MasterPort;
     }
 }

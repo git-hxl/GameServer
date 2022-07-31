@@ -1,7 +1,7 @@
 ﻿using MessagePack;
 using System.Collections;
 
-namespace CommonLibrary.MessagePack
+namespace MasterServer.Operations.Request
 {
     [MessagePackObject]
     public class CreateRoomRequest
@@ -17,6 +17,6 @@ namespace CommonLibrary.MessagePack
         [Key(4)]
         public int MaxPlayers;
         [Key(5)]
-        public Hashtable RoomProperties = new Hashtable();
+        public Hashtable CustomProperties = new Hashtable();
     }
 }

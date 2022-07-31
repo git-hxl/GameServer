@@ -1,5 +1,5 @@
 ﻿using MessagePack;
-namespace CommonLibrary.MessagePack
+namespace MasterServer.Operations.Request
 {
     [MessagePackObject]
     public class JoinLobbyRequest

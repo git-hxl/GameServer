@@ -1,8 +1,7 @@
-﻿using CommonLibrary.MessagePack;
-using CommonLibrary.MessagePack.Operation;
+﻿using CommonLibrary.Core;
 using LiteNetLib;
 
-namespace MasterServer.Operations
+namespace CommonLibrary.Core
 {
     public class HandleRequest
     {

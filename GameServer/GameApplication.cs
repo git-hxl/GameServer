@@ -1,85 +1,24 @@
-﻿using CommonLibrary.Utils;
+﻿using CommonLibrary.Core;
 using GameServer.Operations;
 using LiteNetLib;
-using Newtonsoft.Json;
 using Serilog;
-
 namespace GameServer
 {
-    internal class GameApplication : Singleton<GameApplication>
+    public class GameApplication : ApplicationBase
     {
-        private EventBasedNetListener listener;
-        private OperationHandleBase operationHandle;
-        private List<Game> games = new List<Game>();
-        private Dictionary<string, GamePeer> gamePeers = new Dictionary<string, GamePeer>();
-        public GameServerConfig? ServerConfig { get; private set; }
-        public NetPeer? MasterServer { get; private set; }
-        public NetManager Server { get; private set; }
-        public GameApplication()
+        public List<Game> Games { get; private set; }
+        public Dictionary<int, GamePeer> GamePeers { get; private set; } = new Dictionary<int, GamePeer>();
+        public static GameApplication Instance { get; private set; } = new GameApplication();
+        public GameOperationHandle GameOperationHandle { get; private set; } = new GameOperationHandle();
+        public GameApplication() : base("./GameServerConfig.json")
         {
-            listener = new EventBasedNetListener();
-            Server = new NetManager(listener);
-            operationHandle = new OperationHandleBase();
-            Log.Information("Load Config");
-            try
-            {
-                string config = File.ReadAllText("./GameServerConfig.json");
-                if (!string.IsNullOrEmpty(config))
-                    ServerConfig = JsonConvert.DeserializeObject<GameServerConfig>(config);
-            }
-            catch (Exception e)
-            {
-                Log.Error(e.ToString());
-            };
+            Games = new List<Game>();
         }
 
-        public void Start()
+        protected override void Listener_ConnectionRequestEvent(ConnectionRequest request)
         {
-            if (ServerConfig == null)
-            {
-                Log.Error("No Config Loaded!");
-                return;
-            }
-            Server.PingInterval = 1000;
-            Server.DisconnectTimeout = 5000;
-            Server.ReconnectDelay = 500;
-            //最大连接尝试次数
-            Server.MaxConnectAttempts = 10;
-            Server.UnsyncedEvents = true;
-            Server.Start(ServerConfig.Port);
-
-            listener.ConnectionRequestEvent += Listener_ConnectionRequestEvent;
-            listener.PeerConnectedEvent += Listener_PeerConnectedEvent;
-            listener.PeerDisconnectedEvent += Listener_PeerDisconnectedEvent;
-            listener.NetworkReceiveEvent += Listener_NetworkReceiveEvent;
-
-            Log.Information("Start listener Successed");
-            Log.Information("Connect To Master");
-
-            MasterServer = Server.Connect(ServerConfig.MasterIP, ServerConfig.MasterPort, "Hello");
-        }
-
-        public void Close()
-        {
-            if (Server != null)
-                Server.Stop(true);
-        }
-
-        public void Update()
-        {
-            if (Server != null)
-            {
-                Server.PollEvents();
-            }
-        }
-
-        private void Listener_ConnectionRequestEvent(ConnectionRequest request)
-        {
-            if (Server != null && Server.ConnectedPeersCount < 5000)
-            {
-                //TODO:Token 
-                request.Accept();
-            }
+            if (ServerConfig != null && server.ConnectedPeersCount < ServerConfig.MaxPeers)
+                request.AcceptIfKey(ServerConfig.ConnectKey);
             else
             {
                 request.Reject();
@@ -87,57 +26,70 @@ namespace GameServer
             }
         }
 
-        private void Listener_PeerConnectedEvent(NetPeer peer)
+        protected override void Listener_PeerConnectedEvent(NetPeer peer)
         {
             Log.Information("We got connection: {0} id:{1}", peer.EndPoint, peer.Id);
-            GamePeer gamePeer = new GamePeer(peer);
-            gamePeers[peer.EndPoint.ToString()] = gamePeer;
         }
 
-        private void Listener_PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
+        protected override void Listener_PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
         {
             Log.Information("We got disconnection: {0}", peer.EndPoint);
-            if (gamePeers.ContainsKey(peer.EndPoint.ToString()))
+
+            if (GamePeers.ContainsKey(peer.Id))
             {
-                gamePeers[peer.EndPoint.ToString()].OnDisConnected();
-                gamePeers.Remove(peer.EndPoint.ToString());
+                GamePeers[peer.Id].OnDisConnected();
+                GamePeers.Remove(peer.Id);
             }
         }
 
-        private void Listener_NetworkReceiveEvent(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
+        protected override void Listener_NetworkReceiveEvent(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
         {
-
-            if (gamePeers.ContainsKey(peer.EndPoint.ToString()))
-            {
-                GamePeer gamePeer = gamePeers[peer.EndPoint.ToString()];
-                GameOperationCode operationCode = (GameOperationCode)reader.GetByte();
-                HandleRequest handleRequest = new HandleRequest(gamePeer, operationCode, reader.GetRemainingBytes(), deliveryMethod);
-                operationHandle.HandleRequest(handleRequest);
-            }
-            else
-            {
-                Log.Information("Client {0} not connected!", peer.EndPoint.ToString());
-            }
+            OperationCode operationCode = (OperationCode)reader.GetByte();
+            MsgPack msgPack = MessagePack.MessagePackSerializer.Deserialize<MsgPack>(reader.GetRemainingBytes());
+            HandleRequest handleRequest = new HandleRequest(peer, msgPack, deliveryMethod);
+            GameOperationHandle.HandleRequest(operationCode, handleRequest);
         }
 
-        public GamePeer? GetGamePeer(NetPeer netPeer)
+        public void AddClientPeer(GamePeer gamePeer)
         {
-            if (gamePeers.ContainsKey(netPeer.EndPoint.ToString()))
+            GamePeers[gamePeer.NetPeer.Id] = gamePeer;
+        }
+
+        public GamePeer? GetClientPeer(int id)
+        {
+            if (GamePeers.ContainsKey(id))
             {
-                return gamePeers[netPeer.EndPoint.ToString()];
+                return GamePeers[id];
             }
             return null;
         }
 
-        public Game GetOrCreateGame(string id)
+        public Game? CreateGame(string roomID)
         {
-            Game? game = games.FirstOrDefault((a) => a.GameID == id);
-            if (game == null)
-            {
-                game = new Game(id);
-                games.Add(game);
-            }
+            Game game = new Game(roomID);
+            Games.Add(game);
             return game;
+        }
+
+        public Game? GetGame(string roomID)
+        {
+            return Games.FirstOrDefault((a) => a.GameID == roomID);
+        }
+
+
+        public void RemoveGame(Game game)
+        {
+            if (Games.Contains(game))
+            {
+                Games.Remove(game);
+            }
+        }
+
+        public void RemoveGame(string roomID)
+        {
+            Game? game = Games.FirstOrDefault((a) => a.GameID == roomID);
+            if (game != null)
+                RemoveGame(game);
         }
     }
 }

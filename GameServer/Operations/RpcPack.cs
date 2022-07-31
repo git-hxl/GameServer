@@ -1,7 +1,7 @@
 ﻿using MessagePack;
 using System.Collections;
 
-namespace CommonLibrary.MessagePack
+namespace GameServer.Operations
 {
     [MessagePackObject]
     public class RpcPack

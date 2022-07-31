@@ -1,23 +1,23 @@
 ﻿using CommonLibrary.Core;
-using CommonLibrary.MessagePack;
-using CommonLibrary.MessagePack.Operation;
-using CommonLibrary.Table;
 using Dapper;
 using LiteNetLib;
-using LiteNetLib.Utils;
 using MasterServer.DB;
+using MasterServer.DB.Table;
+using MasterServer.Operations.Request;
+using MasterServer.Operations.Response;
 using MessagePack;
+using Newtonsoft.Json;
+using Serilog;
 using System.Diagnostics;
 
 namespace MasterServer.Operations
 {
-    public class MasterOperationHandle : OperationHandleBase
+    public class MasterOperationHandle
     {
-        public override void HandleRequest(NetPeer netPeer, MsgPack msgPack, DeliveryMethod deliveryMethod)
+        public void HandleRequest(OperationCode operationCode, HandleRequest handleRequest)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
-            HandleRequest handleRequest = new HandleRequest(netPeer, msgPack, deliveryMethod);
-            switch (msgPack.OperationCode)
+            switch (operationCode)
             {
                 case OperationCode.Register:
                     RegisterRequest(handleRequest);
@@ -40,23 +40,14 @@ namespace MasterServer.Operations
                 case OperationCode.LeaveRoom:
                     LeaveRoomRequest(handleRequest);
                     break;
-                case OperationCode.UpdateLobby:
-                    UpdateLobbyRequest(handleRequest);
+                case OperationCode.GetRoomList:
+                    GetRoomListRequest(handleRequest);
                     break;
                 default:
-                    SendResponse(netPeer, msgPack, ReturnCode.InvalidRequest, deliveryMethod);
+                    HandleResponse.SendResponse(handleRequest.Peer, ReturnCode.InvalidRequest, null, handleRequest.DeliveryMethod);
                     break;
             }
-            Console.WriteLine("{0}：{1} 代码耗时：{2}", DateTime.Now.ToLongTimeString(), msgPack.OperationCode.ToString(), stopwatch.ElapsedMilliseconds);
-        }
-
-        private void SendResponse(NetPeer peer, MsgPack msgPack, ReturnCode returnCode, DeliveryMethod deliveryMethod)
-        {
-            NetDataWriter netDataWriter = new NetDataWriter();
-            netDataWriter.Put((byte)returnCode);
-            byte[] returnData = MessagePackSerializer.Serialize(msgPack);
-            netDataWriter.Put(returnData);
-            peer.Send(netDataWriter, deliveryMethod);
+            Console.WriteLine("{0}：{1} 代码耗时：{2}", DateTime.Now.ToLongTimeString(), operationCode.ToString(), stopwatch.ElapsedMilliseconds);
         }
 
         private async void RegisterRequest(HandleRequest handleRequest)
@@ -77,13 +68,13 @@ namespace MasterServer.Operations
                         int result = dbConnection.Execute(sql);
                         if (result == 1)
                         {
-                            SendResponse(handleRequest.Peer, handleRequest.MsgPack, ReturnCode.Success, handleRequest.DeliveryMethod);
+                            HandleResponse.SendResponse(handleRequest.Peer, ReturnCode.OnRegister, null, handleRequest.DeliveryMethod);
                             return;
                         }
                     }
                 }
             }
-            SendResponse(handleRequest.Peer, handleRequest.MsgPack, ReturnCode.RegisterFailed, handleRequest.DeliveryMethod);
+            HandleResponse.SendResponse(handleRequest.Peer, ReturnCode.OnRegisterFailed, null, handleRequest.DeliveryMethod);
         }
 
         private async void LoginRequest(HandleRequest handleRequest)
@@ -101,35 +92,17 @@ namespace MasterServer.Operations
                         dbConnection.Execute(sql);
                         MasterPeer masterPeer = new MasterPeer(handleRequest.Peer, user);
                         MasterApplication.Instance.AddClientPeer(masterPeer);
-                        LoginResponse response = new LoginResponse();
-                        response.ID = user.ID;
-                        response.NickName = user.NickName;
-                        handleRequest.MsgPack.Data = MessagePackSerializer.Serialize(response);
-                        SendResponse(handleRequest.Peer, handleRequest.MsgPack, ReturnCode.Success, handleRequest.DeliveryMethod);
+                        OnLoginResponse response = new OnLoginResponse();
+                        response.UserTable = user;
+                        response.Lobbies = LobbyFactory.Instance.Lobbies.Select((a)=>a.LobbyProperty).ToList();
+                        byte[] data = MessagePackSerializer.Serialize(response);
+                        MsgPack msgPack = new MsgPack(data);
+                        HandleResponse.SendResponse(handleRequest.Peer, ReturnCode.OnLogin, msgPack, handleRequest.DeliveryMethod);
                         return;
                     }
                 }
             }
-            SendResponse(handleRequest.Peer, handleRequest.MsgPack, ReturnCode.LoginFailed, handleRequest.DeliveryMethod);
-        }
-
-        private byte[] GetLobbyData(Lobby lobby)
-        {
-            JoinLobbyResponse response = new JoinLobbyResponse();
-            response.LobbyID = lobby.LobbyID;
-            foreach (var room in lobby.Rooms)
-            {
-                response.Rooms.Add(new CommonLibrary.MessagePack.Room()
-                {
-                    RoomName = room.RoomName,
-                    RoomID = room.RoomID,
-                    CurPlayers = room.ClientPeers.Count,
-                    MaxPlayers = room.MaxPeers,
-                    NeedPassword = room.NeedPassword,
-                    RoomProperties = room.RoomProperties,
-                });
-            }
-            return MessagePackSerializer.Serialize(response);
+            HandleResponse.SendResponse(handleRequest.Peer, ReturnCode.OnLoginFailed, null, handleRequest.DeliveryMethod);
         }
 
         private void JoinLobbyRequest(HandleRequest handleRequest)
@@ -143,24 +116,33 @@ namespace MasterServer.Operations
                 {
                     lobby.AddClientPeer(masterPeer);
                     masterPeer.OnJoinLobby(lobby);
-                    handleRequest.MsgPack.Data = GetLobbyData(lobby);
-                    SendResponse(handleRequest.Peer, handleRequest.MsgPack, ReturnCode.Success, handleRequest.DeliveryMethod);
+                    OnJoinLobbyResponse response = new OnJoinLobbyResponse();
+                    response.LobbyProperty = lobby.LobbyProperty;
+                    response.Rooms = lobby.Rooms.Select((a) => a.RoomProperty).ToList();
+                    byte[] data = MessagePackSerializer.Serialize(response);
+                    MsgPack msgPack = new MsgPack(data);
+                    HandleResponse.SendResponse(handleRequest.Peer, ReturnCode.OnJoinLobby, msgPack, handleRequest.DeliveryMethod);
                 }
             }
-            SendResponse(handleRequest.Peer, handleRequest.MsgPack, ReturnCode.JoinLobbyFailed, handleRequest.DeliveryMethod);
+            HandleResponse.SendResponse(handleRequest.Peer, ReturnCode.OnJoinLobbyFailed, null, handleRequest.DeliveryMethod);
         }
 
-        private void UpdateLobbyRequest(HandleRequest handleRequest)
+        private void GetRoomListRequest(HandleRequest handleRequest)
         {
             MasterPeer? masterPeer = MasterApplication.Instance.GetClientPeer(handleRequest.Peer.Id);
             if (masterPeer != null && masterPeer.IsInLooby)
             {
                 if (masterPeer.CurLobby != null)
                 {
-                    handleRequest.MsgPack.Data = GetLobbyData(masterPeer.CurLobby);
-                    SendResponse(handleRequest.Peer, handleRequest.MsgPack, ReturnCode.Success, handleRequest.DeliveryMethod);
+                    OnRoomListResponse response = new OnRoomListResponse();
+                    response.LobbyProperty = masterPeer.CurLobby.LobbyProperty;
+                    response.Rooms = masterPeer.CurLobby.Rooms.Select((a) => a.RoomProperty).ToList();
+                    byte[] data = MessagePackSerializer.Serialize(response);
+                    MsgPack msgPack = new MsgPack(data);
+                    HandleResponse.SendResponse(handleRequest.Peer, ReturnCode.OnRoomListUpdate, msgPack, handleRequest.DeliveryMethod);
                 }
             }
+            HandleResponse.SendResponse(handleRequest.Peer, ReturnCode.InvalidRequest, null, handleRequest.DeliveryMethod);
         }
 
         private void LeaveLobbyRequest(HandleRequest handleRequest)
@@ -171,10 +153,10 @@ namespace MasterServer.Operations
             {
                 masterPeer.CurLobby?.RemoveClientPeer(masterPeer);
                 masterPeer.OnLeaveLobby();
-                SendResponse(handleRequest.Peer, handleRequest.MsgPack, ReturnCode.Success, handleRequest.DeliveryMethod);
+                HandleResponse.SendResponse(handleRequest.Peer, ReturnCode.OnLeaveLobby, null, handleRequest.DeliveryMethod);
                 return;
             }
-            SendResponse(handleRequest.Peer, handleRequest.MsgPack, ReturnCode.LeaveLobbyFailed, handleRequest.DeliveryMethod);
+            HandleResponse.SendResponse(handleRequest.Peer, ReturnCode.OnLeaveLobbyFailed, null, handleRequest.DeliveryMethod);
         }
 
         private void CreateRoomRequest(HandleRequest handleRequest)
@@ -183,32 +165,21 @@ namespace MasterServer.Operations
             MasterPeer? masterPeer = MasterApplication.Instance.GetClientPeer(handleRequest.Peer.Id);
             if (masterPeer != null && masterPeer.IsInLooby)
             {
-                Room? room = masterPeer.CurLobby?.CreateRoom(masterPeer, request.RoomName, request.IsVisible, request.NeedPassword, request.Password, request.MaxPlayers, request.RoomProperties);
+                Room? room = masterPeer.CurLobby?.CreateRoom(masterPeer, request.RoomName, request.IsVisible, request.NeedPassword, request.Password, request.MaxPlayers, request.CustomProperties);
                 if (room != null)
                 {
-                    handleRequest.MsgPack.Data = GetRoomData(room);
-                    SendResponse(handleRequest.Peer, handleRequest.MsgPack, ReturnCode.Success, handleRequest.DeliveryMethod);
+                    OnJoinRoomResponse response = new OnJoinRoomResponse();
+                    response.RoomProperty = room.RoomProperty;
+                    response.Users = room.ClientPeers.Select((a) => a.User).ToList();
+                    byte[] data = MessagePackSerializer.Serialize(response);
+                    MsgPack msgPack = new MsgPack(data);
+                    HandleResponse.SendResponse(handleRequest.Peer, ReturnCode.OnCreateRoom, msgPack, handleRequest.DeliveryMethod);
                     return;
                 }
             }
-            SendResponse(handleRequest.Peer, handleRequest.MsgPack, ReturnCode.CreateRommFailed, handleRequest.DeliveryMethod);
+            HandleResponse.SendResponse(handleRequest.Peer, ReturnCode.OnCreateRoomFailed, null, handleRequest.DeliveryMethod);
         }
 
-        private byte[] GetRoomData(Room room)
-        {
-            JoinRoomResponse response = new JoinRoomResponse();
-            response.RoomID = room.RoomID;
-            response.RoomProperties = room.RoomProperties;
-            foreach (var player in room.ClientPeers)
-            {
-                response.Players.Add(new Player()
-                {
-                    ID = player.User.ID,
-                    NickName = player.User.NickName,
-                });
-            }
-            return MessagePackSerializer.Serialize(response);
-        }
 
         private void JoinRoomRequest(HandleRequest handleRequest)
         {
@@ -219,20 +190,22 @@ namespace MasterServer.Operations
                 Room? room = masterPeer.CurLobby?.GetRoom(request.RoomID);
                 if (room != null)
                 {
-                    room.AddClientPeer(masterPeer);
-                    masterPeer.OnJoinRoom(room);
-                    handleRequest.MsgPack.Data = GetRoomData(room);
-                    SendResponse(handleRequest.Peer, handleRequest.MsgPack, ReturnCode.Success, handleRequest.DeliveryMethod);
+                    OnJoinRoomResponse response = new OnJoinRoomResponse();
+                    response.RoomProperty = room.RoomProperty;
+                    response.Users = room.ClientPeers.Select((a) => a.User).ToList();
+                    byte[] data = MessagePackSerializer.Serialize(response);
+                    MsgPack msgPack = new MsgPack(data);
+                    HandleResponse.SendResponse(handleRequest.Peer, ReturnCode.OnJoinRoom, msgPack, handleRequest.DeliveryMethod);
                     //call others
                     foreach (var item in room.ClientPeers)
                     {
                         if (item != masterPeer)
-                            SendResponse(item.NetPeer, handleRequest.MsgPack, ReturnCode.OnOtherJoinedRoom, handleRequest.DeliveryMethod);
+                            HandleResponse.SendResponse(handleRequest.Peer, ReturnCode.OnPlayerJoinRoom, msgPack, handleRequest.DeliveryMethod);
                     }
                     return;
                 }
             }
-            SendResponse(handleRequest.Peer, handleRequest.MsgPack, ReturnCode.JoinRoomFailed, handleRequest.DeliveryMethod);
+            HandleResponse.SendResponse(handleRequest.Peer, ReturnCode.OnJoinRoomFailed, null, handleRequest.DeliveryMethod);
         }
 
         private void LeaveRoomRequest(HandleRequest handleRequest)
@@ -244,19 +217,23 @@ namespace MasterServer.Operations
                 Room? room = masterPeer.CurRoom;
                 room?.RemoveClientPeer(masterPeer);
                 masterPeer.OnLeaveRoom();
-                SendResponse(handleRequest.Peer, handleRequest.MsgPack, ReturnCode.Success, handleRequest.DeliveryMethod);
+                HandleResponse.SendResponse(handleRequest.Peer, ReturnCode.OnLeaveRoom, null, handleRequest.DeliveryMethod);
                 if (room != null)
                 {
-                    handleRequest.MsgPack.Data = GetRoomData(room);
+                    OnJoinRoomResponse response = new OnJoinRoomResponse();
+                    response.RoomProperty = room.RoomProperty;
+                    response.Users = room.ClientPeers.Select((a) => a.User).ToList();
+                    byte[] data = MessagePackSerializer.Serialize(response);
+                    MsgPack msgPack = new MsgPack(data);
                     //call others
                     foreach (var item in room.ClientPeers)
                     {
-                        SendResponse(item.NetPeer, handleRequest.MsgPack, ReturnCode.OnOtherLeaveRoom, handleRequest.DeliveryMethod);
+                        HandleResponse.SendResponse(handleRequest.Peer, ReturnCode.OnPlayerLeaveRoom, msgPack, handleRequest.DeliveryMethod);
                     }
                 }
                 return;
             }
-            SendResponse(handleRequest.Peer, handleRequest.MsgPack, ReturnCode.LeaveRoomFailed, handleRequest.DeliveryMethod);
+            HandleResponse.SendResponse(handleRequest.Peer, ReturnCode.OnLeaveRoomFailed, null, handleRequest.DeliveryMethod);
         }
     }
 }

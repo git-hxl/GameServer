@@ -1,13 +1,12 @@
 ﻿using MessagePack;
-
-namespace CommonLibrary.MessagePack
+namespace GameServer.Operations.Response
 {
     [MessagePackObject]
-    public class JoinRoomRequest
+    public class OnLeaveGameResponse
     {
         [Key(0)]
         public string RoomID = "";
         [Key(1)]
-        public string Password = "";
+        public int UserID;
     }
 }

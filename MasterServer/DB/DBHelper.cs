@@ -12,7 +12,7 @@ namespace MasterServer.DB
             {
                 if (MasterApplication.Instance.ServerConfig == null)
                     return null;
-                string dbConnectStr = MasterApplication.Instance.ServerConfig.DBConnectStr;
+                string dbConnectStr = (MasterApplication.Instance.ServerConfig as MasterServerConfig).DBConnectStr;
                 var connection = new MySqlConnection(dbConnectStr);
                 await connection.OpenAsync();
                 return connection;

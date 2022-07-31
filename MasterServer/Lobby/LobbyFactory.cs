@@ -2,42 +2,31 @@
 {
     public class LobbyFactory
     {
-        private static LobbyFactory? instance;
-        private List<Lobby> lobbies = new List<Lobby>();
-
-        public static LobbyFactory Instance
-        {
-            get
-            {
-                if (instance == null)
-                    instance = new LobbyFactory();
-                return instance;
-            }
-            private set { }
-        }
+        public static LobbyFactory Instance { get; private set; } = new LobbyFactory();
+        public List<Lobby> Lobbies { get; private set; } = new List<Lobby> ();
 
         public Lobby? GetLobby(string lobbyID)
         {
-            Lobby? lobby = lobbies.FirstOrDefault((a) => a.LobbyID == lobbyID);
+            Lobby? lobby = Lobbies.FirstOrDefault((a) => a.LobbyProperty.LobbyID == lobbyID);
             return lobby;
         }
 
         public Lobby GetOrCreateLobby()
         {
-            Lobby? lobby = lobbies.FirstOrDefault((a) =>a.IsFullLobby == false);
+            Lobby? lobby = Lobbies.FirstOrDefault((a) =>a.IsFullLobby == false);
             if (lobby == null)
             {
                 lobby = new Lobby();
-                lobbies.Add(lobby);
+                Lobbies.Add(lobby);
             }
             return lobby;
         }
 
         public bool RemoveLobby(Lobby lobby)
         {
-            if (lobbies.Contains(lobby))
+            if (Lobbies.Contains(lobby))
             {
-                lobbies.Remove(lobby);
+                Lobbies.Remove(lobby);
                 return true;
             }
             return false;

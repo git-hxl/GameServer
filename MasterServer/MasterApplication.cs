@@ -1,44 +1,17 @@
 ﻿using CommonLibrary.Core;
-using CommonLibrary.MessagePack;
 using LiteNetLib;
 using MasterServer.Operations;
-using Newtonsoft.Json;
 using Serilog;
 
 namespace MasterServer
 {
     public class MasterApplication : ApplicationBase
     {
-        private Dictionary<int, MasterPeer> clientPeers = new Dictionary<int, MasterPeer>();
-        public MasterServerConfig? ServerConfig { get; private set; }
-        public static MasterApplication Instance = new MasterApplication();
-        public MasterApplication() : base(new MasterOperationHandle())
-        { }
-
-        protected override void InitConfig()
-        {
-            string config = File.ReadAllText("./MasterServerConfig.json");
-            if (!string.IsNullOrEmpty(config))
-                ServerConfig = JsonConvert.DeserializeObject<MasterServerConfig>(config);
-
-            if (ServerConfig == null)
-            {
-                Log.Error("No Config Loaded!");
-                return;
-            }
-
-            server.PingInterval = ServerConfig.PingInterval;
-            server.DisconnectTimeout = ServerConfig.DisconnectTimeout;
-            server.ReconnectDelay = ServerConfig.ReconnectDelay;
-            server.MaxConnectAttempts = ServerConfig.MaxConnectAttempts;
-
-            listener.ConnectionRequestEvent += Listener_ConnectionRequestEvent;
-            listener.PeerConnectedEvent += Listener_PeerConnectedEvent;
-            listener.PeerDisconnectedEvent += Listener_PeerDisconnectedEvent;
-            listener.NetworkReceiveEvent += Listener_NetworkReceiveEvent;
-
-            Log.Information("Start Master Server");
-        }
+        public Dictionary<int, MasterPeer> MasterPeers { get; private set; } = new Dictionary<int, MasterPeer>();
+        public static MasterApplication Instance { get; private set; } = new MasterApplication();
+        public MasterOperationHandle MasterOperationHandle { get; private set; } = new MasterOperationHandle();
+        public MasterApplication() : base("./MasterServerConfig.json")
+        {}
 
         protected override void Listener_ConnectionRequestEvent(ConnectionRequest request)
         {
@@ -60,29 +33,31 @@ namespace MasterServer
         {
             Log.Information("We got disconnection: {0}", peer.EndPoint);
 
-            if (clientPeers.ContainsKey(peer.Id))
+            if (MasterPeers.ContainsKey(peer.Id))
             {
-                clientPeers[peer.Id].OnDisConnected();
-                clientPeers.Remove(peer.Id);
+                MasterPeers[peer.Id].OnDisConnected();
+                MasterPeers.Remove(peer.Id);
             }
         }
 
         protected override void Listener_NetworkReceiveEvent(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
         {
+            OperationCode operationCode = (OperationCode)reader.GetByte();
             MsgPack msgPack = MessagePack.MessagePackSerializer.Deserialize<MsgPack>(reader.GetRemainingBytes());
-            operationHandle.HandleRequest(peer, msgPack, deliveryMethod);
+            HandleRequest handleRequest = new HandleRequest(peer, msgPack, deliveryMethod);
+            MasterOperationHandle.HandleRequest(operationCode, handleRequest);
         }
 
         public void AddClientPeer(MasterPeer masterPeer)
         {
-            clientPeers[masterPeer.NetPeer.Id] = masterPeer;
+            MasterPeers[masterPeer.NetPeer.Id] = masterPeer;
         }
 
         public MasterPeer? GetClientPeer(int id)
         {
-            if (clientPeers.ContainsKey(id))
+            if (MasterPeers.ContainsKey(id))
             {
-                return clientPeers[id];
+                return MasterPeers[id];
             }
             return null;
         }
