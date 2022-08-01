@@ -10,6 +10,7 @@
   <ItemGroup>
     <ProjectReference Include="..\CommonLibrary\CommonLibrary.csproj" />
     <ProjectReference Include="..\GameServer\GameServer.csproj" />
+    <ProjectReference Include="..\MasterServer\MasterServer.csproj" />
   </ItemGroup>
 
 </Project>

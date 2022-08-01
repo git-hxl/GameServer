@@ -1,8 +1,12 @@
-﻿using CommonLibrary.Utils;
+﻿using CommonLibrary.Core;
+using CommonLibrary.Utils;
 using GameServer.Operations;
 using LiteNetLib;
 using LiteNetLib.Utils;
+using MasterServer.Operations.Request;
+using MasterServer.Operations.Response;
 using MessagePack;
+using Newtonsoft.Json;
 
 namespace TestClient
 {
@@ -14,137 +18,111 @@ namespace TestClient
         {
             EventBasedNetListener listener = new EventBasedNetListener();
             client = new NetManager(listener);
-            //client.UnsyncedEvents = true;
             client.Start();
 
             listener.PeerConnectedEvent += Listener_PeerConnectedEvent;
 
             listener.NetworkReceiveEvent += (fromPeer, reader, deliveryMethod) =>
             {
-                //GameOperationCode operationCode = (GameOperationCode)reader.GetByte();
-                //ReturnCode returnCode = (ReturnCode)reader.GetByte();
+                OperationCode operationCode = (OperationCode)reader.GetByte();
+                MsgPack msgPack = MessagePack.MessagePackSerializer.Deserialize<MsgPack>(reader.GetRemainingBytes());
 
-                //Console.WriteLine("{0} request result: {1} ping{2}", operationCode.ToString(), returnCode.ToString(), fromPeer.Ping);
+                Console.WriteLine("{0} request result: {1} ping：{2} delay：{3}", operationCode.ToString(), msgPack.ReturnCode.ToString(), fromPeer.Ping,DateTimeEx.TimeStamp-msgPack.TimeStamp);
 
-                //if (returnCode != ReturnCode.Success)
-                //    return;
-                //switch (operationCode)
-                //{
-                //    case GameOperationCode.JoinGame:
-                //        RPCResponse(reader.GetRemainingBytes());
-                //        break;
-                //    case GameOperationCode.ExitGame:
-                //        RPCResponse(reader.GetRemainingBytes());
-                //        break;
-                //    case GameOperationCode.RPC:
-                //        RPCResponse(reader.GetRemainingBytes());
-                //        break;
-                //}
+                Console.WriteLine(Newtonsoft.Json.JsonConvert.SerializeObject(msgPack));
 
-                //switch (operationCode)
-                //{
-                //    case OperationCode.Register:
-                //        RegisterResponse(reader.GetRemainingBytes());
-                //        break;
-                //    case OperationCode.Login:
-                //        LoginResponse(reader.GetRemainingBytes());
-                //        break;
-                //    case OperationCode.JoinLobby:
+                if (msgPack.ReturnCode != ReturnCode.Success)
+                    return;
 
-                //        break;
-                //    case OperationCode.LevelLobby:
-                //        break;
-                //    case OperationCode.Disconnect:
-                //        break;
-                //    case OperationCode.CreateRoom:
-                //        CreateRoom(reader.GetRemainingBytes());
-                //        break;
-                //    case OperationCode.JoinRoom:
-                //        CreateRoom(reader.GetRemainingBytes());
-                //        break;
-                //    case OperationCode.LeaveRoom:
-                //        break;
-                //    default:
-                //        break;
-                //}
+                switch(operationCode)
+                {
+                    case OperationCode.Register:
+                        OnRegister(msgPack);
+                        break;
+                    case OperationCode.Login:
+                        OnLogin(msgPack);
+                        break;
+                    case OperationCode.JoinLobby:
+                        OnjoinLobby(msgPack);
+                        break;
+                    case OperationCode.LevelLobby:
+                        OnLeaveLobby(msgPack);
+                        break;
+                    case OperationCode.CreateRoom:
+                        OnCreateRoom(msgPack);
+                        break;
+                    case OperationCode.JoinRoom:
+                        OnJoinRoom(msgPack);
+                        break;
+                    case OperationCode.LeaveRoom:
+                        OnLeaveRoom(msgPack);
+                        break;
+                    case OperationCode.GetRoomList:
+                        OnGetRoomList(msgPack);
+                        break;
+                }
                 reader.Recycle();
             };
 
-            Connect("127.0.0.1", 8001);
+            Connect("127.0.0.1", 8000);
 
-            //Task.Run(() =>
-            //{
-            //    while (true)
-            //    {
-            //        string? operation = Console.ReadLine();
-            //        if (!string.IsNullOrEmpty(operation))
-            //        {
-            //            if (operation.Contains("Register"))
-            //            {
-            //                string[] msg = operation.Split(" ");
-            //                Register(msg[1], msg[2]);
-            //            }
+            Task.Run(() =>
+            {
+                while (true)
+                {
+                    string? operation = Console.ReadLine();
+                    if (!string.IsNullOrEmpty(operation))
+                    {
+                        if (operation.Contains("Register"))
+                        {
+                            string[] msg = operation.Split(" ");
+                            Register(msg[1], msg[2]);
+                        }
 
-            //            if (operation.Contains("Login"))
-            //            {
-            //                string[] msg = operation.Split(" ");
-            //                Login(msg[1], msg[2]);
-            //            }
+                        if (operation.Contains("Login"))
+                        {
+                            string[] msg = operation.Split(" ");
+                            Login(msg[1], msg[2]);
+                        }
 
-            //            if (operation.Contains("JoinLobby"))
-            //            {
-            //                string[] msg = operation.Split(" ");
-            //                JoinLobby(msg[1]);
-            //            }
+                        if (operation.Contains("JoinLobby"))
+                        {
+                            JoinLobby();
+                        }
 
-            //            if (operation.Contains("CreateRoom"))
-            //            {
-            //                string[] msg = operation.Split(" ");
-            //                CreateRoom(msg[1]);
-            //            }
+                        if (operation.Contains("GetRoomList"))
+                        {
+                            GetRoomList();
+                        }
 
-            //            if (operation.Contains("JoinRoom"))
-            //            {
-            //                string[] msg = operation.Split(" ");
-            //                JoinRoom(msg[1]);
-            //            }
+                        if (operation.Contains("CreateRoom"))
+                        {
+                            string[] msg = operation.Split(" ");
+                            CreateRoom(msg[1]);
+                        }
 
-            //            if (operation.Contains("LeaveRoom"))
-            //            {
-            //                LeaveRoom();
-            //            }
+                        if (operation.Contains("JoinRoom"))
+                        {
+                            string[] msg = operation.Split(" ");
+                            JoinRoom(msg[1]);
+                        }
 
-            //            if (operation.Contains("JoinGame"))
-            //            {
-            //                JoinGame();
-            //            }
+                        if (operation.Contains("LeaveRoom"))
+                        {
+                            LeaveRoom();
+                        }
 
-            //            if (operation.Contains("ExitGame"))
-            //            {
-            //                ExitGame();
-            //            }
-
-            //            if (operation.Contains("Rpc"))
-            //            {
-            //                Task.Run(() =>
-            //                {
-            //                    while (true)
-            //                    {
-            //                        SendRpc();
-            //                        Thread.Sleep(1);
-            //                    }
-            //                });
-            //            }
-            //        }
-            //    }
-            //});
+                        
+                    }
+                }
+            });
 
             while (true)
             {
                 try
                 {
                     client.PollEvents();
-                    Thread.Sleep(1);
+                    Thread.Sleep(15);
                 }
                 catch (Exception e)
                 {
@@ -166,125 +144,117 @@ namespace TestClient
             peer = client?.Connect(ip, port, "Hello");
         }
 
-        //static void Register(string account, string password)
-        //{
-        //    RegisterRequest request = new RegisterRequest();
-        //    request.Account = account;
-        //    request.Password = password;
-        //    NetDataWriter netDataWriter = new NetDataWriter();
-        //    netDataWriter.Put((byte)OperationCode.Register);
-        //    netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
-        //    peer?.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
-        //}
+        static void Register(string account, string password)
+        {
+            RegisterRequest request = new RegisterRequest();
+            request.Account = account;
+            request.Password = password;
+            byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
+            HandleResponse.SendToPeer(peer, OperationCode.Register, MsgPack.Pack(data));
+        }
+        static void OnRegister(MsgPack msgPack)
+        {
+            RegisterResponse response = MessagePack.MessagePackSerializer.Deserialize<RegisterResponse>(msgPack.Data);
+            Console.WriteLine(JsonConvert.SerializeObject(response));
+        }
 
-        //static void Login(string account, string password)
-        //{
-        //    LoginMsg request = new LoginMsg();
-        //    request.Account = account;
-        //    request.Password = password;
-        //    NetDataWriter netDataWriter = new NetDataWriter();
-        //    netDataWriter.Put((byte)OperationCode.Login);
-        //    netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
-        //    peer?.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
-        //}
-        //static void JoinLobby(string lobbyName)
-        //{
-        //    JoinLobbyRequestPack request = new JoinLobbyRequestPack();
-        //    request.LobbyName = lobbyName;
-        //    NetDataWriter netDataWriter = new NetDataWriter();
-        //    netDataWriter.Put((byte)OperationCode.JoinLobby);
-        //    netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
-        //    peer?.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
-        //}
-        //static void CreateRoom(string rommName)
-        //{
-        //    RequestCreateRoom request = new RequestCreateRoom();
-        //    request.RoomName = rommName;
-        //    NetDataWriter netDataWriter = new NetDataWriter();
-        //    netDataWriter.Put((byte)OperationCode.CreateRoom);
-        //    netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
-        //    peer?.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
-        //}
+        static void Login(string account, string password)
+        {
+            LoginRequest request = new LoginRequest();
+            request.Account = account;
+            request.Password = password;
+            byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
+            HandleResponse.SendToPeer(peer, OperationCode.Login, MsgPack.Pack(data));
+        }
 
-        //static void JoinRoom(string roomid)
-        //{
-        //    JoinRoomRequestPack request = new JoinRoomRequestPack();
-        //    request.RoomID = roomid;
-        //    NetDataWriter netDataWriter = new NetDataWriter();
-        //    netDataWriter.Put((byte)OperationCode.JoinRoom);
-        //    netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
-        //    peer?.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
-        //}
+        static void OnLogin(MsgPack msgPack)
+        {
+            LoginResponse response = MessagePack.MessagePackSerializer.Deserialize<LoginResponse>(msgPack.Data);
+            Console.WriteLine(JsonConvert.SerializeObject(response));
+        }
 
-        //static void LeaveRoom()
-        //{
-        //    RequsetBasePack request = new RequsetBasePack();
-        //    NetDataWriter netDataWriter = new NetDataWriter();
-        //    netDataWriter.Put((byte)OperationCode.LeaveRoom);
-        //    netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
-        //    peer?.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
-        //}
+        static void JoinLobby()
+        {
+            JoinLobbyRequest request = new JoinLobbyRequest();
+            //request.LobbyID = lobbyName;
+            byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
+            HandleResponse.SendToPeer(peer, OperationCode.JoinLobby, MsgPack.Pack(null));
+        }
 
-        //static void RegisterResponse(byte[] bytes)
-        //{
-        //    ResponsePack response = MessagePackSerializer.Deserialize<ResponsePack>(bytes);
-        //    Console.WriteLine("注册成功 {0} ", DateTimeEx.ConvertToLocalDateTime(response.TimeStamp));
-        //}
+        static void OnjoinLobby(MsgPack msgPack)
+        {
+            JoinLobbyResponse response = MessagePack.MessagePackSerializer.Deserialize<JoinLobbyResponse>(msgPack.Data);
+            Console.WriteLine(JsonConvert.SerializeObject(response));
+        }
 
-        //static void LoginResponse(byte[] bytes)
-        //{
-        //    LoginResponsePack response = MessagePackSerializer.Deserialize<LoginResponsePack>(bytes);
-        //    Console.WriteLine("登录成功 id:{0} ", response.ID);
-        //}
+        static void GetRoomList()
+        {
+            GetRoomListRequest request = new GetRoomListRequest();
+            //request.LobbyID = lobbyName;
+            byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
+            HandleResponse.SendToPeer(peer, OperationCode.GetRoomList, MsgPack.Pack(null));
+        }
 
-        //static void CreateRoom(byte[] bytes)
-        //{
-        //    JoinRoomResponsePack response = MessagePackSerializer.Deserialize<JoinRoomResponsePack>(bytes);
-        //    Console.WriteLine("加入房间 id:{0} ", response.RoomID);
-        //}
+        static void OnGetRoomList(MsgPack msgPack)
+        {
+            GetRoomListResponse response = MessagePack.MessagePackSerializer.Deserialize<GetRoomListResponse>(msgPack.Data);
+            Console.WriteLine(JsonConvert.SerializeObject(response));
+        }
 
-        //static int userid = Random.Shared.Next(0, 1000000);
-        //static void JoinGame()
-        //{
-        //    RpcPack request = new RpcPack();
-        //    request.RoomID = "asd";
-        //    request.UserID = userid;
-        //    userid = request.UserID;
-        //    NetDataWriter netDataWriter = new NetDataWriter();
-        //    netDataWriter.Put((byte)GameOperationCode.JoinGame);
-        //    netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
-        //    peer?.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
-        //}
+        static void LeaveLobby()
+        {
+            LeaveLobbyRequest request = new LeaveLobbyRequest();
+            //request.LobbyID = lobbyName;
+            byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
+            HandleResponse.SendToPeer(peer, OperationCode.LevelLobby, MsgPack.Pack(null));
+        }
 
-        //static void ExitGame()
-        //{
-        //    RpcPack request = new RpcPack();
-        //    request.RoomID = "asd";
-        //    request.UserID = userid;
-        //    NetDataWriter netDataWriter = new NetDataWriter();
-        //    netDataWriter.Put((byte)GameOperationCode.ExitGame);
-        //    netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
-        //    peer?.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
-        //}
+        static void OnLeaveLobby(MsgPack msgPack)
+        {
+            LeaveLobbyResponse response = MessagePack.MessagePackSerializer.Deserialize<LeaveLobbyResponse>(msgPack.Data);
+            Console.WriteLine(JsonConvert.SerializeObject(response));
+        }
 
-        //static int sendindex = 0;
-        //static void SendRpc()
-        //{
-        //    RpcPack request = new RpcPack();
-        //    request.RoomID = "asd";
-        //    request.UserID = userid;
-        //    request.Param.Add(0, sendindex++);
-        //    NetDataWriter netDataWriter = new NetDataWriter();
-        //    netDataWriter.Put((byte)GameOperationCode.RPC);
-        //    netDataWriter.Put(MessagePack.MessagePackSerializer.Serialize(request));
-        //    peer?.Send(netDataWriter, DeliveryMethod.ReliableSequenced);
-        //    client.TriggerUpdate();
-        //}
 
-        //static void RPCResponse(byte[] bytes)
-        //{
-        //    RpcPack response = MessagePackSerializer.Deserialize<RpcPack>(bytes);
-        //    Console.WriteLine("消息Index{0}, 延迟:{1}", response.Param[0], DateTimeEx.TimeStamp - response.TimeStamp);
-        //}
+        static void CreateRoom(string rommName)
+        {
+            CreateRoomRequest request = new CreateRoomRequest();
+            request.RoomName = rommName;
+            byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
+            HandleResponse.SendToPeer(peer, OperationCode.CreateRoom, MsgPack.Pack(data));
+        }
+
+        static void OnCreateRoom(MsgPack msgPack)
+        {
+            CreateRoomResponse response = MessagePack.MessagePackSerializer.Deserialize<CreateRoomResponse>(msgPack.Data);
+            Console.WriteLine(JsonConvert.SerializeObject(response));
+        }
+
+        static void JoinRoom(string roomid)
+        {
+            JoinRoomRequest request = new JoinRoomRequest();
+            request.RoomID = roomid;
+            byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
+            HandleResponse.SendToPeer(peer, OperationCode.JoinRoom, MsgPack.Pack(data));
+        }
+
+        static void OnJoinRoom(MsgPack msgPack)
+        {
+            JoinRoomResponse response = MessagePack.MessagePackSerializer.Deserialize<JoinRoomResponse>(msgPack.Data);
+            Console.WriteLine(JsonConvert.SerializeObject(response));
+        }
+
+        static void LeaveRoom()
+        {
+            LeaveRoomRequest request = new LeaveRoomRequest();
+            byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
+            HandleResponse.SendToPeer(peer, OperationCode.LeaveGame, MsgPack.Pack(data));
+        }
+
+        static void OnLeaveRoom(MsgPack msgPack)
+        {
+            LeaveRoomResponse response = MessagePack.MessagePackSerializer.Deserialize<LeaveRoomResponse>(msgPack.Data);
+            Console.WriteLine(JsonConvert.SerializeObject(response));
+        }
     }
 }

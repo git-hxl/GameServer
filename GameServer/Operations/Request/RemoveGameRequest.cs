@@ -7,6 +7,13 @@ namespace GameServer.Operations.Request
     public class RemoveGameRequest
     {
         [Key(0)]
-        public string RoomID = "";
+        public string GameID = "";
+    }
+
+    [MessagePackObject]
+    public class RemoveGameResponse
+    {
+        [Key(0)]
+        public string GameID = "";
     }
 }

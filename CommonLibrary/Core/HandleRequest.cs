@@ -5,12 +5,14 @@ namespace CommonLibrary.Core
 {
     public class HandleRequest
     {
-        public NetPeer Peer;
+        public NetPeer NetPeer;
+        public OperationCode OperationCode;
         public MsgPack MsgPack;
         public DeliveryMethod DeliveryMethod;
-        public HandleRequest(NetPeer netPeer, MsgPack msgPack, DeliveryMethod deliveryMethod)
+        public HandleRequest(NetPeer netPeer, OperationCode operationCode,MsgPack msgPack, DeliveryMethod deliveryMethod)
         {
-            Peer = netPeer;
+            NetPeer = netPeer;
+            OperationCode = operationCode;
             MsgPack = msgPack;
             DeliveryMethod = deliveryMethod;
         }

@@ -8,15 +8,13 @@ namespace CommonLibrary.Core
     {
         protected NetManager server;
         protected EventBasedNetListener listener;
-        public ServerBaseConfig? ServerConfig { get; protected set; }
-        public string ServerConfigPath { get; protected set; }
+        public abstract ServerBaseConfig ServerConfig { get; protected set; }
+        public abstract string ServerConfigPath { get; protected set; }
 
-        public ApplicationBase(string configPath)
+        public ApplicationBase()
         {
             listener = new EventBasedNetListener();
             server = new NetManager(listener);
-            ServerConfig = new ServerBaseConfig();
-            ServerConfigPath = configPath;
             InitConfig();
         }
 

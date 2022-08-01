@@ -1,19 +1,67 @@
 ﻿using CommonLibrary.Core;
 using LiteNetLib;
 using MasterServer.Operations;
+using Newtonsoft.Json;
 using Serilog;
 
 namespace MasterServer
 {
-    public class MasterApplication : ApplicationBase
+    public class MasterApplication
     {
-        public Dictionary<int, MasterPeer> MasterPeers { get; private set; } = new Dictionary<int, MasterPeer>();
         public static MasterApplication Instance { get; private set; } = new MasterApplication();
-        public MasterOperationHandle MasterOperationHandle { get; private set; } = new MasterOperationHandle();
-        public MasterApplication() : base("./MasterServerConfig.json")
-        {}
+        public NetManager server { get; private set; }
+        public EventBasedNetListener listener { get; private set; }
+        public MasterServerConfig? ServerConfig { get; private set; }
+        public Dictionary<NetPeer, MasterPeer> MasterPeers { get; private set; }
+        public MasterOperationHandle MasterOperationHandle { get; private set; }
+        public MasterApplication() : base()
+        {
+            listener = new EventBasedNetListener();
+            server = new NetManager(listener);
+            MasterPeers = new Dictionary<NetPeer, MasterPeer>();
+            MasterOperationHandle = new MasterOperationHandle();
 
-        protected override void Listener_ConnectionRequestEvent(ConnectionRequest request)
+            string config = File.ReadAllText("./MasterServerConfig.json");
+            if (!string.IsNullOrEmpty(config))
+                ServerConfig = JsonConvert.DeserializeObject<MasterServerConfig>(config);
+        }
+
+        public void Start()
+        {
+            if (ServerConfig == null)
+            {
+                Log.Error("No Config Loaded!");
+                return;
+            }
+            server.PingInterval = ServerConfig.PingInterval;
+            server.DisconnectTimeout = ServerConfig.DisconnectTimeout;
+            server.ReconnectDelay = ServerConfig.ReconnectDelay;
+            server.MaxConnectAttempts = ServerConfig.MaxConnectAttempts;
+
+            listener.ConnectionRequestEvent += Listener_ConnectionRequestEvent;
+            listener.PeerConnectedEvent += Listener_PeerConnectedEvent;
+            listener.PeerDisconnectedEvent += Listener_PeerDisconnectedEvent;
+            listener.NetworkReceiveEvent += Listener_NetworkReceiveEvent;
+
+            server.Start(ServerConfig.Port);
+            Log.Information("Start Master Server");
+        }
+
+        public void Close()
+        {
+            if (server != null)
+                server.Stop(true);
+        }
+
+        public void Update()
+        {
+            if (server != null)
+            {
+                server.PollEvents();
+            }
+        }
+
+        protected void Listener_ConnectionRequestEvent(ConnectionRequest request)
         {
             if (ServerConfig != null && server.ConnectedPeersCount < ServerConfig.MaxPeers)
                 request.AcceptIfKey(ServerConfig.ConnectKey);
@@ -24,40 +72,43 @@ namespace MasterServer
             }
         }
 
-        protected override void Listener_PeerConnectedEvent(NetPeer peer)
+        protected void Listener_PeerConnectedEvent(NetPeer peer)
         {
             Log.Information("We got connection: {0} id:{1}", peer.EndPoint, peer.Id);
         }
 
-        protected override void Listener_PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
+        protected void Listener_PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
         {
             Log.Information("We got disconnection: {0}", peer.EndPoint);
 
-            if (MasterPeers.ContainsKey(peer.Id))
+            if (MasterPeers.ContainsKey(peer))
             {
-                MasterPeers[peer.Id].OnDisConnected();
-                MasterPeers.Remove(peer.Id);
+                MasterPeers[peer].OnDisConnected();
+                MasterPeers.Remove(peer);
             }
+
+            Log.Information("peers count: {0}", MasterPeers.Count);
         }
 
-        protected override void Listener_NetworkReceiveEvent(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
+        protected void Listener_NetworkReceiveEvent(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
         {
             OperationCode operationCode = (OperationCode)reader.GetByte();
             MsgPack msgPack = MessagePack.MessagePackSerializer.Deserialize<MsgPack>(reader.GetRemainingBytes());
-            HandleRequest handleRequest = new HandleRequest(peer, msgPack, deliveryMethod);
-            MasterOperationHandle.HandleRequest(operationCode, handleRequest);
+            HandleRequest handleRequest = new HandleRequest(peer, operationCode, msgPack, deliveryMethod);
+            MasterOperationHandle.HandleRequest(handleRequest);
         }
 
-        public void AddClientPeer(MasterPeer masterPeer)
+        public void AddClientPeer(NetPeer netPeer, MasterPeer masterPeer)
         {
-            MasterPeers[masterPeer.NetPeer.Id] = masterPeer;
+            MasterPeers[netPeer] = masterPeer;
+            Log.Information("peers count: {0}", MasterPeers.Count);
         }
 
-        public MasterPeer? GetClientPeer(int id)
+        public MasterPeer? GetClientPeer(NetPeer netPeer)
         {
-            if (MasterPeers.ContainsKey(id))
+            if (MasterPeers.ContainsKey(netPeer))
             {
-                return MasterPeers[id];
+                return MasterPeers[netPeer];
             }
             return null;
         }

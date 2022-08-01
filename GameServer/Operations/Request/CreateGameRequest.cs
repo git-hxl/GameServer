@@ -7,6 +7,13 @@ namespace GameServer.Operations.Request
     public class CreateGameRequest
     {
         [Key(0)]
-        public string RoomID = "";
+        public string GameID = "";
+    }
+
+    [MessagePackObject]
+    public class CreateGameResponse
+    {
+        [Key(0)]
+        public string GameID = "";
     }
 }

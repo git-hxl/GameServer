@@ -6,10 +6,22 @@ namespace CommonLibrary.Core
 {
     public class HandleResponse
     {
-        public static void SendResponse(NetPeer netPeer, ReturnCode returnCode, MsgPack? msgPack, DeliveryMethod deliveryMethod)
+        public static void SendResponse(HandleRequest handleRequest, MsgPack msgPack)
         {
             NetDataWriter netDataWriter = new NetDataWriter();
-            netDataWriter.Put((byte)returnCode);
+            netDataWriter.Put((byte)handleRequest.OperationCode);
+            if (msgPack != null)
+            {
+                byte[] data = MessagePack.MessagePackSerializer.Serialize(msgPack);
+                netDataWriter.Put(data);
+            }
+            handleRequest.NetPeer.Send(netDataWriter, handleRequest.DeliveryMethod);
+        }
+
+        public static void SendToPeer(NetPeer netPeer,OperationCode operationCode, MsgPack msgPack ,DeliveryMethod deliveryMethod = DeliveryMethod.ReliableOrdered)
+        {
+            NetDataWriter netDataWriter = new NetDataWriter();
+            netDataWriter.Put((byte)operationCode);
             if (msgPack != null)
             {
                 byte[] data = MessagePack.MessagePackSerializer.Serialize(msgPack);

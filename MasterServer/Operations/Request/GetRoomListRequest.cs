@@ -1,8 +1,9 @@
 ﻿using MessagePack;
+using System.Collections;
+
 namespace MasterServer.Operations.Request
 {
-    [MessagePackObject]
-    public class JoinLobbyRequest
+    public class GetRoomListRequest
     {
         [Key(0)]
         public int UserID;
@@ -11,13 +12,9 @@ namespace MasterServer.Operations.Request
     }
 
     [MessagePackObject]
-    public class JoinLobbyResponse
+    public class GetRoomListResponse
     {
         [Key(0)]
-        public int UserID;
-        [Key(1)]
-        public string LobbyID = "";
-        [Key(2)]
         public List<RoomProperty> Rooms;
     }
 }

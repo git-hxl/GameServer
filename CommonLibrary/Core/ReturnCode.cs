@@ -2,38 +2,22 @@
 { 
     public enum ReturnCode
     {
-        OnRegister,
-        OnRegisterFailed,
-
-        OnLogin,
-        OnLoginFailed,
-
-        OnJoinLobby,
-        OnJoinLobbyFailed,
-
-        OnLeaveLobby,
-        OnLeaveLobbyFailed,
-
-        OnCreateRoom,
-        OnCreateRoomFailed,
-        OnJoinRoom,
-        OnJoinRoomFailed,
-        OnLeaveRoom,
-        OnLeaveRoomFailed,
-
-        OnRoomListUpdate,
-        OnRoomCustomPropertyUpdate,
-
-        OnPlayerLeaveRoom,
-        OnPlayerJoinRoom,
-
-        OnRpc,
-
+        Success,
         InvalidRequest,
 
-        OnCreateGame,
-        OnRemoveGame,
-        OnJoinGame,
-        OnLeaveGame,
+        OnRegisterFailed,
+
+        OnLoginFailed,
+
+        OnJoinLobbyFailed,
+
+        OnLeaveLobbyFailed,
+
+        OnCreateRoomFailed,
+        OnJoinRoomFailed,
+        OnLeaveRoomFailed,
+
+        OnCreateGameFailed,
+        OnRemoveGameFailed,
     }
 }

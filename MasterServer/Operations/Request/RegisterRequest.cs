@@ -16,4 +16,11 @@ namespace MasterServer.Operations.Request
         [Key(4)]
         public string Identity = "";
     }
+
+    [MessagePackObject]
+    public class RegisterResponse
+    {
+        [Key(0)]
+        public string Account = "";
+    }
 }

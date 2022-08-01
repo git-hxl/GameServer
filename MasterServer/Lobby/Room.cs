@@ -24,7 +24,7 @@ namespace MasterServer
     public class Room
     {
         public RoomProperty RoomProperty { get; }
-        public List<MasterPeer> ClientPeers { get; }
+        public List<MasterPeer> MasterPeers { get; }
         public Lobby Lobby { get; }
         public Room(Lobby lobby, MasterPeer clientPeer, string roomName, bool isVisible, bool needPassword, string password, int maxPeers, Hashtable customProperties)
         {
@@ -36,27 +36,26 @@ namespace MasterServer
             RoomProperty.Password = password;
             RoomProperty.MaxPeers = maxPeers;
             RoomProperty.CustomProperties = customProperties;
-            ClientPeers = new List<MasterPeer>();
+            MasterPeers = new List<MasterPeer>();
             Lobby = lobby;
             AddClientPeer(clientPeer);
         }
 
-        public bool AddClientPeer(MasterPeer clientPeer)
+        public void AddClientPeer(MasterPeer masterPeer)
         {
-            if (!ClientPeers.Contains(clientPeer) && ClientPeers.Count <RoomProperty.MaxPeers)
+            if (!MasterPeers.Contains(masterPeer) && MasterPeers.Count <RoomProperty.MaxPeers)
             {
-                ClientPeers.Add(clientPeer);
-                return true;
+                MasterPeers.Add(masterPeer);
             }
-            return false;
         }
 
-        public void RemoveClientPeer(MasterPeer clientPeer)
+        public void RemoveClientPeer(MasterPeer masterPeer)
         {
-            if (ClientPeers.Contains(clientPeer))
+            if (MasterPeers.Contains(masterPeer))
             {
-                ClientPeers.Remove(clientPeer);
-                if (ClientPeers.Count <= 0)
+                MasterPeers.Remove(masterPeer);
+
+                if (MasterPeers.Count <= 0)
                 {
                     Lobby.RemoveRoom(this);
                 }

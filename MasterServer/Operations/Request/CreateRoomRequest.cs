@@ -7,16 +7,27 @@ namespace MasterServer.Operations.Request
     public class CreateRoomRequest
     {
         [Key(0)]
-        public string RoomName = "";
+        public int UserID;
         [Key(1)]
-        public bool IsVisible;
+        public string RoomName = "";
         [Key(2)]
-        public bool NeedPassword;
+        public bool IsVisible;
         [Key(3)]
-        public string Password = "";
+        public bool NeedPassword;
         [Key(4)]
-        public int MaxPlayers;
+        public string Password = "";
         [Key(5)]
+        public int MaxPlayers;
+        [Key(6)]
         public Hashtable CustomProperties = new Hashtable();
+    }
+
+    [MessagePackObject]
+    public class CreateRoomResponse
+    {
+        [Key(0)]
+        public RoomProperty RoomProperty;
+        [Key(1)]
+        public Dictionary<int, string> Users;
     }
 }

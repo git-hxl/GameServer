@@ -10,11 +10,21 @@
         JoinRoom,
         LeaveRoom,
         GetRoomList,
+       
+        RegisterGameServer,
+
         Rpc,
         JoinGame,
         LeaveGame,
 
-        MasterCreateGame,
-        MasterRemoveGame,
+        CreateGame,
+        RemoveGame,
+
+        OnPlayerJoinRoom,
+        OnPlayerLeaveRoom,
+        OnRoomListUpdate,
+
+        OnPlayerJoinGame,
+        OnPlayerLeaveGame,
     }
 }

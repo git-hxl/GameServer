@@ -4,7 +4,7 @@ using System.Collections;
 namespace GameServer.Operations.Request
 {
     [MessagePackObject]
-    public class JoinGameRequest
+    public class LeaveGameRequest
     {
         [Key(0)]
         public string GameID = "";
@@ -13,7 +13,7 @@ namespace GameServer.Operations.Request
     }
 
     [MessagePackObject]
-    public class JoinGameResponse
+    public class LeaveGameResponse
     {
         [Key(0)]
         public string GameID = "";
