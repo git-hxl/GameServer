@@ -5,7 +5,7 @@
         Register,
         Login,
         JoinLobby,
-        LevelLobby,
+        LeaveLobby,
         CreateRoom,
         JoinRoom,
         LeaveRoom,

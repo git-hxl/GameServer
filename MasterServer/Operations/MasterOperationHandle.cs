@@ -1,4 +1,5 @@
 ﻿using CommonLibrary.Core;
+using CommonLibrary.Utils;
 using Dapper;
 using MasterServer.DB;
 using MasterServer.DB.Table;
@@ -23,7 +24,7 @@ namespace MasterServer.Operations
                 case OperationCode.JoinLobby:
                     JoinLobbyRequest(handleRequest);
                     break;
-                case OperationCode.LevelLobby:
+                case OperationCode.LeaveLobby:
                     LeaveLobbyRequest(handleRequest);
                     break;
                 case OperationCode.CreateRoom:
@@ -57,6 +58,7 @@ namespace MasterServer.Operations
                     if (existAccount == null)
                     {
                         DateTime lastlogintime = DateTime.Now;
+                        request.Password = SecurityUtil.MD5Encrypt(request.Password);
                         sql = $"insert into user (ID,Account,Password,NickName,RealName,Identity,LastLoginTime) values " +
                            $"({0},'{request.Account}','{request.Password}','{request.NickName}','{request.RealName}','{request.Identity}','{lastlogintime}')";
 
@@ -78,24 +80,28 @@ namespace MasterServer.Operations
         private async void LoginRequest(HandleRequest handleRequest)
         {
             LoginRequest request = MessagePackSerializer.Deserialize<LoginRequest>(handleRequest.MsgPack.Data);
-            using (var dbConnection = await DBHelper.CreateConnection())
+            if (MasterApplication.Instance.GetClientPeer(handleRequest.NetPeer) == null)
             {
-                if (dbConnection != null)
+                using (var dbConnection = await DBHelper.CreateConnection())
                 {
-                    string sql = $"select * from user where account='{request.Account}'&&password='{request.Password}'";
-                    UserTable user = dbConnection.QueryFirstOrDefault<UserTable>(sql);
-                    if (user != null)
+                    if (dbConnection != null)
                     {
-                        sql = $"update user set lastlogintime='{DateTime.Now}' where account='{request.Account}'";
-                        dbConnection.Execute(sql);
-                        MasterPeer masterPeer = new MasterPeer(handleRequest.NetPeer, user);
-                        MasterApplication.Instance.AddClientPeer(handleRequest.NetPeer, masterPeer);
-                        LoginResponse response = new LoginResponse();
-                        response.User = user;
-                        response.Lobbies = LobbyFactory.Instance.Lobbies.Select((a) => a.LobbyProperty).ToList();
-                        byte[] data = MessagePackSerializer.Serialize(response);
-                        HandleResponse.SendResponse(handleRequest, MsgPack.Pack(data));
-                        return;
+                        request.Password = SecurityUtil.MD5Encrypt(request.Password);
+                        string sql = $"select * from user where account='{request.Account}'&&password='{request.Password}'";
+                        UserTable user = dbConnection.QueryFirstOrDefault<UserTable>(sql);
+                        if (user != null)
+                        {
+                            sql = $"update user set lastlogintime='{DateTime.Now}' where account='{request.Account}'";
+                            dbConnection.Execute(sql);
+                            MasterPeer masterPeer = new MasterPeer(handleRequest.NetPeer, user);
+                            MasterApplication.Instance.AddClientPeer(handleRequest.NetPeer, masterPeer);
+                            LoginResponse response = new LoginResponse();
+                            response.User = user;
+                            response.Lobbies = LobbyFactory.Instance.Lobbies.Select((a) => a.LobbyProperty).ToList();
+                            byte[] data = MessagePackSerializer.Serialize(response);
+                            HandleResponse.SendResponse(handleRequest, MsgPack.Pack(data));
+                            return;
+                        }
                     }
                 }
             }
@@ -174,7 +180,7 @@ namespace MasterServer.Operations
                 {
                     CreateRoomResponse response = new CreateRoomResponse();
                     response.RoomProperty = room.RoomProperty;
-                    response.Users = (Dictionary<int, string>)room.MasterPeers.Select((a) => new KeyValuePair<int, string>(a.User.ID, a.User.NickName));
+                    response.Users = room.MasterPeers.Select((a) => a.User).ToList();
                     byte[] data = MessagePackSerializer.Serialize(response);
                     HandleResponse.SendResponse(handleRequest, MsgPack.Pack(data));
                     return;
@@ -200,7 +206,7 @@ namespace MasterServer.Operations
                     response.UserID = masterPeer.User.ID;
                     response.RoomID = room.RoomProperty.RoomID;
                     response.RoomProperty = room.RoomProperty;
-                    response.Users = (Dictionary<int, string>)room.MasterPeers.Select((a) => new KeyValuePair<int, string>(a.User.ID, a.User.NickName));
+                    response.Users = room.MasterPeers.Select((a) => a.User).ToList();
                     byte[] data = MessagePackSerializer.Serialize(response);
                     foreach (var item in room.MasterPeers)
                     {

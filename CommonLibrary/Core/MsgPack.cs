@@ -13,9 +13,9 @@ namespace CommonLibrary.Core
         [Key(2)]
         public ReturnCode ReturnCode;
 
-        public MsgPack() { }
+        public MsgPack(){}
 
-        public MsgPack(byte[]? data,ReturnCode returnCode)
+        public MsgPack(byte[]? data, ReturnCode returnCode)
         {
             Data = data;
             TimeStamp = DateTimeEx.TimeStamp;
@@ -31,7 +31,7 @@ namespace CommonLibrary.Core
         {
             return new MsgPack(null, returnCode);
         }
-       
+
     }
 
 }

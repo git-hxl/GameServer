@@ -3,6 +3,7 @@ using System.Collections;
 
 namespace MasterServer.Operations.Request
 {
+    [MessagePackObject]
     public class GetRoomListRequest
     {
         [Key(0)]

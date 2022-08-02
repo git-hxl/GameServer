@@ -45,7 +45,7 @@ namespace TestClient
                     case OperationCode.JoinLobby:
                         OnjoinLobby(msgPack);
                         break;
-                    case OperationCode.LevelLobby:
+                    case OperationCode.LeaveLobby:
                         OnLeaveLobby(msgPack);
                         break;
                     case OperationCode.CreateRoom:
@@ -88,6 +88,11 @@ namespace TestClient
                         if (operation.Contains("JoinLobby"))
                         {
                             JoinLobby();
+                        }
+
+                        if (operation.Contains("LeaveLobby"))
+                        {
+                            LeaveLobby();
                         }
 
                         if (operation.Contains("GetRoomList"))
@@ -164,7 +169,7 @@ namespace TestClient
             request.Account = account;
             request.Password = password;
             byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
-            HandleResponse.SendToPeer(peer, OperationCode.Login, MsgPack.Pack(data));
+            HandleResponse.SendToPeer(peer, OperationCode.Login, MsgPack.Pack(new byte[0]));
         }
 
         static void OnLogin(MsgPack msgPack)
@@ -176,9 +181,9 @@ namespace TestClient
         static void JoinLobby()
         {
             JoinLobbyRequest request = new JoinLobbyRequest();
-            //request.LobbyID = lobbyName;
+            request.UserID = 6;
             byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
-            HandleResponse.SendToPeer(peer, OperationCode.JoinLobby, MsgPack.Pack(null));
+            HandleResponse.SendToPeer(peer, OperationCode.JoinLobby, MsgPack.Pack(data));
         }
 
         static void OnjoinLobby(MsgPack msgPack)
@@ -190,9 +195,9 @@ namespace TestClient
         static void GetRoomList()
         {
             GetRoomListRequest request = new GetRoomListRequest();
-            //request.LobbyID = lobbyName;
+            request.UserID = 6;
             byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
-            HandleResponse.SendToPeer(peer, OperationCode.GetRoomList, MsgPack.Pack(null));
+            HandleResponse.SendToPeer(peer, OperationCode.GetRoomList, MsgPack.Pack(data));
         }
 
         static void OnGetRoomList(MsgPack msgPack)
@@ -204,9 +209,9 @@ namespace TestClient
         static void LeaveLobby()
         {
             LeaveLobbyRequest request = new LeaveLobbyRequest();
-            //request.LobbyID = lobbyName;
+            request.UserID = 6;
             byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
-            HandleResponse.SendToPeer(peer, OperationCode.LevelLobby, MsgPack.Pack(null));
+            HandleResponse.SendToPeer(peer, OperationCode.LeaveLobby, MsgPack.Pack(data));
         }
 
         static void OnLeaveLobby(MsgPack msgPack)
@@ -220,6 +225,7 @@ namespace TestClient
         {
             CreateRoomRequest request = new CreateRoomRequest();
             request.RoomName = rommName;
+            request.MaxPlayers = 1;
             byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
             HandleResponse.SendToPeer(peer, OperationCode.CreateRoom, MsgPack.Pack(data));
         }
@@ -247,8 +253,9 @@ namespace TestClient
         static void LeaveRoom()
         {
             LeaveRoomRequest request = new LeaveRoomRequest();
+            request.UserID = 6;
             byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
-            HandleResponse.SendToPeer(peer, OperationCode.LeaveGame, MsgPack.Pack(data));
+            HandleResponse.SendToPeer(peer, OperationCode.LeaveRoom, MsgPack.Pack(data));
         }
 
         static void OnLeaveRoom(MsgPack msgPack)

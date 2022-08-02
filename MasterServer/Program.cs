@@ -10,17 +10,17 @@ namespace MasterServer
 
             MasterApplication.Instance.Start();
 
-            try
+            while (true)
             {
-                while (true)
+                try
                 {
                     MasterApplication.Instance.Update();
                     Thread.Sleep(15);
                 }
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine(e);
+                catch (Exception e)
+                {
+                    Console.WriteLine(e);
+                }
             }
 
             MasterApplication.Instance.Close();

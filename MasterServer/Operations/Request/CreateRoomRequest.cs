@@ -1,4 +1,5 @@
-﻿using MessagePack;
+﻿using MasterServer.DB.Table;
+using MessagePack;
 using System.Collections;
 
 namespace MasterServer.Operations.Request
@@ -28,6 +29,6 @@ namespace MasterServer.Operations.Request
         [Key(0)]
         public RoomProperty RoomProperty;
         [Key(1)]
-        public Dictionary<int, string> Users;
+        public List<UserTable> Users;
     }
 }
