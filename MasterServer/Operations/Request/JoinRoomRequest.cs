@@ -7,10 +7,8 @@ namespace MasterServer.Operations.Request
     public class JoinRoomRequest
     {
         [Key(0)]
-        public int UserID;
-        [Key(1)]
         public string RoomID = "";
-        [Key(2)]
+        [Key(1)]
         public string Password = "";
     }
 

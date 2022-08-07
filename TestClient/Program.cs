@@ -3,10 +3,11 @@ using CommonLibrary.Utils;
 using GameServer.Operations;
 using LiteNetLib;
 using LiteNetLib.Utils;
+using MasterServer;
 using MasterServer.Operations.Request;
-using MasterServer.Operations.Response;
 using MessagePack;
 using Newtonsoft.Json;
+using System.Collections;
 
 namespace TestClient
 {
@@ -27,36 +28,15 @@ namespace TestClient
                 OperationCode operationCode = (OperationCode)reader.GetByte();
                 MsgPack msgPack = MessagePack.MessagePackSerializer.Deserialize<MsgPack>(reader.GetRemainingBytes());
 
-                Console.WriteLine("{0} request result: {1} ping：{2} delay：{3}", operationCode.ToString(), msgPack.ReturnCode.ToString(), fromPeer.Ping,DateTimeEx.TimeStamp-msgPack.TimeStamp);
+                Console.WriteLine("{0} request result: {1} ping：{2} delay：{3}", operationCode.ToString(), msgPack.ReturnCode.ToString(), fromPeer.Ping, DateTimeEx.TimeStamp - msgPack.TimeStamp);
 
                 Console.WriteLine(Newtonsoft.Json.JsonConvert.SerializeObject(msgPack));
 
                 if (msgPack.ReturnCode != ReturnCode.Success)
                     return;
 
-                switch(operationCode)
+                switch (operationCode)
                 {
-                    case OperationCode.Register:
-                        OnRegister(msgPack);
-                        break;
-                    case OperationCode.Login:
-                        OnLogin(msgPack);
-                        break;
-                    case OperationCode.JoinLobby:
-                        OnjoinLobby(msgPack);
-                        break;
-                    case OperationCode.LeaveLobby:
-                        OnLeaveLobby(msgPack);
-                        break;
-                    case OperationCode.CreateRoom:
-                        OnCreateRoom(msgPack);
-                        break;
-                    case OperationCode.JoinRoom:
-                        OnJoinRoom(msgPack);
-                        break;
-                    case OperationCode.LeaveRoom:
-                        OnLeaveRoom(msgPack);
-                        break;
                     case OperationCode.GetRoomList:
                         OnGetRoomList(msgPack);
                         break;
@@ -85,6 +65,11 @@ namespace TestClient
                             Login(msg[1], msg[2]);
                         }
 
+                        if (operation.Contains("AutoTest"))
+                        {
+                            AutoTest();
+                        }
+
                         if (operation.Contains("JoinLobby"))
                         {
                             JoinLobby();
@@ -95,21 +80,14 @@ namespace TestClient
                             LeaveLobby();
                         }
 
-                        if (operation.Contains("GetRoomList"))
-                        {
-                            GetRoomList();
-                        }
-
                         if (operation.Contains("CreateRoom"))
                         {
-                            string[] msg = operation.Split(" ");
-                            CreateRoom(msg[1]);
+                            CreateRoom();
                         }
 
                         if (operation.Contains("JoinRoom"))
                         {
-                            string[] msg = operation.Split(" ");
-                            JoinRoom(msg[1]);
+                            JoinRoom();
                         }
 
                         if (operation.Contains("LeaveRoom"))
@@ -117,7 +95,15 @@ namespace TestClient
                             LeaveRoom();
                         }
 
-                        
+                        if (operation.Contains("GetRoomList"))
+                        {
+                            GetRoomList();
+                        }
+
+                        if (operation.Contains("UpdateRoom"))
+                        {
+                            UpdateRoom();
+                        }
                     }
                 }
             });
@@ -139,6 +125,59 @@ namespace TestClient
             client?.Stop();
         }
 
+        public static void AutoTest()
+        {
+            string[] methods = new string[] { "JoinLobby", "GetRoomList", "LeaveLobby", "CreateRoom", "JoinRoom", "LeaveRoom", "UpdateRoom" };
+            Task.Run(() =>
+            {
+                while (true)
+                {
+                   Thread.Sleep(100);
+
+                    string method = methods[Random.Shared.Next(0, methods.Length)];
+
+                    if (method.Contains("JoinLobby"))
+                    {
+                        JoinLobby();
+                    }
+
+                    if (method.Contains("LeaveLobby"))
+                    {
+                        LeaveLobby();
+                    }
+
+                    if (method.Contains("CreateRoom"))
+                    {
+                        CreateRoom();
+                    }
+
+                    if (method.Contains("JoinRoom"))
+                    {
+                        JoinRoom();
+                    }
+
+                    if (method.Contains("LeaveRoom"))
+                    {
+                        LeaveRoom();
+                    }
+
+                    if (method.Contains("GetRoomList"))
+                    {
+                        GetRoomList();
+                    }
+
+                    if (method.Contains("UpdateRoom"))
+                    {
+                        UpdateRoom();
+                    }
+
+                }
+
+            });
+            
+        }
+
+
         private static void Listener_PeerConnectedEvent(NetPeer peer)
         {
             Console.WriteLine("Connect to server:" + peer.Id);
@@ -157,11 +196,6 @@ namespace TestClient
             byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
             HandleResponse.SendToPeer(peer, OperationCode.Register, MsgPack.Pack(data));
         }
-        static void OnRegister(MsgPack msgPack)
-        {
-            RegisterResponse response = MessagePack.MessagePackSerializer.Deserialize<RegisterResponse>(msgPack.Data);
-            Console.WriteLine(JsonConvert.SerializeObject(response));
-        }
 
         static void Login(string account, string password)
         {
@@ -169,99 +203,67 @@ namespace TestClient
             request.Account = account;
             request.Password = password;
             byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
-            HandleResponse.SendToPeer(peer, OperationCode.Login, MsgPack.Pack(new byte[0]));
-        }
-
-        static void OnLogin(MsgPack msgPack)
-        {
-            LoginResponse response = MessagePack.MessagePackSerializer.Deserialize<LoginResponse>(msgPack.Data);
-            Console.WriteLine(JsonConvert.SerializeObject(response));
+            HandleResponse.SendToPeer(peer, OperationCode.Login, MsgPack.Pack(data));
         }
 
         static void JoinLobby()
         {
-            JoinLobbyRequest request = new JoinLobbyRequest();
-            request.UserID = 6;
-            byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
-            HandleResponse.SendToPeer(peer, OperationCode.JoinLobby, MsgPack.Pack(data));
-        }
-
-        static void OnjoinLobby(MsgPack msgPack)
-        {
-            JoinLobbyResponse response = MessagePack.MessagePackSerializer.Deserialize<JoinLobbyResponse>(msgPack.Data);
-            Console.WriteLine(JsonConvert.SerializeObject(response));
+            HandleResponse.SendToPeer(peer, OperationCode.JoinLobby, MsgPack.Pack(null));
         }
 
         static void GetRoomList()
         {
-            GetRoomListRequest request = new GetRoomListRequest();
-            request.UserID = 6;
-            byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
-            HandleResponse.SendToPeer(peer, OperationCode.GetRoomList, MsgPack.Pack(data));
+            HandleResponse.SendToPeer(peer, OperationCode.GetRoomList, MsgPack.Pack(null));
         }
 
+        public static List<RoomProperty> Rooms = new List<RoomProperty>();
         static void OnGetRoomList(MsgPack msgPack)
         {
             GetRoomListResponse response = MessagePack.MessagePackSerializer.Deserialize<GetRoomListResponse>(msgPack.Data);
-            Console.WriteLine(JsonConvert.SerializeObject(response));
+
+            Rooms = response.Rooms;
         }
 
         static void LeaveLobby()
         {
-            LeaveLobbyRequest request = new LeaveLobbyRequest();
-            request.UserID = 6;
-            byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
-            HandleResponse.SendToPeer(peer, OperationCode.LeaveLobby, MsgPack.Pack(data));
+            HandleResponse.SendToPeer(peer, OperationCode.LeaveLobby, MsgPack.Pack(null));
         }
 
-        static void OnLeaveLobby(MsgPack msgPack)
-        {
-            LeaveLobbyResponse response = MessagePack.MessagePackSerializer.Deserialize<LeaveLobbyResponse>(msgPack.Data);
-            Console.WriteLine(JsonConvert.SerializeObject(response));
-        }
-
-
-        static void CreateRoom(string rommName)
+        static void CreateRoom()
         {
             CreateRoomRequest request = new CreateRoomRequest();
-            request.RoomName = rommName;
-            request.MaxPlayers = 1;
+            string[] strs = new string[] { "car", "ship", "air", "bird", "dog", "fish", "beer" };
+            request.RoomName = strs[Random.Shared.Next(0, strs.Length)];
+            request.MaxPlayers = 6;
             byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
             HandleResponse.SendToPeer(peer, OperationCode.CreateRoom, MsgPack.Pack(data));
         }
 
-        static void OnCreateRoom(MsgPack msgPack)
-        {
-            CreateRoomResponse response = MessagePack.MessagePackSerializer.Deserialize<CreateRoomResponse>(msgPack.Data);
-            Console.WriteLine(JsonConvert.SerializeObject(response));
-        }
 
-        static void JoinRoom(string roomid)
+        static void JoinRoom()
         {
+            if (Rooms.Count <= 0)
+                return;
             JoinRoomRequest request = new JoinRoomRequest();
-            request.RoomID = roomid;
+            request.RoomID = Rooms[Random.Shared.Next(0, Rooms.Count)].RoomID;
             byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
             HandleResponse.SendToPeer(peer, OperationCode.JoinRoom, MsgPack.Pack(data));
         }
 
-        static void OnJoinRoom(MsgPack msgPack)
-        {
-            JoinRoomResponse response = MessagePack.MessagePackSerializer.Deserialize<JoinRoomResponse>(msgPack.Data);
-            Console.WriteLine(JsonConvert.SerializeObject(response));
-        }
-
         static void LeaveRoom()
         {
-            LeaveRoomRequest request = new LeaveRoomRequest();
-            request.UserID = 6;
-            byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
-            HandleResponse.SendToPeer(peer, OperationCode.LeaveRoom, MsgPack.Pack(data));
+            HandleResponse.SendToPeer(peer, OperationCode.LeaveRoom, MsgPack.Pack(null));
         }
 
-        static void OnLeaveRoom(MsgPack msgPack)
+        static void UpdateRoom()
         {
-            LeaveRoomResponse response = MessagePack.MessagePackSerializer.Deserialize<LeaveRoomResponse>(msgPack.Data);
-            Console.WriteLine(JsonConvert.SerializeObject(response));
+            UpdateRoomPropertyRequest request = new UpdateRoomPropertyRequest();
+            string[] strs = new string[] { "car", "ship", "air", "bird", "dog", "fish", "beer" };
+            Hashtable hashtable = new Hashtable();
+            hashtable["test"] = strs[Random.Shared.Next(0, strs.Length)];
+            request.CustomProperties = hashtable;
+            byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
+            HandleResponse.SendToPeer(peer, OperationCode.UpdateRoomProperty, MsgPack.Pack(data));
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using MessagePack;
+using Serilog;
 using System.Collections;
 
 namespace MasterServer
@@ -38,15 +39,20 @@ namespace MasterServer
             RoomProperty.CustomProperties = customProperties;
             MasterPeers = new List<MasterPeer>();
             Lobby = lobby;
-            AddClientPeer(clientPeer);
         }
 
-        public void AddClientPeer(MasterPeer masterPeer)
+        public bool AddClientPeer(MasterPeer masterPeer, string password)
         {
-            if (!MasterPeers.Contains(masterPeer) && MasterPeers.Count <RoomProperty.MaxPeers)
+            if (!RoomProperty.NeedPassword || (RoomProperty.NeedPassword && RoomProperty.Password == password))
             {
-                MasterPeers.Add(masterPeer);
+                if (!MasterPeers.Contains(masterPeer) && MasterPeers.Count < RoomProperty.MaxPeers)
+                {
+                    MasterPeers.Add(masterPeer);
+                    Log.Information("{0} Join Room: {1}", masterPeer.NetPeer.EndPoint.ToString(), RoomProperty.RoomID);
+                    return true;
+                }
             }
+            return false;
         }
 
         public void RemoveClientPeer(MasterPeer masterPeer)
@@ -59,6 +65,8 @@ namespace MasterServer
                 {
                     Lobby.RemoveRoom(this);
                 }
+
+                Log.Information("{0} Leave Room: {1}", masterPeer.NetPeer.EndPoint.ToString(), RoomProperty.RoomID);
             }
         }
     }

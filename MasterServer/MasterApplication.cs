@@ -38,6 +38,8 @@ namespace MasterServer
             server.ReconnectDelay = ServerConfig.ReconnectDelay;
             server.MaxConnectAttempts = ServerConfig.MaxConnectAttempts;
 
+            server.UnsyncedReceiveEvent = true;
+
             listener.ConnectionRequestEvent += Listener_ConnectionRequestEvent;
             listener.PeerConnectedEvent += Listener_PeerConnectedEvent;
             listener.PeerDisconnectedEvent += Listener_PeerDisconnectedEvent;
@@ -93,9 +95,16 @@ namespace MasterServer
         protected void Listener_NetworkReceiveEvent(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
         {
             OperationCode operationCode = (OperationCode)reader.GetByte();
-            MsgPack msgPack = MessagePack.MessagePackSerializer.Deserialize<MsgPack>(reader.GetRemainingBytes());
-            HandleRequest handleRequest = new HandleRequest(peer, operationCode, msgPack, deliveryMethod);
-            MasterOperationHandle.HandleRequest(handleRequest);
+            try
+            {
+                MsgPack msgPack = MessagePack.MessagePackSerializer.Deserialize<MsgPack>(reader.GetRemainingBytes());
+                HandleRequest handleRequest = new HandleRequest(peer, operationCode, msgPack, deliveryMethod);
+                MasterOperationHandle.HandleRequest(handleRequest);
+            }
+            catch (Exception e)
+            {
+                Log.Error(e.ToString());
+            }
         }
 
         public void AddClientPeer(NetPeer netPeer, MasterPeer masterPeer)

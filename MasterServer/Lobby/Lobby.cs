@@ -16,7 +16,7 @@ namespace MasterServer
     public class Lobby
     {
         public LobbyProperty LobbyProperty { get; }
-        public List<MasterPeer> ClientPeers { get; }
+        public List<MasterPeer> MasterPeers { get; }
         public List<Room> Rooms { get; }
         public Lobby()
         {
@@ -24,39 +24,39 @@ namespace MasterServer
             LobbyProperty.LobbyID = Guid.NewGuid().ToString();
             LobbyProperty.MaxPeers = 1000;
 
-            ClientPeers = new List<MasterPeer>();
+            MasterPeers = new List<MasterPeer>();
             Rooms = new List<Room>();
         }
 
-        public bool IsFullLobby => ClientPeers.Count >= LobbyProperty.MaxPeers;
+        public bool IsFullLobby => MasterPeers.Count >= LobbyProperty.MaxPeers;
 
-        public bool AddClientPeer(MasterPeer clientPeer)
+        public bool AddClientPeer(MasterPeer masterPeer)
         {
-            if (!ClientPeers.Contains(clientPeer))
+            if (!MasterPeers.Contains(masterPeer))
             {
-                ClientPeers.Add(clientPeer);
-                Log.Information("{0} join lobby: {1}", clientPeer.NetPeer.EndPoint.ToString(),LobbyProperty.LobbyID);
+                MasterPeers.Add(masterPeer);
+                Log.Information("{0} Join lobby: {1}", masterPeer.NetPeer.EndPoint.ToString(), LobbyProperty.LobbyID);
                 return true;
             }
             return false;
         }
 
-        public void RemoveClientPeer(MasterPeer clientPeer)
+        public void RemoveClientPeer(MasterPeer masterPeer)
         {
-            if (ClientPeers.Contains(clientPeer))
+            if (MasterPeers.Contains(masterPeer))
             {
-                ClientPeers.Remove(clientPeer);
-                Log.Information("{0} Leave lobby: {1}", clientPeer.NetPeer.EndPoint.ToString(), LobbyProperty.LobbyID);
-                if (ClientPeers.Count <= 0)
+                MasterPeers.Remove(masterPeer);
+                Log.Information("{0} Leave lobby: {1}", masterPeer.NetPeer.EndPoint.ToString(), LobbyProperty.LobbyID);
+                if (MasterPeers.Count <= 0)
                 {
                     LobbyFactory.Instance.RemoveLobby(this);
                 }
             }
         }
 
-        public Room? CreateRoom(MasterPeer clientPeer, string roomName, bool isVisible, bool needPassword, string password, int maxPlayers, Hashtable roomProperties)
+        public Room? CreateRoom(MasterPeer masterPeer, string roomName, bool isVisible, bool needPassword, string password, int maxPlayers, Hashtable roomProperties)
         {
-            Room lobbyRoom = new Room(this, clientPeer, roomName, isVisible, needPassword, password, maxPlayers, roomProperties);
+            Room lobbyRoom = new Room(this, masterPeer, roomName, isVisible, needPassword, password, maxPlayers, roomProperties);
             Rooms.Add(lobbyRoom);
             return lobbyRoom;
         }

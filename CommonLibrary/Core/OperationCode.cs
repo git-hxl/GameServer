@@ -10,6 +10,7 @@
         JoinRoom,
         LeaveRoom,
         GetRoomList,
+        UpdateRoomProperty,
        
         RegisterGameServer,
 
@@ -20,11 +21,5 @@
         CreateGame,
         RemoveGame,
 
-        OnPlayerJoinRoom,
-        OnPlayerLeaveRoom,
-        OnRoomListUpdate,
-
-        OnPlayerJoinGame,
-        OnPlayerLeaveGame,
     }
 }

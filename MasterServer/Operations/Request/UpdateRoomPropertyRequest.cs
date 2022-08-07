@@ -1,15 +1,13 @@
 ﻿using MessagePack;
+using System.Collections;
 
-namespace MasterServer.Operations.Response
+namespace MasterServer.Operations.Request
 {
-
     [MessagePackObject]
     public class UpdateRoomPropertyRequest
     {
         [Key(0)]
-        public string RoomID;
-        [Key(1)]
-        public RoomProperty RoomProperty;
+        public Hashtable CustomProperties;
     }
 
     [MessagePackObject]
@@ -18,6 +16,6 @@ namespace MasterServer.Operations.Response
         [Key(0)]
         public string RoomID;
         [Key(1)]
-        public RoomProperty RoomProperty;
+        public Hashtable CustomProperties;
     }
 }

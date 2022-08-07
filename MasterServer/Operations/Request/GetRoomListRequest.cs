@@ -6,10 +6,7 @@ namespace MasterServer.Operations.Request
     [MessagePackObject]
     public class GetRoomListRequest
     {
-        [Key(0)]
-        public int UserID;
-        [Key(1)]
-        public string LobbyID = "";
+
     }
 
     [MessagePackObject]
