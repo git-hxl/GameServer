@@ -6,7 +6,15 @@ namespace MasterServer
     {
         static void Main(string[] args)
         {
-            Log.Logger = new LoggerConfiguration().WriteTo.Console().WriteTo.File("log.txt").CreateLogger();
+            LoggerConfiguration loggerConfiguration = new LoggerConfiguration();
+#if DEBUG
+            loggerConfiguration.MinimumLevel.Information();
+#else
+            loggerConfiguration.MinimumLevel.Warning();
+#endif
+            loggerConfiguration.WriteTo.Console();
+            loggerConfiguration.WriteTo.File("log.txt", rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true);
+            Log.Logger = loggerConfiguration.CreateLogger();
 
             MasterApplication.Instance.Start();
 
@@ -20,6 +28,7 @@ namespace MasterServer
                 catch (Exception e)
                 {
                     Console.WriteLine(e);
+                    break;
                 }
             }
 

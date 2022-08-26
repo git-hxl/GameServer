@@ -38,7 +38,7 @@ namespace MasterServer
             server.ReconnectDelay = ServerConfig.ReconnectDelay;
             server.MaxConnectAttempts = ServerConfig.MaxConnectAttempts;
 
-            server.UnsyncedReceiveEvent = true;
+            server.UnsyncedEvents = true;
 
             listener.ConnectionRequestEvent += Listener_ConnectionRequestEvent;
             listener.PeerConnectedEvent += Listener_PeerConnectedEvent;

@@ -7,9 +7,11 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "GameServer", "GameServer\Ga
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TestClient", "TestClient\TestClient.csproj", "{26CEF881-1FAA-446C-B9B7-D4BB179782B1}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CommonLibrary", "CommonLibrary\CommonLibrary.csproj", "{BC4C7FB6-08A1-4F32-BC27-13E639CA8F43}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "CommonLibrary", "CommonLibrary\CommonLibrary.csproj", "{BC4C7FB6-08A1-4F32-BC27-13E639CA8F43}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "MasterServer", "MasterServer\MasterServer.csproj", "{D37ED4CA-0A8F-4BD1-9DC6-4BDC50E4EC63}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MasterServer", "MasterServer\MasterServer.csproj", "{D37ED4CA-0A8F-4BD1-9DC6-4BDC50E4EC63}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CoreLibrary", "CoreLibrary\CoreLibrary.csproj", "{3A92F967-3384-46D5-B198-7AFD5489581F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -33,6 +35,10 @@ Global
 		{D37ED4CA-0A8F-4BD1-9DC6-4BDC50E4EC63}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D37ED4CA-0A8F-4BD1-9DC6-4BDC50E4EC63}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D37ED4CA-0A8F-4BD1-9DC6-4BDC50E4EC63}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3A92F967-3384-46D5-B198-7AFD5489581F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3A92F967-3384-46D5-B198-7AFD5489581F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3A92F967-3384-46D5-B198-7AFD5489581F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3A92F967-3384-46D5-B198-7AFD5489581F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -16,6 +16,8 @@ namespace CommonLibrary.Core
                 netDataWriter.Put(data);
             }
             handleRequest.NetPeer.Send(netDataWriter, handleRequest.DeliveryMethod);
+
+            handleRequest.NetPeer.NetManager.TriggerUpdate();
         }
 
         public static void SendToPeer(NetPeer netPeer,OperationCode operationCode, MsgPack msgPack ,DeliveryMethod deliveryMethod = DeliveryMethod.ReliableOrdered)
@@ -28,6 +30,8 @@ namespace CommonLibrary.Core
                 netDataWriter.Put(data);
             }
             netPeer.Send(netDataWriter, deliveryMethod);
+
+            netPeer.NetManager.TriggerUpdate();
         }
     }
 }

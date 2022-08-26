@@ -1,5 +1,6 @@
 ﻿using CommonLibrary.Core;
 using CommonLibrary.Utils;
+using CoreLibrary.Utils;
 using GameServer.Operations;
 using LiteNetLib;
 using LiteNetLib.Utils;
@@ -20,7 +21,7 @@ namespace TestClient
             EventBasedNetListener listener = new EventBasedNetListener();
             client = new NetManager(listener);
             client.Start();
-
+            client.UnsyncedEvents = true;
             listener.PeerConnectedEvent += Listener_PeerConnectedEvent;
 
             listener.NetworkReceiveEvent += (fromPeer, reader, deliveryMethod) =>
