@@ -1,4 +1,6 @@
-﻿using Serilog;
+﻿using Newtonsoft.Json;
+using Serilog;
+using ShareLibrary;
 
 namespace MasterServer
 {
@@ -7,34 +9,15 @@ namespace MasterServer
         static void Main(string[] args)
         {
             LoggerConfiguration loggerConfiguration = new LoggerConfiguration();
-#if DEBUG
+            loggerConfiguration.WriteTo.File("./log.txt", rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true).WriteTo.Console();
             loggerConfiguration.MinimumLevel.Information();
-#else
-            loggerConfiguration.MinimumLevel.Warning();
-#endif
-            loggerConfiguration.WriteTo.Console();
-            loggerConfiguration.WriteTo.File("log.txt", rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true);
             Log.Logger = loggerConfiguration.CreateLogger();
-
-            MasterApplication.Instance.Start();
 
             while (true)
             {
-                try
-                {
-                    MasterApplication.Instance.Update();
-                    Thread.Sleep(15);
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine(e);
-                    break;
-                }
+                MasterApplication.Instance.Update();
+                Thread.Sleep(15);
             }
-
-            MasterApplication.Instance.Close();
-
-            Log.CloseAndFlush();
         }
     }
 }

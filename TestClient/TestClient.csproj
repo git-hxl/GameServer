@@ -8,9 +8,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\CommonLibrary\CommonLibrary.csproj" />
-    <ProjectReference Include="..\GameServer\GameServer.csproj" />
     <ProjectReference Include="..\MasterServer\MasterServer.csproj" />
+    <ProjectReference Include="..\ShareLibrary\ShareLibrary.csproj" />
   </ItemGroup>
 
 </Project>

@@ -8,18 +8,19 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\CommonLibrary\CommonLibrary.csproj" />
-    <ProjectReference Include="..\CoreLibrary\CoreLibrary.csproj" />
+    <Compile Remove="GameServer\**" />
+    <EmbeddedResource Remove="GameServer\**" />
+    <None Remove="GameServer\**" />
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="MasterServerConfig.json">
+    <ProjectReference Include="..\ShareLibrary\ShareLibrary.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="ServerConfig.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
-  </ItemGroup>
-
-  <ItemGroup>
-    <Folder Include="GameServer\" />
   </ItemGroup>
 
 </Project>

@@ -1,51 +1,48 @@
 ﻿using LiteNetLib;
-using MasterServer.DB.Table;
-
+using MasterServer.Operations;
+using Newtonsoft.Json;
+using Serilog;
+using ShareLibrary;
+using ShareLibrary.Utils;
 namespace MasterServer
 {
-    public sealed class MasterPeer
+    internal class MasterPeer
     {
-        public UserTable User { get; private set; }
-        public Lobby? CurLobby { get; private set; }
-        public Room? CurRoom { get; private set; }
-
-        public bool IsInLooby { get { return CurLobby != null; } }
-        public bool IsInRoom { get { return CurRoom != null; } }
-        public bool IsMaster { get; private set; }
-
-        public NetPeer NetPeer { get; private set; }
-        public MasterPeer(NetPeer netPeer, UserTable user)
+        public string UserID { get; private set; }
+        public NetPeer Peer { get; private set; }
+        public MasterPeer(NetPeer netPeer)
         {
-            NetPeer = netPeer;
-            User = user;
+            this.Peer = netPeer;
         }
 
-        public void OnJoinLobby(Lobby lobby)
-        {
-            CurLobby = lobby;
-        }
 
-        public void OnLeaveLobby()
+        public OperationResponse OnHandleAuth(OperationRequest operationRequest)
         {
-            CurLobby = null;
-        }
+            if (!string.IsNullOrEmpty(UserID))
+            {
+                return OperationResponse.CreateFailedResponse(operationRequest, ReturnCode.AlreadyAuth);
+            }
 
-        public void OnJoinRoom(Room room)
-        {
-            CurRoom = room;
-        }
+            AuthRequest authRequest = AuthRequest.Deserialize<AuthRequest>(operationRequest.Data);
 
-        public void OnLeaveRoom()
-        {
-            CurRoom = null;
-        }
-
-        public void OnDisConnected()
-        {
-            CurRoom?.RemoveClientPeer(this);
-            OnLeaveRoom();
-            CurLobby?.RemoveClientPeer(this);
-            OnLeaveLobby();
+            try
+            {
+                string tokenStr = SecurityUtil.AESDecrypt(authRequest.Token, MasterApplication.Instance.ServerConfig.encryptKey);
+                Token token = JsonConvert.DeserializeObject<Token>(tokenStr);
+                if (token != null)
+                {
+                    UserID = token.UserID;
+                    AuthResponse authResponse = new AuthResponse();
+                    authResponse.UserID = token.UserID;
+                    authResponse.NickName = token.NickName;
+                    return OperationResponse.CreateDefaultResponse(operationRequest, authResponse.Serialize<AuthResponse>());
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Information(ex.ToString());
+            }
+            return OperationResponse.CreateFailedResponse(operationRequest, ReturnCode.AuthTokenError);
         }
     }
 }
