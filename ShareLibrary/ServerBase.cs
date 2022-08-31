@@ -8,15 +8,8 @@ namespace ShareLibrary
     {
         protected NetManager netManager;
         protected EventBasedNetListener netListener;
-
-        public ServerConfig ServerConfig { get; protected set; }
-        public ServerBase()
+        public virtual void Init(ServerConfig serverConfig)
         {
-            string json = File.ReadAllText("./ServerConfig.json");
-            ServerConfig = JsonConvert.DeserializeObject<ServerConfig>(json);
-            if (ServerConfig == null)
-                ServerConfig = new ServerConfig();
-
             netListener = new EventBasedNetListener();
 
             netListener.ConnectionRequestEvent += NetListener_ConnectionRequestEvent;
@@ -25,16 +18,16 @@ namespace ShareLibrary
             netListener.NetworkReceiveEvent += NetListener_NetworkReceiveEvent;
 
             netManager = new NetManager(netListener);
-            netManager.PingInterval = ServerConfig.pingInterval;
-            netManager.DisconnectTimeout = ServerConfig.disconnectTimeout;
-            netManager.ReconnectDelay = ServerConfig.reconnectDelay;
-            netManager.MaxConnectAttempts = ServerConfig.maxConnectAttempts;
+            netManager.PingInterval = serverConfig.pingInterval;
+            netManager.DisconnectTimeout = serverConfig.disconnectTimeout;
+            netManager.ReconnectDelay = serverConfig.reconnectDelay;
+            netManager.MaxConnectAttempts = serverConfig.maxConnectAttempts;
 
             netManager.UnsyncedEvents = true;
 
-            netManager.Start(ServerConfig.port);
+            netManager.Start(serverConfig.port);
 
-            Log.Information("start server: {0}", ServerConfig.port);
+            Log.Information("start server: {0}", serverConfig.port);
         }
 
         public virtual void Close()

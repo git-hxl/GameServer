@@ -1,12 +1,16 @@
-﻿namespace MasterServer
+﻿
+namespace GameServer
 {
-    internal class PlayerCache
+    internal class Room
     {
-        public static PlayerCache Instance { get; private set; } = new PlayerCache();
-
-        private Dictionary<int, MasterClientPeer> players = new Dictionary<int, MasterClientPeer>();
+        private Dictionary<int, GameClientPeer> players = new Dictionary<int, GameClientPeer>();
 
         public int Count { get { lock (this) { return players.Count; } } }
+        public string RoomID { get; private set; }
+        public Room(string id)
+        {
+            RoomID = id; ;
+        }
 
         public bool ContainsKey(int id)
         {
@@ -16,7 +20,7 @@
             }
         }
 
-        public MasterClientPeer? GetPlayer(int id)
+        public GameClientPeer? GetPlayer(int id)
         {
             lock (this)
             {
@@ -28,7 +32,7 @@
             }
         }
 
-        public void AddPlayer(int id, MasterClientPeer masterClientPeer)
+        public void AddPlayer(int id, GameClientPeer masterClientPeer)
         {
             lock (this)
             {

@@ -1,6 +1,8 @@
 ﻿using LiteNetLib;
 using LiteNetLib.Utils;
+using MasterServer;
 using MasterServer.Operations;
+using MessagePack;
 using Newtonsoft.Json;
 using Serilog;
 using ShareLibrary;
@@ -35,7 +37,7 @@ namespace TestClient
 
             netManager.UnsyncedEvents = true;
             netManager.Start();
-            client = netManager.Connect("localhost", ServerConfig.port, ServerConfig.connectKey);
+            client = netManager.Connect("121.196.103.73", ServerConfig.port, ServerConfig.connectKey);
         }
 
         public virtual void Close()
@@ -56,9 +58,8 @@ namespace TestClient
         {
             OperationCode operationCode = (OperationCode)reader.GetByte();
             ReturnCode returnCode = (ReturnCode)reader.GetShort();
-            Log.Information("{0} result: {1}", operationCode.ToString(), returnCode.ToString());
-            if (returnCode != 0)
-                return;
+            Log.Information("{0} result: {1} ping {2}", operationCode.ToString(), returnCode.ToString(), peer.Ping);
+            return;
 
             switch (operationCode)
             {
@@ -98,15 +99,41 @@ namespace TestClient
 
             authRequest.Token = tokenEncrypt;
 
-            Send(OperationCode.Auth, authRequest.Serialize<AuthRequest>());
+            Send(OperationCode.Auth, MessagePackSerializer.Serialize<AuthRequest>(authRequest));
         }
 
         public void OnAuth(byte[] data)
         {
-            AuthResponse authResponse = AuthResponse.Deserialize<AuthResponse>(data);
+            AuthResponse authResponse = MessagePackSerializer.Deserialize<AuthResponse>(data);
 
             Log.Information("response:" + authResponse.UserID + " " + authResponse.NickName);
         }
+
+
+        public void JoinLobby(string lobbyname)
+        {
+            JoinLobbyRequest joinLobbyRequest = new JoinLobbyRequest();
+            joinLobbyRequest.UserID = "1111";
+            joinLobbyRequest.LobbyName = lobbyname;
+
+            Send(OperationCode.JoinLobby, MessagePackSerializer.Serialize<JoinLobbyRequest>(joinLobbyRequest));
+        }
+
+        public void LeaveLobby(string loobyname)
+        {
+            LeaveLobbyRequest leaveLobbyRequest = new LeaveLobbyRequest();
+            leaveLobbyRequest.UserID = "1111";
+            leaveLobbyRequest.LobbyName = loobyname;
+
+            Send(OperationCode.LeaveLobby, MessagePackSerializer.Serialize<LeaveLobbyRequest>(leaveLobbyRequest));
+        }
+
+        public void RegisterGame()
+        {
+            RegisterGameServerRequest request = new RegisterGameServerRequest();
+            Send(OperationCode.RegisterGameServer, MessagePackSerializer.Serialize(request));
+        }
+
 
         public void Send(OperationCode operationCode, byte[] data)
         {

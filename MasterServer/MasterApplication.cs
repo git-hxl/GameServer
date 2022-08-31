@@ -1,26 +1,28 @@
 ﻿using LiteNetLib;
-using MasterServer.OperationHandler;
+using MasterServer.GameServer;
 using Serilog;
 using ShareLibrary;
-
 namespace MasterServer
 {
     internal class MasterApplication : ServerBase
     {
-        private OperationHandlerMaster operationHandlerMaster;
+        private OperationHandlerDefault operationHandlerDefault;
         public static MasterApplication Instance { get; private set; } = new MasterApplication();
 
-        public PlayerCache PlayerCache { get; private set; } = new PlayerCache();
+        public MasterServerConfig MasterServerConfig { get; private set; }
+        public LobbyFactory LobbyFactory { get; private set; } = new LobbyFactory();
 
-        public MasterApplication() : base()
+        public override void Init(ServerConfig serverConfig)
         {
-            operationHandlerMaster = new OperationHandlerMaster();
+            base.Init(serverConfig);
+            MasterServerConfig = (MasterServerConfig)serverConfig;
+            operationHandlerDefault = new OperationHandlerDefault();
         }
 
         protected override void NetListener_ConnectionRequestEvent(ConnectionRequest request)
         {
-            if (netManager.ConnectedPeersCount <= ServerConfig.maxPeers)
-                request.AcceptIfKey(ServerConfig.connectKey);
+            if (netManager.ConnectedPeersCount <= MasterServerConfig.maxPeers)
+                request.AcceptIfKey(MasterServerConfig.connectKey);
             else
             {
                 request.Reject();
@@ -30,25 +32,31 @@ namespace MasterServer
 
         protected override void NetListener_NetworkReceiveEvent(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
         {
-            OperationCode operationCode = (OperationCode)reader.GetByte();
-
-            MasterPeer masterPeer = PlayerCache.GetPeer(peer.Id);
-            OperationRequest operationRequest = new OperationRequest(operationCode, reader.GetRemainingBytes(), deliveryMethod);
-            OperationResponse operationResponse = operationHandlerMaster.OnOperationRequest(masterPeer, operationRequest);
-
-            operationResponse.SendTo(peer);
+            try
+            {
+                OperationCode operationCode = (OperationCode)reader.GetByte();
+                OperationRequest operationRequest = new OperationRequest(operationCode, reader.GetRemainingBytes(), deliveryMethod);
+                OperationResponse operationResponse = operationHandlerDefault.OnOperationRequest(peer, operationRequest);
+                operationResponse.SendTo(peer);
+            }
+            catch (Exception e)
+            {
+                Log.Information(e.ToString());
+            }
         }
+
 
         protected override void NetListener_PeerConnectedEvent(NetPeer peer)
         {
-            PlayerCache.AddPeer(peer.Id, new MasterPeer(peer));
-            Log.Information("peer connected: {0} id:{1} total:{2}", peer.EndPoint, peer.Id, PlayerCache.Count);
+            Log.Information("peer connected: {0} id:{1} total:{2}", peer.EndPoint, peer.Id, PlayerCache.Instance.Count);
         }
+
 
         protected override void NetListener_PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
         {
-            PlayerCache.RemovePeer(peer.Id);
-            Log.Information("peer disconnected: {0} id:{1} total:{2}", peer.EndPoint, peer.Id, PlayerCache.Count);
+            PlayerCache.Instance.RemovePlayer(peer.Id);
+            GameServerCache.Instance.RemoveGameServer(peer.Id);
+            Log.Information("peer disconnected: {0} id:{1} total:{2}", peer.EndPoint, peer.Id, PlayerCache.Instance.Count);
         }
     }
 }

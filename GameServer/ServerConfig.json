@@ -1,5 +1,5 @@
-{
-  "port": 6666,
+﻿{
+  "port": 7777,
   "connectKey": "yoyo",
   "encryptKey": "@qwertyuiop123#$",
   "maxPeers": 5000,
@@ -7,6 +7,6 @@
   "disconnectTimeout": 5000,
   "reconnectDelay": 500,
   "maxConnectAttempts": 10,
-  "GameServers": ["127.0.0.1:7777"]
-  
+  "MasterIP": "127.0.0.1",
+  "MasterPort": 6666
 }

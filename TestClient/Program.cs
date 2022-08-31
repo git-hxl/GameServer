@@ -1,6 +1,5 @@
 ﻿using LiteNetLib;
 using LiteNetLib.Utils;
-using MasterServer.Operations;
 using Newtonsoft.Json;
 using Serilog;
 using ShareLibrary;
@@ -28,6 +27,24 @@ namespace TestClient
                 if(command == "auth")
                 {
                     TestClientApplication.Instance.Auth();
+                }
+
+                if (command.Contains("join lobby"))
+                {
+                    string[] commands = command.Split(" ");
+                    TestClientApplication.Instance.JoinLobby(commands[2]);
+                }
+
+                if (command.Contains("leave lobby"))
+                {
+                    string[] commands = command.Split(" ");
+                    TestClientApplication.Instance.LeaveLobby(commands[2]);
+                }
+
+
+                if (command == "register")
+                {
+                    TestClientApplication.Instance.RegisterGame();
                 }
 
             }

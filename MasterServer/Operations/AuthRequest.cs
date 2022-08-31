@@ -1,10 +1,8 @@
 ﻿using MessagePack;
-using ShareLibrary;
-
-namespace MasterServer.Operations
+namespace MasterServer
 {
     [MessagePackObject]
-    public class AuthRequest : DataBase
+    public class AuthRequest
     {
         [Key(0)]
         public string Token;
@@ -15,7 +13,7 @@ namespace MasterServer.Operations
     }
 
     [MessagePackObject]
-    public class AuthResponse : DataBase
+    public class AuthResponse
     {
         [Key(0)]
         public string UserID;
