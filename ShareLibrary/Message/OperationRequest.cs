@@ -1,9 +1,7 @@
-﻿
-using LiteNetLib;
+﻿using LiteNetLib;
 using LiteNetLib.Utils;
-using ShareLibrary.Message;
 
-namespace MasterServer.MasterClient
+namespace ShareLibrary
 {
     public class OperationRequest
     {

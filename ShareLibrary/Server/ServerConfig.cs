@@ -3,6 +3,7 @@
     public class ServerConfig
     {
         public int port = 6666;
+        public int port = 6666;
 
         public string connectKey = "yoyo";
         public string encryptKey = "@qwertyuiop123#$";

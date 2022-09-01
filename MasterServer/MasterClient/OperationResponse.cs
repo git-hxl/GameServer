@@ -2,7 +2,7 @@
 using LiteNetLib;
 using LiteNetLib.Utils;
 using MasterServer.MasterGame;
-using ShareLibrary;
+using ShareLibrary.Message;
 
 namespace MasterServer.MasterClient
 {

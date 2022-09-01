@@ -1,4 +1,4 @@
-﻿using ShareLibrary;
+﻿using ShareLibrary.Server;
 
 namespace GameServer
 {

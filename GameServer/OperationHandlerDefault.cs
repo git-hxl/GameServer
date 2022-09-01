@@ -1,5 +1,6 @@
 ﻿using LiteNetLib;
 using ShareLibrary;
+using ShareLibrary.Message;
 
 namespace GameServer
 {

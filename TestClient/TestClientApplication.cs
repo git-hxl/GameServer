@@ -1,12 +1,14 @@
 ﻿using LiteNetLib;
 using LiteNetLib.Utils;
-using MasterServer;
+using MasterServer.MasterClient.Request;
 using MasterServer.Operations;
 using MessagePack;
 using Newtonsoft.Json;
 using Serilog;
 using ShareLibrary;
 using ShareLibrary.MasterGame.Request;
+using ShareLibrary.Message;
+using ShareLibrary.Server;
 using ShareLibrary.Utils;
 
 namespace TestClient

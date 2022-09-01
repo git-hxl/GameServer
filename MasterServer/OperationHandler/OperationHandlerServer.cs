@@ -4,6 +4,7 @@ using MasterServer.Operations;
 using Serilog;
 using ShareLibrary;
 using ShareLibrary.MasterGame.Request;
+using ShareLibrary.Message;
 
 namespace MasterServer
 {

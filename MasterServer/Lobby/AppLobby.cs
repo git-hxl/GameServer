@@ -1,5 +1,6 @@
 ﻿using Serilog;
-using ShareLibrary;
+using ShareLibrary.Message;
+
 namespace MasterServer
 {
     internal class AppLobby
