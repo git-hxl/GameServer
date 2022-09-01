@@ -1,4 +1,4 @@
-﻿namespace ShareLibrary
+﻿namespace MasterServer.MasterClient
 {
     public class Token
     {

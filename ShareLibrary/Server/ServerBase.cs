@@ -8,7 +8,7 @@ namespace ShareLibrary
     {
         protected NetManager netManager;
         protected EventBasedNetListener netListener;
-        public virtual void Init(ServerConfig serverConfig)
+        public virtual void Start(ServerConfig serverConfig)
         {
             netListener = new EventBasedNetListener();
 

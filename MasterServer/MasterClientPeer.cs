@@ -1,21 +1,53 @@
 ﻿using LiteNetLib;
+using MasterServer.MasterClient.Request;
 using MessagePack;
 using Newtonsoft.Json;
 using Serilog;
-using ShareLibrary;
+using ShareLibrary.Message;
 using ShareLibrary.Utils;
 namespace MasterServer
 {
     internal class MasterClientPeer
     {
-        private NetPeer? netPeer;
+        private NetPeer? peer;
         private AppLobby? appLobby;
 
         public string UserID { get; private set; }
-        public MasterClientPeer(NetPeer netPeer, string userID)
+        public MasterClientPeer(NetPeer peer)
         {
-            this.netPeer = netPeer;
-            this.UserID = userID;
+            this.peer = peer;
+        }
+        public OperationResponse OnHandleAuth(OperationRequest operationRequest)
+        {
+            if (PlayerCache.Instance.ContainsKey(netPeer.Id))
+            {
+                return OperationResponse.CreateFailedResponse(operationRequest, ReturnCode.AlreadyAuth);
+            }
+
+            AuthRequest authRequest = MessagePackSerializer.Deserialize<AuthRequest>(operationRequest.Data);
+            try
+            {
+                string tokenStr = SecurityUtil.AESDecrypt(authRequest.Token, MasterApplication.Instance.MasterServerConfig.encryptKey);
+                Token? token = JsonConvert.DeserializeObject<Token>(tokenStr);
+                if (token != null)
+                {
+                    MasterClientPeer masterClientPeer = new MasterClientPeer(netPeer, token.UserID);
+
+                    PlayerCache.Instance.AddPlayer(netPeer.Id, masterClientPeer);
+
+                    AuthResponse authResponse = new AuthResponse();
+                    authResponse.UserID = token.UserID;
+                    authResponse.NickName = token.NickName;
+
+                    byte[] data = MessagePackSerializer.Serialize(authResponse);
+                    return OperationResponse.CreateResponse(operationRequest, (byte)ReturnCode.Success, data);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Information(ex.ToString());
+            }
+            return OperationResponse.CreateFailedResponse(operationRequest, ReturnCode.AuthTokenError);
         }
 
         public OperationResponse OnHandleJoinLobby(OperationRequest operationRequest)

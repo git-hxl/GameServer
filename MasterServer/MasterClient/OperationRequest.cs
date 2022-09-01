@@ -1,8 +1,9 @@
 ﻿
 using LiteNetLib;
 using LiteNetLib.Utils;
+using ShareLibrary.Message;
 
-namespace ShareLibrary
+namespace MasterServer.MasterClient
 {
     public class OperationRequest
     {
@@ -16,10 +17,10 @@ namespace ShareLibrary
             Data = data;
         }
 
-        public void SendTo(MessageType messageType,params NetPeer[] netPeers)
+        public void SendTo(params NetPeer[] netPeers)
         {
             NetDataWriter netDataWriter = new NetDataWriter();
-            netDataWriter.Put((byte)messageType);
+            netDataWriter.Put((byte)MessageType.Request);
             netDataWriter.Put((byte)OperationCode);
             if (Data != null && Data.Length > 0)
             {

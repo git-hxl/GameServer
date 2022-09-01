@@ -6,7 +6,7 @@
 
         private Dictionary<int, MasterClientPeer> players = new Dictionary<int, MasterClientPeer>();
 
-        public int Count { get { lock (this) { return players.Count; } } }
+        public int Count { get { { return players.Count; } } }
 
         public bool ContainsKey(int id)
         {

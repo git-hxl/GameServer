@@ -2,6 +2,7 @@
 using LiteNetLib.Utils;
 using Serilog;
 using ShareLibrary;
+using ShareLibrary.MasterGame.Request;
 
 namespace GameServer
 {

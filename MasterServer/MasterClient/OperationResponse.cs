@@ -1,8 +1,10 @@
 ﻿
 using LiteNetLib;
 using LiteNetLib.Utils;
+using MasterServer.MasterGame;
+using ShareLibrary;
 
-namespace ShareLibrary
+namespace MasterServer.MasterClient
 {
     public class OperationResponse
     {
@@ -21,6 +23,7 @@ namespace ShareLibrary
         public void SendTo(params NetPeer[] netPeers)
         {
             NetDataWriter netDataWriter = new NetDataWriter();
+            netDataWriter.Put((byte)MessageType.Response);
             netDataWriter.Put((byte)OperationCode);
             netDataWriter.Put((byte)ReturnCode);
             if (Data != null && Data.Length > 0)

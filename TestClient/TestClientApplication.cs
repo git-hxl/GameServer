@@ -6,6 +6,7 @@ using MessagePack;
 using Newtonsoft.Json;
 using Serilog;
 using ShareLibrary;
+using ShareLibrary.MasterGame.Request;
 using ShareLibrary.Utils;
 
 namespace TestClient

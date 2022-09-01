@@ -3,6 +3,7 @@ using MasterServer.GameServer;
 using MasterServer.Operations;
 using Serilog;
 using ShareLibrary;
+using ShareLibrary.MasterGame.Request;
 
 namespace MasterServer
 {
@@ -23,7 +24,7 @@ namespace MasterServer
 
         public static OperationResponse HandleRegisterGamerServer(NetPeer peer, OperationRequest operationRequest)
         {
-            RegisterGameServerRequest request = MessagePack.MessagePackSerializer.Deserialize<RegisterGameServerRequest>(operationRequest.Data);
+            RegisterServerRequest request = MessagePack.MessagePackSerializer.Deserialize<RegisterServerRequest>(operationRequest.Data);
 
             Log.Information("register gameserver: {0} request info:{1}", peer.EndPoint.ToString(), request.EndPoint);
 

@@ -1,5 +1,6 @@
 ﻿using LiteNetLib;
-namespace MasterServer.GameServer
+
+namespace MasterServer
 {
     internal class GameServerPeer
     {
