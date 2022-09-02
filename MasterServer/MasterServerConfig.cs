@@ -4,7 +4,7 @@ namespace MasterServer
     internal class MasterServerConfig
     {
         public int port = 6666;
-        public int portForGame = 6665;
+        public int innerPort = 7777;
 
         public string connectKey = "yoyo";
         public string encryptKey = "@qwertyuiop123#$";
@@ -18,7 +18,5 @@ namespace MasterServer
         public int reconnectDelay = 500;
         //尝试重连次数
         public int maxConnectAttempts = 10;
-
-        public string[] GameServers;
     }
 }

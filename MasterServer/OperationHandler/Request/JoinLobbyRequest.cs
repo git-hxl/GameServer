@@ -1,8 +1,8 @@
 ﻿using MessagePack;
-namespace MasterServer.MasterClient.Request
+namespace MasterServer
 {
     [MessagePackObject]
-    public class LeaveLobbyRequest
+    public class JoinLobbyRequest
     {
         [Key(0)]
         public string UserID;
@@ -11,7 +11,7 @@ namespace MasterServer.MasterClient.Request
     }
 
     [MessagePackObject]
-    public class LeaveLobbyResponse
+    public class JoinLobbyResponse
     {
         [Key(0)]
         public string LobbyName;

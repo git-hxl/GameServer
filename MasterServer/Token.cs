@@ -1,4 +1,4 @@
-﻿namespace MasterServer.MasterClient
+﻿namespace MasterServer
 {
     public class Token
     {

@@ -14,10 +14,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Folder Include="Operations\" />
-  </ItemGroup>
-
-  <ItemGroup>
     <PackageReference Include="Dapper" Version="2.0.123" />
     <PackageReference Include="LiteNetLib" Version="0.9.5.2" />
     <PackageReference Include="MessagePack" Version="2.4.35" />
@@ -30,6 +26,10 @@
     <PackageReference Include="Serilog" Version="2.11.0" />
     <PackageReference Include="Serilog.Sinks.Console" Version="4.0.1" />
     <PackageReference Include="Serilog.Sinks.File" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Folder Include="Utils\" />
   </ItemGroup>
 
 </Project>

@@ -7,7 +7,6 @@ namespace GameServer
     {
         static void Main(string[] args)
         {
-
             LoggerConfiguration loggerConfiguration = new LoggerConfiguration();
             loggerConfiguration.WriteTo.File("./log.txt", rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true).WriteTo.Console();
             loggerConfiguration.MinimumLevel.Information();

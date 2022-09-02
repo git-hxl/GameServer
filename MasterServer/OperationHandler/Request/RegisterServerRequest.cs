@@ -1,16 +1,16 @@
 ﻿using MessagePack;
 
-namespace ShareLibrary
+namespace MasterServer
 {
     [MessagePackObject]
     public class RegisterServerRequest
     {
-         
+
     }
 
     [MessagePackObject]
     public class RegisterServerResponse
     {
-         
+
     }
 }

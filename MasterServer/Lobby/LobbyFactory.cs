@@ -9,6 +9,7 @@ namespace MasterServer
         private string defaultLobbyKey = "Default";
         private ConcurrentDictionary<string, AppLobby> lobbyDict = new ConcurrentDictionary<string, AppLobby>();
 
+        public static LobbyFactory Instance { get; private set; } = new LobbyFactory(); 
         public int LobbyCount { get { return lobbyDict.Count; } }
 
         public LobbyFactory()

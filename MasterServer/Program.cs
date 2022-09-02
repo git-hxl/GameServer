@@ -1,7 +1,5 @@
 ﻿using Newtonsoft.Json;
 using Serilog;
-using ShareLibrary;
-
 namespace MasterServer
 {
     internal class Program

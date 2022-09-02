@@ -1,94 +1,118 @@
 ﻿using LiteNetLib;
-using LiteNetLib.Utils;
+using MasterServer;
 using Serilog;
-using ShareLibrary;
-using ShareLibrary.MasterGame.Request;
-using ShareLibrary.Message;
-using ShareLibrary.Server;
+using System.Collections.Concurrent;
 
 namespace GameServer
 {
-    internal class GameApplication : ServerBase
+    internal class GameApplication
     {
-        private OperationHandlerDefault operationHandlerDefault;
-        private NetPeer masterServer;
         public static GameApplication Instance { get; private set; } = new GameApplication();
         public GameServerConfig GameServerConfig { get; private set; }
 
-        public override void Init(ServerConfig serverConfig)
-        {
-            base.Init(serverConfig);
-            GameServerConfig = (GameServerConfig)serverConfig;
-            operationHandlerDefault = new OperationHandlerDefault();
+        private NetManager gameServer;
 
-            masterServer = netManager.Connect(GameServerConfig.MasterIP, GameServerConfig.MasterPort, GameServerConfig.connectKey);
+        private EventBasedNetListener gameServerListener;
+
+        private ConcurrentDictionary<int, GameClientPeer> clientPeers = new ConcurrentDictionary<int, GameClientPeer>();
+
+        private OperationHandler operationHandler = new OperationHandler();
+
+        public void Init(GameServerConfig serverConfig)
+        {
+            this.GameServerConfig = serverConfig; 
+            gameServerListener = new EventBasedNetListener();
+
+            gameServerListener.ConnectionRequestEvent += GameServerListener_ConnectionRequestEvent;
+            gameServerListener.PeerConnectedEvent += GameServerListener_PeerConnectedEvent;
+            gameServerListener.PeerDisconnectedEvent += GameServerListener_PeerDisconnectedEvent;
+            gameServerListener.NetworkReceiveEvent += GameServerListener_NetworkReceiveEvent;
+
+            gameServer = new NetManager(gameServerListener);
+            gameServer.PingInterval = serverConfig.pingInterval;
+            gameServer.DisconnectTimeout = serverConfig.disconnectTimeout;
+            gameServer.ReconnectDelay = serverConfig.reconnectDelay;
+            gameServer.MaxConnectAttempts = serverConfig.maxConnectAttempts;
+            gameServer.UnsyncedEvents = true;
+
+            gameServer.Start(serverConfig.port);
+            gameServer.Connect(serverConfig.masterIP, serverConfig.innerPort, serverConfig.connectKey);
+            Log.Information("start server: {0} register to {1}", serverConfig.port, serverConfig.masterIP);
         }
 
-        private  void RegisterGameServer()
+        private void GameServerListener_ConnectionRequestEvent(ConnectionRequest request)
         {
-            RegisterGameServerRequest request = new RegisterGameServerRequest();
-            byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
-            SendToMaster(OperationCode.RegisterGameServer, data);
-        }
-
-        protected override void NetListener_ConnectionRequestEvent(ConnectionRequest request)
-        {
-            if (netManager.ConnectedPeersCount <= GameServerConfig.maxPeers)
+            if (gameServer.ConnectedPeersCount <= GameServerConfig.maxPeers)
                 request.AcceptIfKey(GameServerConfig.connectKey);
             else
             {
                 request.Reject();
-                Log.Information("Reject Connect:{0}", request.RemoteEndPoint.ToString());
+                Log.Information("Reject client Connect:{0}", request.RemoteEndPoint.ToString());
             }
         }
 
-        protected override void NetListener_NetworkReceiveEvent(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
+        private void GameServerListener_PeerConnectedEvent(NetPeer peer)
+        {
+            GameClientPeer clientPeer = new GameClientPeer(peer);
+            clientPeers[peer.Id] = clientPeer;
+            if (peer.Id == 0)
+            {
+                Log.Information("game connected to master :{0}", peer.EndPoint.ToString());
+
+                clientPeer.RegisterToMaster();
+            }
+            else
+            {
+                Log.Information("client connected:{0}", peer.EndPoint.ToString());
+            }
+        }
+
+        private void GameServerListener_PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
+        {
+            if (peer.Id == 0)
+            {
+                Log.Information("register failed:{0} info:{1}", peer.EndPoint.ToString(), disconnectInfo.Reason.ToString());
+                System.Environment.Exit(0);
+            }
+            else
+            {
+                GameClientPeer? clientPeer;
+                clientPeers.Remove(peer.Id, out clientPeer);
+                Log.Information("client disconnected:{0} info:{1}", peer.EndPoint.ToString(), disconnectInfo.Reason.ToString());
+            }
+        }
+
+
+        private void GameServerListener_NetworkReceiveEvent(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
         {
             try
             {
-                OperationCode operationCode = (OperationCode)reader.GetByte();
-                OperationRequest operationRequest = new OperationRequest(operationCode, reader.GetRemainingBytes(), deliveryMethod);
-                OperationResponse operationResponse = operationHandlerDefault.OnOperationRequest(peer, operationRequest);
-                operationResponse.SendTo(peer);
+                byte operationType = reader.GetByte();
+                if(operationType == 0)
+                {
+                    OperationCode operationCode = (OperationCode)reader.GetByte();
+                    OperationRequest operationRequest = new OperationRequest(operationCode, reader.GetRemainingBytes(), deliveryMethod);
+                    OperationResponse operationResponse = operationHandler.OnOperationRequest(clientPeers[peer.Id], operationRequest);
+                    operationResponse.SendTo(peer);
+                }
+                else if (operationType == 1)
+                {
+                    OperationCode operationCode = (OperationCode)reader.GetByte();
+                    ReturnCode returnCode = (ReturnCode)reader.GetByte();
+                    OperationResponse operationResponse = new OperationResponse(operationCode,returnCode, reader.GetRemainingBytes(), deliveryMethod);
+                    operationHandler.OnOperationResponse(clientPeers[peer.Id], operationResponse);
+                }
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                Log.Information(e.ToString());
+                Log.Error("receive error: {0}", ex.Message);
             }
         }
 
-
-        protected override void NetListener_PeerConnectedEvent(NetPeer peer)
+        public void Update()
         {
-            if(peer.EndPoint.Address.ToString().Equals(GameServerConfig.MasterIP))
-            {
-                RegisterGameServer();
-            }
-
-            Log.Information("peer connected: {0} id:{1} total:{2}", peer.EndPoint, peer.Id, netManager.ConnectedPeersCount);
-        }
-
-
-        protected override void NetListener_PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
-        {
-            if (peer.EndPoint.Address.ToString().Equals(GameServerConfig.MasterIP))
-            {
-                Log.Error("master server connect failed");
-            }
-
-            Log.Information("peer disconnected: {0} id:{1} total:{2}", peer.EndPoint, peer.Id, netManager.ConnectedPeersCount);
-
-        }
-
-        public void SendToMaster(OperationCode operationCode, byte[] data)
-        {
-            NetDataWriter netDataWriter = new NetDataWriter();
-            netDataWriter.Put((byte)operationCode);
-            if (data != null && data.Length > 0)
-            {
-                netDataWriter.Put(data);
-            }
-            masterServer.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
+            if (gameServer != null)
+                gameServer.PollEvents();
         }
     }
 }

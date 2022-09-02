@@ -1,5 +1,5 @@
 ﻿using MessagePack;
-namespace MasterServer.MasterClient.Request
+namespace MasterServer
 {
     [MessagePackObject]
     public class AuthRequest

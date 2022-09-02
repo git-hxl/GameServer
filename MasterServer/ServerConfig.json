@@ -1,12 +1,11 @@
 {
   "port": 6666,
+  "innerPort": 7777,
   "connectKey": "yoyo",
   "encryptKey": "@qwertyuiop123#$",
   "maxPeers": 5000,
   "pingInterval": 1000,
   "disconnectTimeout": 5000,
   "reconnectDelay": 500,
-  "maxConnectAttempts": 10,
-  "GameServers": ["127.0.0.1:7777"]
-  
+  "maxConnectAttempts": 10
 }

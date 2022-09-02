@@ -2,9 +2,6 @@
 using LiteNetLib.Utils;
 using Newtonsoft.Json;
 using Serilog;
-using ShareLibrary;
-using ShareLibrary.Utils;
-
 namespace TestClient
 {
     internal class Program
@@ -40,13 +37,6 @@ namespace TestClient
                     string[] commands = command.Split(" ");
                     TestClientApplication.Instance.LeaveLobby(commands[2]);
                 }
-
-
-                if (command == "register")
-                {
-                    TestClientApplication.Instance.RegisterGame();
-                }
-
             }
         }
 

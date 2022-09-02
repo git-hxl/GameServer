@@ -1,19 +1,15 @@
-﻿using LiteNetLib;
-using MasterServer.MasterClient;
-using MasterServer.MasterClient.Request;
-using MessagePack;
-using Newtonsoft.Json;
-using Serilog;
+﻿using Serilog;
 using System.Diagnostics;
 
-namespace MasterServer.OperationHandler
+namespace MasterServer
 {
     internal class OperationHandler
     {
         public OperationResponse OnOperationRequest(MasterClientPeer peer, OperationRequest operationRequest)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
-            OperationResponse operationResponse;
+            OperationResponse operationResponse = null;
+
             switch (operationRequest.OperationCode)
             {
                 case OperationCode.Auth:
@@ -24,9 +20,12 @@ namespace MasterServer.OperationHandler
                     break;
                 case OperationCode.LeaveLobby:
                     operationResponse = peer.OnHandleLeaveLobby(operationRequest);
-
+                    break;
+                case OperationCode.CreateRoom:
+                    operationResponse = peer.OnHandleCreateRoom(operationRequest);
                     break;
             }
+
             if (operationResponse == null)
                 operationResponse = OperationResponse.CreateFailedResponse(operationRequest, ReturnCode.InvalidOperation);
 
@@ -40,18 +39,11 @@ namespace MasterServer.OperationHandler
         public OperationResponse OnOperationRequest(GameServerPeer peer, OperationRequest operationRequest)
         {
             Stopwatch stopwatch = Stopwatch.StartNew();
-            OperationResponse operationResponse;
+            OperationResponse operationResponse = null;
             switch (operationRequest.OperationCode)
             {
-                case OperationCode.Auth:
-                    operationResponse = peer.OnHandleAuth(operationRequest);
-                    break;
-                case OperationCode.JoinLobby:
-                    operationResponse = peer.OnHandleJoinLobby(operationRequest);
-                    break;
-                case OperationCode.LeaveLobby:
-                    operationResponse = peer.OnHandleLeaveLobby(operationRequest);
-
+                case OperationCode.RegisterGameServer:
+                    operationResponse = peer.OnRegisterGameServer(operationRequest);
                     break;
             }
 
@@ -65,5 +57,4 @@ namespace MasterServer.OperationHandler
             return operationResponse;
         }
     }
-}
 }

@@ -1,4 +1,4 @@
-﻿namespace MasterServer.GameServer
+﻿namespace MasterServer
 {
     internal class GameServerCache
     {

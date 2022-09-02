@@ -1,46 +1,30 @@
 ﻿using LiteNetLib;
 using LiteNetLib.Utils;
-using MasterServer.MasterClient.Request;
-using MasterServer.Operations;
+using MasterServer;
 using MessagePack;
 using Newtonsoft.Json;
 using Serilog;
-using ShareLibrary;
-using ShareLibrary.MasterGame.Request;
-using ShareLibrary.Message;
-using ShareLibrary.Server;
-using ShareLibrary.Utils;
-
 namespace TestClient
 {
     internal class TestClientApplication
     {
         protected NetManager netManager;
         protected EventBasedNetListener netListener;
-
-        public ServerConfig ServerConfig { get; protected set; }
-
         public static TestClientApplication Instance { get; private set; } = new TestClientApplication();
 
         private NetPeer client;
         public TestClientApplication()
         {
-            ServerConfig = new ServerConfig();
-
             netListener = new EventBasedNetListener();
             netListener.PeerConnectedEvent += NetListener_PeerConnectedEvent;
             netListener.PeerDisconnectedEvent += NetListener_PeerDisconnectedEvent;
             netListener.NetworkReceiveEvent += NetListener_NetworkReceiveEvent;
 
             netManager = new NetManager(netListener);
-            netManager.PingInterval = ServerConfig.pingInterval;
-            netManager.DisconnectTimeout = ServerConfig.disconnectTimeout;
-            netManager.ReconnectDelay = ServerConfig.reconnectDelay;
-            netManager.MaxConnectAttempts = ServerConfig.maxConnectAttempts;
 
             netManager.UnsyncedEvents = true;
             netManager.Start();
-            client = netManager.Connect("121.196.103.73", ServerConfig.port, ServerConfig.connectKey);
+            client = netManager.Connect("127.0.0.1", 6666, "yoyo");
         }
 
         public virtual void Close()
@@ -96,7 +80,7 @@ namespace TestClient
 
             string tokenJson = JsonConvert.SerializeObject(token);
 
-            string tokenEncrypt = SecurityUtil.AESEncrypt(tokenJson, TestClientApplication.Instance.ServerConfig.encryptKey);
+            string tokenEncrypt = SecurityUtil.AESEncrypt(tokenJson, "@qwertyuiop123#$");
 
             AuthRequest authRequest = new AuthRequest();
 
@@ -130,13 +114,6 @@ namespace TestClient
 
             Send(OperationCode.LeaveLobby, MessagePackSerializer.Serialize<LeaveLobbyRequest>(leaveLobbyRequest));
         }
-
-        public void RegisterGame()
-        {
-            RegisterGameServerRequest request = new RegisterGameServerRequest();
-            Send(OperationCode.RegisterGameServer, MessagePackSerializer.Serialize(request));
-        }
-
 
         public void Send(OperationCode operationCode, byte[] data)
         {

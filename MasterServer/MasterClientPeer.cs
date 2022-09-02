@@ -1,10 +1,7 @@
 ﻿using LiteNetLib;
-using MasterServer.MasterClient.Request;
 using MessagePack;
 using Newtonsoft.Json;
 using Serilog;
-using ShareLibrary.Message;
-using ShareLibrary.Utils;
 namespace MasterServer
 {
     internal class MasterClientPeer
@@ -12,60 +9,62 @@ namespace MasterServer
         private NetPeer? peer;
         private AppLobby? appLobby;
 
-        public string UserID { get; private set; }
+        public string? UserID { get; private set; }
+        public string? NickName { get; private set; }
         public MasterClientPeer(NetPeer peer)
         {
             this.peer = peer;
         }
         public OperationResponse OnHandleAuth(OperationRequest operationRequest)
         {
-            if (PlayerCache.Instance.ContainsKey(netPeer.Id))
+            if (PlayerCache.Instance.ContainsKey(peer.Id))
             {
                 return OperationResponse.CreateFailedResponse(operationRequest, ReturnCode.AlreadyAuth);
             }
 
-            AuthRequest authRequest = MessagePackSerializer.Deserialize<AuthRequest>(operationRequest.Data);
+            AuthRequest request = MessagePackSerializer.Deserialize<AuthRequest>(operationRequest.Data);
             try
             {
-                string tokenStr = SecurityUtil.AESDecrypt(authRequest.Token, MasterApplication.Instance.MasterServerConfig.encryptKey);
+                string tokenStr = SecurityUtil.AESDecrypt(request.Token, MasterApplication.Instance.MasterServerConfig.encryptKey);
                 Token? token = JsonConvert.DeserializeObject<Token>(tokenStr);
                 if (token != null)
                 {
-                    MasterClientPeer masterClientPeer = new MasterClientPeer(netPeer, token.UserID);
+                    this.UserID = token.UserID;
+                    this.NickName = token.NickName;
 
-                    PlayerCache.Instance.AddPlayer(netPeer.Id, masterClientPeer);
+                    PlayerCache.Instance.AddPlayer(peer.Id, this);
 
-                    AuthResponse authResponse = new AuthResponse();
-                    authResponse.UserID = token.UserID;
-                    authResponse.NickName = token.NickName;
+                    AuthResponse response = new AuthResponse();
+                    response.UserID = token.UserID;
+                    response.NickName = token.NickName;
 
-                    byte[] data = MessagePackSerializer.Serialize(authResponse);
+                    byte[] data = MessagePackSerializer.Serialize(response);
                     return OperationResponse.CreateResponse(operationRequest, (byte)ReturnCode.Success, data);
                 }
             }
             catch (Exception ex)
             {
-                Log.Information(ex.ToString());
+                Log.Information(ex.Message);
             }
             return OperationResponse.CreateFailedResponse(operationRequest, ReturnCode.AuthTokenError);
         }
 
         public OperationResponse OnHandleJoinLobby(OperationRequest operationRequest)
         {
-            JoinLobbyRequest joinLobbyRequest = MessagePackSerializer.Deserialize<JoinLobbyRequest>(operationRequest.Data);
+            JoinLobbyRequest request = MessagePackSerializer.Deserialize<JoinLobbyRequest>(operationRequest.Data);
 
             if (appLobby != null)
             {
                 appLobby.LeaveLobby(this);
             }
 
-            if (MasterApplication.Instance.LobbyFactory.GetOrCreateLobby(joinLobbyRequest.LobbyName, out appLobby))
+            if (LobbyFactory.Instance.GetOrCreateLobby(request.LobbyName, out appLobby))
             {
                 ReturnCode returnCode = appLobby.JoinLobby(this);
 
-                JoinLobbyResponse joinLobbyResponse = new JoinLobbyResponse();
-                joinLobbyResponse.LobbyName = joinLobbyRequest.LobbyName;
-                byte[] data = MessagePackSerializer.Serialize(joinLobbyResponse);
+                JoinLobbyResponse response = new JoinLobbyResponse();
+                response.LobbyName = request.LobbyName;
+                byte[] data = MessagePackSerializer.Serialize(response);
                 OperationResponse operationResponse = OperationResponse.CreateResponse(operationRequest, returnCode, data);
 
                 return operationResponse;
@@ -76,15 +75,30 @@ namespace MasterServer
 
         public OperationResponse OnHandleLeaveLobby(OperationRequest operationRequest)
         {
-            LeaveLobbyRequest leaveLobbyRequest = MessagePackSerializer.Deserialize<LeaveLobbyRequest>(operationRequest.Data);
+            LeaveLobbyRequest request = MessagePackSerializer.Deserialize<LeaveLobbyRequest>(operationRequest.Data);
 
             if (appLobby != null)
             {
                 ReturnCode returnCode = appLobby.LeaveLobby(this);
-                LeaveLobbyResponse leaveLobbyResponse = new LeaveLobbyResponse();
-                leaveLobbyResponse.LobbyName = leaveLobbyRequest.LobbyName;
-                byte[] data = MessagePackSerializer.Serialize(leaveLobbyResponse);
+                LeaveLobbyResponse response = new LeaveLobbyResponse();
+                response.LobbyName = request.LobbyName;
+                byte[] data = MessagePackSerializer.Serialize(response);
                 OperationResponse operationResponse = OperationResponse.CreateResponse(operationRequest, returnCode, data);
+                return operationResponse;
+            }
+
+            return OperationResponse.CreateFailedResponse(operationRequest, ReturnCode.NotInLobby);
+        }
+
+        public OperationResponse OnHandleCreateRoom(OperationRequest operationRequest)
+        {
+            if (appLobby != null)
+            {
+                //todo:
+                //operationRequest.SendTo(ga)
+
+
+                OperationResponse operationResponse = OperationResponse.CreateResponse(operationRequest, ReturnCode.CreateRooming, null);
                 return operationResponse;
             }
 

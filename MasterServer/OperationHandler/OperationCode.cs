@@ -1,4 +1,4 @@
-﻿namespace MasterServer.MasterClient
+﻿namespace MasterServer
 {
     public enum OperationCode : byte
     {
@@ -9,6 +9,9 @@
         JoinRoom,
         LeaveRoom,
         GetRoomList,
-        UpdateRoomProperties
+        UpdateRoomProperties,
+
+
+        RegisterGameServer,
     }
 }

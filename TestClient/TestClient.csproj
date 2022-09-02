@@ -9,7 +9,6 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MasterServer\MasterServer.csproj" />
-    <ProjectReference Include="..\ShareLibrary\ShareLibrary.csproj" />
   </ItemGroup>
 
 </Project>
