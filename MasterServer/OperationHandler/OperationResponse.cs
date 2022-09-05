@@ -18,6 +18,9 @@ namespace MasterServer
 
         public void SendTo(params NetPeer[] netPeers)
         {
+            if (OperationCode.None == OperationCode)
+                return;
+
             NetDataWriter netDataWriter = new NetDataWriter();
             netDataWriter.Put((byte)1);
             netDataWriter.Put((byte)OperationCode);
@@ -40,6 +43,11 @@ namespace MasterServer
         public static OperationResponse CreateFailedResponse(OperationRequest operationRequest, ReturnCode returnCode)
         {
             return new OperationResponse(operationRequest.OperationCode, returnCode, null, operationRequest.DeliveryMethod);
+        }
+
+        public static OperationResponse CreateNoneResponse()
+        {
+            return new OperationResponse(OperationCode.None, ReturnCode.Success, null, DeliveryMethod.ReliableOrdered);
         }
     }
 }

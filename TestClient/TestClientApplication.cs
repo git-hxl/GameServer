@@ -43,8 +43,9 @@ namespace TestClient
 
         protected void NetListener_NetworkReceiveEvent(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
         {
+            byte operationType = reader.GetByte();
             OperationCode operationCode = (OperationCode)reader.GetByte();
-            ReturnCode returnCode = (ReturnCode)reader.GetShort();
+            ReturnCode returnCode = (ReturnCode)reader.GetByte();
             Log.Information("{0} result: {1} ping {2}", operationCode.ToString(), returnCode.ToString(), peer.Ping);
             return;
 
@@ -103,7 +104,7 @@ namespace TestClient
             joinLobbyRequest.UserID = "1111";
             joinLobbyRequest.LobbyName = lobbyname;
 
-            Send(OperationCode.JoinLobby, MessagePackSerializer.Serialize<JoinLobbyRequest>(joinLobbyRequest));
+            Send(OperationCode.JoinLobby, MessagePackSerializer.Serialize(joinLobbyRequest));
         }
 
         public void LeaveLobby(string loobyname)
@@ -112,12 +113,22 @@ namespace TestClient
             leaveLobbyRequest.UserID = "1111";
             leaveLobbyRequest.LobbyName = loobyname;
 
-            Send(OperationCode.LeaveLobby, MessagePackSerializer.Serialize<LeaveLobbyRequest>(leaveLobbyRequest));
+            Send(OperationCode.LeaveLobby, MessagePackSerializer.Serialize(leaveLobbyRequest));
+        }
+
+        public void CreateRoom(string roomName)
+        {
+            CreateRoomRequest roomRequest = new CreateRoomRequest();
+            roomRequest.UserID = "1111";
+            roomRequest.RoomName = "my room";
+
+            Send(OperationCode.CreateRoom, MessagePackSerializer.Serialize(roomRequest));
         }
 
         public void Send(OperationCode operationCode, byte[] data)
         {
             NetDataWriter netDataWriter = new NetDataWriter();
+            netDataWriter.Put((byte)0);
             netDataWriter.Put((byte)operationCode);
             if (data != null && data.Length > 0)
             {

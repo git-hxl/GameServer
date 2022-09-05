@@ -92,10 +92,17 @@ namespace MasterServer
                     OperationResponse operationResponse = operationHandler.OnOperationRequest(serverPeers[peer.Id], operationRequest);
                     operationResponse.SendTo(peer);
                 }
+                else if(operationType == 1)
+                {
+                    OperationCode operationCode = (OperationCode)reader.GetByte();
+                    ReturnCode returnCode = (ReturnCode)reader.GetByte();
+                    OperationResponse operationResponse = new OperationResponse(operationCode, returnCode, reader.GetRemainingBytes(), deliveryMethod);
+                    operationHandler.OnOperationResponse(serverPeers[peer.Id], operationResponse);
+                }
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
-                Log.Error("receive error: {0}",ex.Message);
+                Log.Error("receive error: {0}", ex.Message);
             }
         }
 
@@ -133,7 +140,8 @@ namespace MasterServer
                     OperationCode operationCode = (OperationCode)reader.GetByte();
                     OperationRequest operationRequest = new OperationRequest(operationCode, reader.GetRemainingBytes(), deliveryMethod);
                     OperationResponse operationResponse = operationHandler.OnOperationRequest(clientPeers[peer.Id], operationRequest);
-                    operationResponse.SendTo(peer);
+                    if (operationResponse != null)
+                        operationResponse.SendTo(peer);
                 }
             }
             catch (Exception ex)

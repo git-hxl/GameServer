@@ -37,6 +37,12 @@ namespace TestClient
                     string[] commands = command.Split(" ");
                     TestClientApplication.Instance.LeaveLobby(commands[2]);
                 }
+
+                if (command.Contains("create room"))
+                {
+                    string[] commands = command.Split(" ");
+                    TestClientApplication.Instance.CreateRoom(commands[2]);
+                }
             }
         }
 

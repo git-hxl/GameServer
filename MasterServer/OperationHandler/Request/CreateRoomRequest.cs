@@ -27,8 +27,8 @@ namespace MasterServer
         [Key(0)]
         public string RoomID;
         [Key(1)]
-        public string GameIP;
+        public string UserID;
         [Key(2)]
-        public int GamePort;
+        public byte[] RequestData;
     }
 }

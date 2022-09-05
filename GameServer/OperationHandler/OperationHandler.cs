@@ -13,7 +13,9 @@ namespace GameServer
 
             switch (operationRequest.OperationCode)
             {
-                
+                case OperationCode.CreateRoom:
+                    operationResponse = peer.OnCreateRoomRequest(operationRequest);
+                    break;
             }
 
             if (operationResponse == null)

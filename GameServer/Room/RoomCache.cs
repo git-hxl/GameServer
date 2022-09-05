@@ -1,5 +1,6 @@
-﻿
-namespace MasterServer
+﻿using MasterServer;
+
+namespace GameServer
 {
     internal class RoomCache
     {

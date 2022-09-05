@@ -8,5 +8,5 @@
   "disconnectTimeout": 5000,
   "reconnectDelay": 500,
   "maxConnectAttempts": 10,
-  "masterIP": "127.0.0.1",
+  "masterIP": "127.0.0.1"
 }

@@ -1,7 +1,9 @@
 ﻿using LiteNetLib;
 using MasterServer;
+using Newtonsoft.Json;
 using Serilog;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 
 namespace GameServer
 {
@@ -20,7 +22,7 @@ namespace GameServer
 
         public void Init(GameServerConfig serverConfig)
         {
-            this.GameServerConfig = serverConfig; 
+            this.GameServerConfig = serverConfig;
             gameServerListener = new EventBasedNetListener();
 
             gameServerListener.ConnectionRequestEvent += GameServerListener_ConnectionRequestEvent;
@@ -53,13 +55,11 @@ namespace GameServer
 
         private void GameServerListener_PeerConnectedEvent(NetPeer peer)
         {
-            GameClientPeer clientPeer = new GameClientPeer(peer);
+            GameClientPeer clientPeer = new GameClientPeer(peer, peer.Id == 0);
             clientPeers[peer.Id] = clientPeer;
             if (peer.Id == 0)
             {
                 Log.Information("game connected to master :{0}", peer.EndPoint.ToString());
-
-                clientPeer.RegisterToMaster();
             }
             else
             {
@@ -88,7 +88,7 @@ namespace GameServer
             try
             {
                 byte operationType = reader.GetByte();
-                if(operationType == 0)
+                if (operationType == 0)
                 {
                     OperationCode operationCode = (OperationCode)reader.GetByte();
                     OperationRequest operationRequest = new OperationRequest(operationCode, reader.GetRemainingBytes(), deliveryMethod);
@@ -99,7 +99,7 @@ namespace GameServer
                 {
                     OperationCode operationCode = (OperationCode)reader.GetByte();
                     ReturnCode returnCode = (ReturnCode)reader.GetByte();
-                    OperationResponse operationResponse = new OperationResponse(operationCode,returnCode, reader.GetRemainingBytes(), deliveryMethod);
+                    OperationResponse operationResponse = new OperationResponse(operationCode, returnCode, reader.GetRemainingBytes(), deliveryMethod);
                     operationHandler.OnOperationResponse(clientPeers[peer.Id], operationResponse);
                 }
             }

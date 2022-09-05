@@ -44,5 +44,13 @@
                     gameServers.Remove(id);
             }
         }
+
+        public GameServerPeer? GetMinServer()
+        {
+            lock (this)
+            {
+                return gameServers.Values.Min();
+            }
+        }
     }
 }

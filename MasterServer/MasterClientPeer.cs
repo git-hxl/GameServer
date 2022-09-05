@@ -6,22 +6,20 @@ namespace MasterServer
 {
     internal class MasterClientPeer
     {
-        private NetPeer? peer;
+        public NetPeer? Peer { get; private set; }
+
+        public RoomState Room { get; set; }
+
         private AppLobby? appLobby;
 
         public string? UserID { get; private set; }
         public string? NickName { get; private set; }
         public MasterClientPeer(NetPeer peer)
         {
-            this.peer = peer;
+            this.Peer = peer;
         }
         public OperationResponse OnHandleAuth(OperationRequest operationRequest)
         {
-            if (PlayerCache.Instance.ContainsKey(peer.Id))
-            {
-                return OperationResponse.CreateFailedResponse(operationRequest, ReturnCode.AlreadyAuth);
-            }
-
             AuthRequest request = MessagePackSerializer.Deserialize<AuthRequest>(operationRequest.Data);
             try
             {
@@ -29,10 +27,16 @@ namespace MasterServer
                 Token? token = JsonConvert.DeserializeObject<Token>(tokenStr);
                 if (token != null)
                 {
+                    if (PlayerCache.Instance.ContainsKey(token.UserID))
+                    {
+                        return OperationResponse.CreateFailedResponse(operationRequest, ReturnCode.AlreadyAuth);
+                    }
+
+
                     this.UserID = token.UserID;
                     this.NickName = token.NickName;
 
-                    PlayerCache.Instance.AddPlayer(peer.Id, this);
+                    PlayerCache.Instance.AddPlayer(UserID, this);
 
                     AuthResponse response = new AuthResponse();
                     response.UserID = token.UserID;
@@ -55,7 +59,7 @@ namespace MasterServer
 
             if (appLobby != null)
             {
-                appLobby.LeaveLobby(this);
+                return OperationResponse.CreateFailedResponse(operationRequest, ReturnCode.AlreadyJoinLobby);
             }
 
             if (LobbyFactory.Instance.GetOrCreateLobby(request.LobbyName, out appLobby))
@@ -84,6 +88,9 @@ namespace MasterServer
                 response.LobbyName = request.LobbyName;
                 byte[] data = MessagePackSerializer.Serialize(response);
                 OperationResponse operationResponse = OperationResponse.CreateResponse(operationRequest, returnCode, data);
+
+                appLobby = null;
+
                 return operationResponse;
             }
 
@@ -94,9 +101,18 @@ namespace MasterServer
         {
             if (appLobby != null)
             {
-                //todo:
-                //operationRequest.SendTo(ga)
+                GameServerPeer gameServerPeer = GameServerCache.Instance.GetMinServer();
+                if (gameServerPeer == null)
+                {
+                    return OperationResponse.CreateFailedResponse(operationRequest, ReturnCode.NoMatchGameServer);
+                }
 
+                if (Room != null)
+                {
+                    return OperationResponse.CreateFailedResponse(operationRequest, ReturnCode.AlreadyInRoom);
+                }
+
+                operationRequest.SendTo(gameServerPeer.Peer);
 
                 OperationResponse operationResponse = OperationResponse.CreateResponse(operationRequest, ReturnCode.CreateRooming, null);
                 return operationResponse;
@@ -109,6 +125,8 @@ namespace MasterServer
         {
             if (appLobby != null)
                 appLobby.LeaveLobby(this);
+
+            PlayerCache.Instance.RemovePlayer(UserID);
         }
     }
 }

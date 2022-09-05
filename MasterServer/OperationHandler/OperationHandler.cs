@@ -45,6 +45,9 @@ namespace MasterServer
                 case OperationCode.RegisterGameServer:
                     operationResponse = peer.OnRegisterGameServer(operationRequest);
                     break;
+                case OperationCode.UpdateGameServer:
+                    operationResponse = peer.OnUpdateGameServer(operationRequest);
+                    break;
             }
 
             if (operationResponse == null)
@@ -52,9 +55,21 @@ namespace MasterServer
 
             stopwatch.Stop();
 
-            Log.Information("request operationcode: {0} returncode {1} stopWatchTime {2}", operationResponse.OperationCode, operationResponse.ReturnCode, stopwatch.ElapsedMilliseconds);
+            Log.Information("request operationcode: {0} stopWatchTime {1}", operationResponse.OperationCode, stopwatch.ElapsedMilliseconds);
 
             return operationResponse;
+        }
+
+        public void OnOperationResponse(GameServerPeer peer, OperationResponse operationResponse)
+        {
+            Log.Information("response operationcode {0} returncode {1}", operationResponse.OperationCode, operationResponse.ReturnCode);
+
+            switch (operationResponse.OperationCode)
+            {
+                case OperationCode.CreateRoom:
+                    peer.OnCreateRoomResponse(operationResponse);
+                    break;
+            }
         }
     }
 }

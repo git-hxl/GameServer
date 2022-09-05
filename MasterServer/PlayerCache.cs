@@ -4,44 +4,44 @@
     {
         public static PlayerCache Instance { get; private set; } = new PlayerCache();
 
-        private Dictionary<int, MasterClientPeer> players = new Dictionary<int, MasterClientPeer>();
+        private Dictionary<string, MasterClientPeer> players = new Dictionary<string, MasterClientPeer>();
 
         public int Count { get { { return players.Count; } } }
 
-        public bool ContainsKey(int id)
+        public bool ContainsKey(string userID)
         {
             lock (this)
             {
-                return players.ContainsKey(id);
+                return players.ContainsKey(userID);
             }
         }
 
-        public MasterClientPeer? GetPlayer(int id)
+        public MasterClientPeer? GetPlayer(string userID)
         {
             lock (this)
             {
-                if (players.ContainsKey(id))
-                    return players[id];
+                if (players.ContainsKey(userID))
+                    return players[userID];
 
                 else
                     return null;
             }
         }
 
-        public void AddPlayer(int id, MasterClientPeer masterClientPeer)
+        public void AddPlayer(string userID, MasterClientPeer masterClientPeer)
         {
             lock (this)
             {
-                players[id] = masterClientPeer;
+                players[userID] = masterClientPeer;
             }
         }
 
-        public void RemovePlayer(int id)
+        public void RemovePlayer(string userID)
         {
             lock (this)
             {
-                if (players.ContainsKey(id))
-                    players.Remove(id);
+                if (players.ContainsKey(userID))
+                    players.Remove(userID);
             }
         }
     }

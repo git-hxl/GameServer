@@ -15,5 +15,7 @@
         AlreadyJoinLobby,
 
         CreateRooming,
+        NoMatchGameServer,
+        AlreadyInRoom,
     }
 }

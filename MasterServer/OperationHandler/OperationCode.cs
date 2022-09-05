@@ -2,6 +2,7 @@
 {
     public enum OperationCode : byte
     {
+        None,
         Auth,
         JoinLobby,
         LeaveLobby,
@@ -13,5 +14,6 @@
 
 
         RegisterGameServer,
+        UpdateGameServer,
     }
 }
