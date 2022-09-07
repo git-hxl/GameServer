@@ -1,118 +1,31 @@
-﻿using LiteNetLib;
-using MasterServer;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using Serilog;
-using System.Collections.Concurrent;
-using System.Diagnostics;
+using SharedLibrary.Server;
 
 namespace GameServer
 {
     internal class GameApplication
     {
-        public static GameApplication Instance { get; private set; } = new GameApplication();
-        public GameServerConfig GameServerConfig { get; private set; }
+        public static ServerConfig ServerConfig { get; private set; }
 
-        private NetManager gameServer;
-
-        private EventBasedNetListener gameServerListener;
-
-        private ConcurrentDictionary<int, GameClientPeer> clientPeers = new ConcurrentDictionary<int, GameClientPeer>();
-
-        private OperationHandler operationHandler = new OperationHandler();
-
-        public void Init(GameServerConfig serverConfig)
+        static void Main(string[] args)
         {
-            this.GameServerConfig = serverConfig;
-            gameServerListener = new EventBasedNetListener();
+            LoggerConfiguration loggerConfiguration = new LoggerConfiguration();
+            loggerConfiguration.WriteTo.File("./log.txt", rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true).WriteTo.Console();
+            loggerConfiguration.MinimumLevel.Information();
+            Log.Logger = loggerConfiguration.CreateLogger();
 
-            gameServerListener.ConnectionRequestEvent += GameServerListener_ConnectionRequestEvent;
-            gameServerListener.PeerConnectedEvent += GameServerListener_PeerConnectedEvent;
-            gameServerListener.PeerDisconnectedEvent += GameServerListener_PeerDisconnectedEvent;
-            gameServerListener.NetworkReceiveEvent += GameServerListener_NetworkReceiveEvent;
+            ServerConfig = JsonConvert.DeserializeObject<ServerConfig>(File.ReadAllText("./ServerConfig.json"));
 
-            gameServer = new NetManager(gameServerListener);
-            gameServer.PingInterval = serverConfig.pingInterval;
-            gameServer.DisconnectTimeout = serverConfig.disconnectTimeout;
-            gameServer.ReconnectDelay = serverConfig.reconnectDelay;
-            gameServer.MaxConnectAttempts = serverConfig.maxConnectAttempts;
-            gameServer.UnsyncedEvents = true;
+            GameServer gameServer = new GameServer(ServerConfig);
 
-            gameServer.Start(serverConfig.port);
-            gameServer.Connect(serverConfig.masterIP, serverConfig.innerPort, serverConfig.connectKey);
-            Log.Information("start server: {0} register to {1}", serverConfig.port, serverConfig.masterIP);
-        }
+            gameServer.Start(ServerConfig.port);
 
-        private void GameServerListener_ConnectionRequestEvent(ConnectionRequest request)
-        {
-            if (gameServer.ConnectedPeersCount <= GameServerConfig.maxPeers)
-                request.AcceptIfKey(GameServerConfig.connectKey);
-            else
+            while (true)
             {
-                request.Reject();
-                Log.Information("Reject client Connect:{0}", request.RemoteEndPoint.ToString());
+                gameServer.Update();
+                Thread.Sleep(15);
             }
-        }
-
-        private void GameServerListener_PeerConnectedEvent(NetPeer peer)
-        {
-            GameClientPeer clientPeer = new GameClientPeer(peer, peer.Id == 0);
-            clientPeers[peer.Id] = clientPeer;
-            if (peer.Id == 0)
-            {
-                Log.Information("game connected to master :{0}", peer.EndPoint.ToString());
-            }
-            else
-            {
-                Log.Information("client connected:{0}", peer.EndPoint.ToString());
-            }
-        }
-
-        private void GameServerListener_PeerDisconnectedEvent(NetPeer peer, DisconnectInfo disconnectInfo)
-        {
-            if (peer.Id == 0)
-            {
-                Log.Information("register failed:{0} info:{1}", peer.EndPoint.ToString(), disconnectInfo.Reason.ToString());
-                System.Environment.Exit(0);
-            }
-            else
-            {
-                GameClientPeer? clientPeer;
-                clientPeers.Remove(peer.Id, out clientPeer);
-                Log.Information("client disconnected:{0} info:{1}", peer.EndPoint.ToString(), disconnectInfo.Reason.ToString());
-            }
-        }
-
-
-        private void GameServerListener_NetworkReceiveEvent(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
-        {
-            try
-            {
-                byte operationType = reader.GetByte();
-                if (operationType == 0)
-                {
-                    OperationCode operationCode = (OperationCode)reader.GetByte();
-                    OperationRequest operationRequest = new OperationRequest(operationCode, reader.GetRemainingBytes(), deliveryMethod);
-                    OperationResponse operationResponse = operationHandler.OnOperationRequest(clientPeers[peer.Id], operationRequest);
-                    operationResponse.SendTo(peer);
-                }
-                else if (operationType == 1)
-                {
-                    OperationCode operationCode = (OperationCode)reader.GetByte();
-                    ReturnCode returnCode = (ReturnCode)reader.GetByte();
-                    OperationResponse operationResponse = new OperationResponse(operationCode, returnCode, reader.GetRemainingBytes(), deliveryMethod);
-                    operationHandler.OnOperationResponse(clientPeers[peer.Id], operationResponse);
-                }
-            }
-            catch (Exception ex)
-            {
-                Log.Error("receive error: {0}", ex.Message);
-            }
-        }
-
-        public void Update()
-        {
-            if (gameServer != null)
-                gameServer.PollEvents();
         }
     }
 }

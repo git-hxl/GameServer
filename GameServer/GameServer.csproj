@@ -8,11 +8,13 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="System.Diagnostics.PerformanceCounter" Version="6.0.1" />
+    <Compile Remove="OperationHandler\**" />
+    <EmbeddedResource Remove="OperationHandler\**" />
+    <None Remove="OperationHandler\**" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\MasterServer\MasterServer.csproj" />
+    <ProjectReference Include="..\SharedLibrary\SharedLibrary.csproj" />
   </ItemGroup>
 
   <ItemGroup>

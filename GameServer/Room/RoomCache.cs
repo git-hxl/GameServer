@@ -1,55 +1,32 @@
-﻿using MasterServer;
-
-namespace GameServer
+﻿
+namespace GameServer.Room
 {
-    internal class RoomCache
+    public class RoomCache
     {
         public static RoomCache Instance { get; private set; } = new RoomCache();
 
-        private Dictionary<string, RoomState> rooms = new Dictionary<string, RoomState>();
+        public Dictionary<string, Room> Rooms { get; private set; } = new Dictionary<string, Room>();
 
-        public int Count { get { { return rooms.Count; } } }
+        private RoomCache() { }
 
-        public bool ContainsKey(string roomID)
+        public Room? GetRoom(string roomID)
         {
-            lock (this)
+            if (Rooms.ContainsKey(roomID))
             {
-                return rooms.ContainsKey(roomID);
+                return Rooms[roomID];
             }
+            return null;
         }
 
-        public RoomState? GetRoom(string roomID)
+        public void AddRoom(string roomID, Room room)
         {
-            lock (this)
-            {
-                if (rooms.ContainsKey(roomID))
-                    return rooms[roomID];
-
-                else
-                    return null;
-            }
-        }
-
-        public RoomState? AddRoom(string roomID, CreateRoomRequest request)
-        {
-            lock (this)
-            {
-                if (!rooms.ContainsKey(roomID))
-                {
-                    rooms[roomID] = new RoomState(roomID, request);
-                    return rooms[roomID];
-                }
-                return null;
-            }
+            Rooms[roomID] = room;
         }
 
         public void RemoveRoom(string roomID)
         {
-            lock (this)
-            {
-                if (rooms.ContainsKey(roomID))
-                    rooms.Remove(roomID);
-            }
+            if (Rooms.ContainsKey(roomID))
+                Rooms.Remove(roomID);
         }
     }
 }
