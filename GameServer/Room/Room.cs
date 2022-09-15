@@ -15,22 +15,45 @@ namespace GameServer.Room
 
         public ClientPeer? GetClientPeer(string userID)
         {
-            return ClientPeers.FirstOrDefault(p => p.PlayerInfo.UserID == userID);
+            lock (this)
+            {
+                return ClientPeers.FirstOrDefault(p => p.PeerInfo.UserID == userID);
+            }
         }
 
         public void AddClientPeer(ClientPeer clientPeer)
         {
-            ClientPeers.Add(clientPeer);
+            lock (this)
+            {
+                ClientPeers.Add(clientPeer);
+                RoomInfo.CurPeers.Add(clientPeer.PeerInfo);
+            }
         }
 
 
         public void RemoveClientPeer(ClientPeer clientPeer)
         {
-            ClientPeers.Remove(clientPeer);
-
-            if (ClientPeers.Count <= 0)
+            lock (this)
             {
-                RoomCache.Instance.RemoveRoom(RoomInfo.RoomID);
+                if (ClientPeers.Contains(clientPeer))
+                {
+                    ClientPeers.Remove(clientPeer);
+                    RoomInfo.CurPeers.Remove(clientPeer.PeerInfo);
+
+                    //更换房主
+                    if (RoomInfo.OwnerID == clientPeer.PeerInfo.UserID)
+                    {
+                        if (ClientPeers.Count > 0)
+                        {
+                            RoomInfo.OwnerID = ClientPeers[0].PeerInfo.UserID;
+                        }
+                    }
+                }
+
+                if (ClientPeers.Count <= 0)
+                {
+                    RoomCache.Instance.RemoveRoom(RoomInfo.RoomID);
+                }
             }
         }
     }

@@ -11,7 +11,7 @@ namespace GameServer
     {
         public override void OnOperationRequest(NetPeer peer, OperationRequest operationRequest)
         {
-            ClientPeer? clientPeer = PlayerManager.Instance.GetClientPeer(peer.Id);
+            ClientPeer? clientPeer = PeerManager.Instance.GetClientPeer(peer.Id);
             if (clientPeer == null) return ;
 
             Stopwatch stopwatch = Stopwatch.StartNew();
@@ -29,6 +29,9 @@ namespace GameServer
                     break;
                 case OperationCode.LeaveRoom:
                     clientPeer.OnLeaveRoom(operationRequest);
+                    break;
+                case OperationCode.GetRoomList:
+                    clientPeer.OnGetRoomList(operationRequest);
                     break;
                 case OperationCode.RPC:
                     clientPeer.OnRpc(operationRequest);

@@ -43,7 +43,14 @@ namespace TestClient
 
                             JoinRoomResponse response1 = MessagePackSerializer.Deserialize<JoinRoomResponse>(operationResponse.Data);
 
-                            Log.Information("userid {0} joined room {1} players {2} ",response1.UserID,JsonConvert.SerializeObject(response1.RoomInfo), JsonConvert.SerializeObject(response1.Players));
+                            Log.Information("userid {0} joined room {1}", response1.UserID, JsonConvert.SerializeObject(response1.RoomInfo));
+
+                            break;
+                        case OperationCode.GetRoomList:
+
+                            GetRoomListResponse response2 = MessagePackSerializer.Deserialize<GetRoomListResponse>(operationResponse.Data);
+
+                            Log.Information("roomlist {0}", JsonConvert.SerializeObject(response2.RoomInfos));
 
                             break;
                     }

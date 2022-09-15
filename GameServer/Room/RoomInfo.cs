@@ -1,4 +1,5 @@
-﻿using MessagePack;
+﻿using GameServer.Client;
+using MessagePack;
 using System.Collections;
 
 namespace GameServer.Room
@@ -20,5 +21,7 @@ namespace GameServer.Room
         public string Password;
         [Key(6)]
         public Hashtable RoomProperties;
+        [Key(7)]
+        public List<PeerInfo> CurPeers = new List<PeerInfo>();
     }
 }

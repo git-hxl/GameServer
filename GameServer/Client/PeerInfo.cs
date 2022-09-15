@@ -3,7 +3,7 @@
 namespace GameServer.Client
 {
     [MessagePackObject]
-    public class PlayerInfo
+    public class PeerInfo
     {
         [Key(0)]
         public string UserID { get; set; }

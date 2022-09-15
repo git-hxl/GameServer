@@ -19,7 +19,5 @@ namespace GameServer.Request
         public string UserID;
         [Key(1)]
         public RoomInfo RoomInfo;
-        [Key(2)]
-        public List<PlayerInfo> Players = new List<PlayerInfo>();
     }
 }

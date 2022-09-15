@@ -1,4 +1,6 @@
 ﻿using MessagePack;
+using System.Collections;
+
 namespace GameServer.Request
 {
     [MessagePackObject]
@@ -9,6 +11,6 @@ namespace GameServer.Request
         [Key(1)]
         public string MethodName;
         [Key(2)]
-        public object[] Params;
+        public Hashtable Params;
     }
 }

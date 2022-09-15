@@ -4,17 +4,15 @@ using MessagePack;
 namespace GameServer.Request
 {
     [MessagePackObject]
-    public class LeaveRoomRequest
+    public class GetRoomListRequest
     {
 
     }
 
     [MessagePackObject]
-    public class LeaveRoomResponse
+    public class GetRoomListResponse
     {
         [Key(0)]
-        public string UserID;
-        [Key(1)]
-        public RoomInfo RoomInfo;
+        public List<RoomInfo> RoomInfos = new List<RoomInfo>();
     }
 }

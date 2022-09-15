@@ -11,22 +11,31 @@ namespace GameServer.Room
 
         public Room? GetRoom(string roomID)
         {
-            if (Rooms.ContainsKey(roomID))
+            lock (this)
             {
-                return Rooms[roomID];
+                if (Rooms.ContainsKey(roomID))
+                {
+                    return Rooms[roomID];
+                }
+                return null;
             }
-            return null;
         }
 
         public void AddRoom(string roomID, Room room)
         {
-            Rooms[roomID] = room;
+            lock (this)
+            {
+                Rooms[roomID] = room;
+            }
         }
 
         public void RemoveRoom(string roomID)
         {
-            if (Rooms.ContainsKey(roomID))
-                Rooms.Remove(roomID);
+            lock (this)
+            {
+                if (Rooms.ContainsKey(roomID))
+                    Rooms.Remove(roomID);
+            }
         }
     }
 }

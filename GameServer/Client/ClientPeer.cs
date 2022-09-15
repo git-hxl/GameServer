@@ -13,7 +13,7 @@ namespace GameServer.Client
     {
         public NetPeer NetPeer { get; private set; }
 
-        public PlayerInfo PlayerInfo { get; private set; }
+        public PeerInfo PeerInfo { get; private set; }
 
         public Room.Room? Room { get; private set; }
 
@@ -21,7 +21,7 @@ namespace GameServer.Client
         {
             NetPeer = netPeer;
 
-            PlayerInfo = new PlayerInfo();
+            PeerInfo = new PeerInfo();
         }
 
         public void OnAuth(OperationRequest operationRequest)
@@ -34,8 +34,8 @@ namespace GameServer.Client
                 if (token != null)
                 {
 
-                    PlayerInfo.UserID = token.UserID;
-                    PlayerInfo.NickName = token.NickName;
+                    PeerInfo.UserID = token.UserID;
+                    PeerInfo.NickName = token.NickName;
 
                     AuthResponse response = new AuthResponse();
                     response.UserID = token.UserID;
@@ -55,7 +55,7 @@ namespace GameServer.Client
 
         public void OnCreateRoom(OperationRequest operationRequest)
         {
-            if (PlayerInfo.UserID == null)
+            if (PeerInfo.UserID == null)
             {
                 OperationResponse.CreateFailedResponse(operationRequest, ReturnCode.NoAuth).SendTo(NetPeer);
                 return;
@@ -69,7 +69,7 @@ namespace GameServer.Client
 
             CreateRoomRequest request = MessagePackSerializer.Deserialize<CreateRoomRequest>(operationRequest.Data);
 
-            if (PlayerInfo.UserID == null)
+            if (PeerInfo.UserID == null)
             {
                 OperationResponse.CreateFailedResponse(operationRequest, ReturnCode.NoAuth).SendTo(NetPeer);
                 return;
@@ -81,7 +81,7 @@ namespace GameServer.Client
 
             roomInfo.RoomID = roomId;
 
-            roomInfo.OwnerID = PlayerInfo.UserID;
+            roomInfo.OwnerID = PeerInfo.UserID;
 
             roomInfo.RoomName = request.RoomName;
             roomInfo.IsVisible = request.IsVisible;
@@ -117,7 +117,7 @@ namespace GameServer.Client
 
             JoinRoomRequest request = MessagePackSerializer.Deserialize<JoinRoomRequest>(operationRequest.Data);
 
-            if (PlayerInfo.UserID == null)
+            if (PeerInfo.UserID == null)
             {
                 OperationResponse.CreateFailedResponse(operationRequest, ReturnCode.NoAuth).SendTo(NetPeer);
                 return;
@@ -146,11 +146,9 @@ namespace GameServer.Client
 
             JoinRoomResponse response = new JoinRoomResponse();
 
-            response.UserID = PlayerInfo.UserID;
+            response.UserID = PeerInfo.UserID;
 
             response.RoomInfo = room.RoomInfo;
-
-            response.Players = room.ClientPeers.Select((a) => a.PlayerInfo).ToList();
 
             byte[] data = MessagePackSerializer.Serialize(response);
 
@@ -174,6 +172,22 @@ namespace GameServer.Client
             LeaveRoom();
         }
 
+        public void OnGetRoomList(OperationRequest operationRequest)
+        {
+
+            GetRoomListRequest request = MessagePackSerializer.Deserialize<GetRoomListRequest>(operationRequest.Data);
+
+            GetRoomListResponse response = new GetRoomListResponse();
+
+            response.RoomInfos = RoomCache.Instance.Rooms.Select((a) => a.Value.RoomInfo).ToList();
+
+            byte[] data = MessagePackSerializer.Serialize(response);
+
+            OperationResponse operationResponse = OperationResponse.CreateResponse(operationRequest, ReturnCode.Success, data);
+
+            operationResponse.SendTo(NetPeer);
+        }
+
         public void OnRpc(OperationRequest operationRequest)
         {
             if (Room == null)
@@ -193,8 +207,13 @@ namespace GameServer.Client
         {
             if (Room != null)
             {
+                Room.RemoveClientPeer(this);
+
                 LeaveRoomResponse response = new LeaveRoomResponse();
-                response.UserID = PlayerInfo.UserID;
+
+                response.UserID = PeerInfo.UserID;
+
+                response.RoomInfo = Room.RoomInfo;
 
                 byte[] data = MessagePackSerializer.Serialize(response);
 
@@ -203,8 +222,6 @@ namespace GameServer.Client
                 var netPeers = Room.ClientPeers.Select((a) => a.NetPeer).ToArray();
 
                 operationResponse.SendTo(netPeers);
-
-                Room.RemoveClientPeer(this);
 
                 Room = null;
             }

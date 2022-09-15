@@ -34,13 +34,13 @@ namespace GameServer
 
         protected override void OnPeerConnected(NetPeer peer)
         {
-            PlayerManager.Instance.AddClientPeer(peer.Id, new ClientPeer(peer));
+            PeerManager.Instance.AddClientPeer(peer.Id, new ClientPeer(peer));
             Log.Information("peer connected:{0} threadid:{1}", peer.EndPoint.ToString(), Thread.CurrentThread.ManagedThreadId);
         }
 
         protected override void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
         {
-            ClientPeer? clientPeer = PlayerManager.Instance.RemoveClientPeer(peer.Id);
+            ClientPeer? clientPeer = PeerManager.Instance.RemoveClientPeer(peer.Id);
             if (clientPeer != null)
             {
                 clientPeer.OnDisconnected();

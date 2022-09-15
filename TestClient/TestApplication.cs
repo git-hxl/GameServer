@@ -67,6 +67,11 @@ namespace TestClient
                 {
                     LeaveRoom();
                 }
+
+                if (command.Contains("get roomlist"))
+                {
+                    GetRoomList();
+                }
             }
         }
 
@@ -80,7 +85,7 @@ namespace TestClient
 
         public static void Connect()
         {
-            netPeer = netPeer.NetManager.Connect("127.0.0.1", 6000, "yoyo");
+            netPeer = netPeer.NetManager.Connect("218.75.44.6", 6000, "yoyo");
         }
 
         public static void Auth()
@@ -129,6 +134,14 @@ namespace TestClient
             LeaveRoomRequest request = new LeaveRoomRequest();
             byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
             OperationRequest operationRequest = new OperationRequest(OperationCode.LeaveRoom, data, DeliveryMethod.ReliableOrdered);
+            operationRequest.SendTo(netPeer);
+        }
+
+        public static void GetRoomList()
+        {
+            GetRoomListRequest request = new GetRoomListRequest();
+            byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
+            OperationRequest operationRequest = new OperationRequest(OperationCode.GetRoomList, data, DeliveryMethod.ReliableOrdered);
             operationRequest.SendTo(netPeer);
         }
     }
