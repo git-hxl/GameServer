@@ -7,67 +7,62 @@ using SharedLibrary.Operation;
 using SharedLibrary.Server;
 namespace TestClient
 {
-    public class TestServer : Server
+    public class TestServer
     {
-        public TestServer(ServerConfig serverConfig) : base(serverConfig)
-        {
+        private NetManager client;
+        private EventBasedNetListener listener;
 
+        public NetPeer MasterPeer;
+        public TestServer()
+        {
+            listener = new EventBasedNetListener();
+
+            listener.NetworkReceiveEvent += OnNetworkReceive;
+            listener.PeerConnectedEvent += OnPeerConnected;
+            listener.PeerDisconnectedEvent += OnPeerDisconnected;
+            client = new NetManager(listener);
         }
 
-        protected override void OnNetworkReceive(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
+        private void OnPeerConnected(NetPeer peer)
         {
-            Log.Information("peer receive:{0} threadid:{1}", peer.EndPoint.ToString(), Thread.CurrentThread.ManagedThreadId);
-            byte operationType = reader.GetByte();
-            if (operationType == 1)
+            MasterPeer = peer;
+            Log.Information("peer connection: {0}", peer.EndPoint);
+        }
+
+        private void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
+        {
+            Log.Information("peer disconnection: {0} info: {1}", peer.EndPoint, disconnectInfo.Reason.ToString());
+        }
+
+
+        public void Start()
+        {
+            client.Start(8888);
+
+            client.Connect("127.0.0.1", 6000, "yoyo");
+        }
+
+        public void Update()
+        {
+            client.PollEvents();
+        }
+
+        private void OnNetworkReceive(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
+        {
+            try
             {
-                OperationCode operationCode = (OperationCode)reader.GetByte();
-                ReturnCode returnCode = (ReturnCode)reader.GetByte();
-
-                OperationResponse operationResponse = new OperationResponse(operationCode, returnCode, reader.GetRemainingBytes(), deliveryMethod);
-
-                Log.Information("peer receive operationcode {0} returncode {1}  ", operationCode.ToString(), returnCode.ToString());
-
-                if (returnCode == ReturnCode.Success)
-                {
-                    switch (operationCode)
-                    {
-                        case OperationCode.CreateRoom:
-
-                            CreateRoomResponse response = MessagePackSerializer.Deserialize<CreateRoomResponse>(operationResponse.Data);
-
-                            Log.Information("roomid {0} ", response.RoomID);
-
-                            break;
-
-                        case OperationCode.JoinRoom:
-
-                            JoinRoomResponse response1 = MessagePackSerializer.Deserialize<JoinRoomResponse>(operationResponse.Data);
-
-                            Log.Information("userid {0} joined room {1}", response1.UserID, JsonConvert.SerializeObject(response1.RoomInfo));
-
-                            break;
-                        case OperationCode.GetRoomList:
-
-                            GetRoomListResponse response2 = MessagePackSerializer.Deserialize<GetRoomListResponse>(operationResponse.Data);
-
-                            Log.Information("roomlist {0}", JsonConvert.SerializeObject(response2.RoomInfos));
-
-                            break;
-                    }
-                }
+                OperationCode2 operationCode = (OperationCode2)reader.GetByte();
 
             }
-
+            catch (Exception ex)
+            {
+                Log.Error("peer receive error: {0}", ex.Message);
+            }
         }
 
-        protected override void OnPeerConnected(NetPeer peer)
+        public void Stop()
         {
-            Log.Information("peer connected:{0} threadid:{1}", peer.EndPoint.ToString(), Thread.CurrentThread.ManagedThreadId);
-        }
-
-        protected override void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
-        {
-            Log.Information("peer disconnected:{0} info:{1} threadid:{2}", peer.EndPoint.ToString(), disconnectInfo.Reason.ToString(), Thread.CurrentThread.ManagedThreadId);
+            client.Stop();
         }
     }
 }

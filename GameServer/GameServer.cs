@@ -20,14 +20,15 @@ namespace GameServer
                 byte operationType = reader.GetByte();
                 if (operationType == 0)
                 {
-                    OperationCode operationCode = (OperationCode)reader.GetByte();
+                    OperationCode2 operationCode = (OperationCode2)reader.GetByte();
                     OperationRequest operationRequest = new OperationRequest(operationCode, reader.GetRemainingBytes(), deliveryMethod);
                     operationHandler.OnOperationRequest(peer, operationRequest);
                 }
+                Log.Error("peer receive: {0} threadid：{1}", operationType, Environment.CurrentManagedThreadId);
             }
             catch (Exception e)
             {
-                Log.Error("peer receive error: {0}", e.ToString());
+                Log.Error("peer receive error: {0} threadid：{1}", e.ToString(), Environment.CurrentManagedThreadId);
             }
 
         }

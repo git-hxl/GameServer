@@ -2,147 +2,110 @@
 using GameServer.Request;
 using LiteNetLib;
 using LiteNetLib.Utils;
+using MasterServer.Operation;
+using MasterServer.Operation.Request;
+using MessagePack;
 using Newtonsoft.Json;
 using Serilog;
-using SharedLibrary.Operation;
-using SharedLibrary.Server;
-
 namespace TestClient
 {
     internal class TestApplication
     {
-        private static NetPeer netPeer;
-        private static ServerConfig serverConfig;
         static void Main(string[] args)
         {
-            LoggerConfiguration loggerConfiguration = new LoggerConfiguration();
-            loggerConfiguration.WriteTo.Console();
-            loggerConfiguration.MinimumLevel.Information();
-            Log.Logger = loggerConfiguration.CreateLogger();
-
-            serverConfig = JsonConvert.DeserializeObject<ServerConfig>(File.ReadAllText("./ServerConfig.json"));
-
-            TestServer gameServer = new TestServer(serverConfig);
-
-            gameServer.Start();
-
-            netPeer = gameServer.Connect("127.0.0.1", 6000, serverConfig.connectKey);
-
-            while (true)
+            try
             {
-                gameServer.Update();
-                Thread.Sleep(15);
+                LoggerConfiguration loggerConfiguration = new LoggerConfiguration();
+                loggerConfiguration.WriteTo.File("./TestLog.txt", rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true).WriteTo.Console();
+                loggerConfiguration.MinimumLevel.Information();
+                Log.Logger = loggerConfiguration.CreateLogger();
 
-                string command = Console.ReadLine();
+                TestServer testServer = new TestServer();
 
-                if (command.Contains("send"))
+                testServer.Start();
+
+                Task.Run(() =>
                 {
-                    string[] commands = command.Split(" ");
-                    if (commands.Length >= 3)
+
+                    while(true)
                     {
-                        Send(commands[1], int.Parse(commands[2]));
-                    }
-                }
-                if (command.Contains("auth"))
-                {
-                    Auth();
-                }
-                if (command.Contains("connect"))
-                {
-                    Connect();
-                }
-                if (command.Contains("create room"))
-                {
-                    CreateRoom();
-                }
-                if (command.Contains("join"))
-                {
-                    string[] commands = command.Split(" ");
-                    if (commands.Length >= 3)
-                    {
-                        JoinRoom(commands[1], commands[2]);
-                    }
-                }
-                if (command.Contains("leave"))
-                {
-                    LeaveRoom();
-                }
+                        string command = Console.ReadLine();
+                        if (command.Contains("register"))
+                        {
+                            Register(testServer);
+                        }
 
-                if (command.Contains("get roomlist"))
+                        if (command.Contains("login"))
+                        {
+                            Login(testServer);
+                        }
+                    }
+                });
+
+                while (true)
                 {
-                    GetRoomList();
+                    testServer.Update();
+                    Thread.Sleep(15);
                 }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex.Message);
             }
         }
 
-        public static void Send(string txt, int type)
+        static void Register(TestServer testServer)
         {
             NetDataWriter netDataWriter = new NetDataWriter();
-            netDataWriter.Put(txt);
-
-            netPeer.Send(netDataWriter, (DeliveryMethod)(type));
-        }
-
-        public static void Connect()
-        {
-            netPeer = netPeer.NetManager.Connect("218.75.44.6", 6000, "yoyo");
-        }
-
-        public static void Auth()
-        {
-            AuthRequest authRequest = new AuthRequest();
-            Token token = new Token();
-            token.UserID = "1000";
-            token.NickName = "hxl";
-
-            string json = JsonConvert.SerializeObject(token);
-
-            string encyptJson = SharedLibrary.Utils.SecurityUtil.AESEncrypt(json, serverConfig.encryptKey);
-
-            authRequest.Token = encyptJson;
-
-            byte[] data = MessagePack.MessagePackSerializer.Serialize(authRequest);
-            OperationRequest operationRequest = new OperationRequest(OperationCode.Auth, data, DeliveryMethod.ReliableOrdered);
-            operationRequest.SendTo(netPeer);
-        }
-
-        public static void CreateRoom()
-        {
-            CreateRoomRequest request = new CreateRoomRequest();
-            request.MaxPeers = 10;
-            request.RoomName = "hxl house";
+            netDataWriter.Put((byte)OperationCode.Register);
+            RegisterRequest request = new RegisterRequest();
+            request.Account = "hxl";
             request.Password = "123456";
 
-            byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
-            OperationRequest operationRequest = new OperationRequest(OperationCode.CreateRoom, data, DeliveryMethod.ReliableOrdered);
-            operationRequest.SendTo(netPeer);
+            netDataWriter.Put(MessagePackSerializer.Serialize(request));
+
+            testServer.MasterPeer.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
         }
 
-        public static void JoinRoom(string roomID,string password)
+        static void Login(TestServer testServer)
         {
-            JoinRoomRequest request = new JoinRoomRequest();
-            request.RoomID = roomID;
-            request.Password = password;
+            NetDataWriter netDataWriter = new NetDataWriter();
+            netDataWriter.Put((byte)OperationCode.Login);
+            RegisterRequest request = new RegisterRequest();
+            request.Account = "hxl";
+            request.Password = "123456";
 
-            byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
-            OperationRequest operationRequest = new OperationRequest(OperationCode.JoinRoom, data, DeliveryMethod.ReliableOrdered);
-            operationRequest.SendTo(netPeer);
+            netDataWriter.Put(MessagePackSerializer.Serialize(request));
+            testServer.MasterPeer.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
         }
 
-        public static void LeaveRoom()
-        {
-            LeaveRoomRequest request = new LeaveRoomRequest();
-            byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
-            OperationRequest operationRequest = new OperationRequest(OperationCode.LeaveRoom, data, DeliveryMethod.ReliableOrdered);
-            operationRequest.SendTo(netPeer);
-        }
 
-        public static void GetRoomList()
+        async void Test()
         {
-            GetRoomListRequest request = new GetRoomListRequest();
-            byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
-            OperationRequest operationRequest = new OperationRequest(OperationCode.GetRoomList, data, DeliveryMethod.ReliableOrdered);
-            operationRequest.SendTo(netPeer);
+            //var userTable = await MySQLTool.QueryFirstOrDefaultAsync<UserTable>($"select * from user where Account='{"hxl"}' and Password={123456}");
+
+            //if (userTable != null)
+            //{
+            //    Log.Information("select user info:" + userTable.ID);
+            //}
+
+            //string sql = $"INSERT INTO `user` (Account,`Password`) VALUES('{"qwe1"}',{123456})";
+
+            //int result = await MySQLTool.ExecuteAsync(sql);
+
+            //Log.Information("INSERT effect rows:" + result);
+
+            //sql = $"update user set password={123456},nickname='{"xxxxx"}' where account='{"hxl"}'";
+
+            //result = await MySQLTool.ExecuteAsync(sql);
+
+            //Log.Information("update effect rows:" + result);
+
+            //sql = $"delete from user where account='{"qwe1"}'";
+
+            //result = await MySQLTool.ExecuteAsync(sql);
+
+            //Log.Information("delete effect rows:" + result);
         }
     }
 }

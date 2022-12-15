@@ -217,7 +217,7 @@ namespace GameServer.Client
 
                 byte[] data = MessagePackSerializer.Serialize(response);
 
-                OperationResponse operationResponse = new OperationResponse(OperationCode.LeaveRoom, ReturnCode.Success, data, DeliveryMethod.ReliableOrdered);
+                OperationResponse operationResponse = new OperationResponse(OperationCode2.LeaveRoom, ReturnCode.Success, data, DeliveryMethod.ReliableOrdered);
 
                 var netPeers = Room.ClientPeers.Select((a) => a.NetPeer).ToArray();
 

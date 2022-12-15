@@ -18,22 +18,22 @@ namespace GameServer
 
             switch (operationRequest.OperationCode)
             {
-                case OperationCode.Auth:
+                case OperationCode2.Auth:
                     clientPeer.OnAuth(operationRequest);
                     break;
-                case OperationCode.CreateRoom:
+                case OperationCode2.CreateRoom:
                     clientPeer.OnCreateRoom(operationRequest);
                     break;
-                case OperationCode.JoinRoom:
+                case OperationCode2.JoinRoom:
                     clientPeer.OnJoinRoom(operationRequest);
                     break;
-                case OperationCode.LeaveRoom:
+                case OperationCode2.LeaveRoom:
                     clientPeer.OnLeaveRoom(operationRequest);
                     break;
-                case OperationCode.GetRoomList:
+                case OperationCode2.GetRoomList:
                     clientPeer.OnGetRoomList(operationRequest);
                     break;
-                case OperationCode.RPC:
+                case OperationCode2.RPC:
                     clientPeer.OnRpc(operationRequest);
                     break;
             }

@@ -1,6 +1,6 @@
 ﻿namespace SharedLibrary.Operation
 {
-    public enum OperationCode : byte
+    public enum OperationCode2 : byte
     {
         None,
         Auth,

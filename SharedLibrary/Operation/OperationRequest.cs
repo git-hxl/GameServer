@@ -5,10 +5,10 @@ namespace SharedLibrary.Operation
 {
     public class OperationRequest
     {
-        public OperationCode OperationCode { get; private set; }
+        public OperationCode2 OperationCode { get; private set; }
         public byte[] Data { get; private set; }
         public DeliveryMethod DeliveryMethod { get; private set; }
-        public OperationRequest(OperationCode operationCode, byte[] data, DeliveryMethod deliveryMethod)
+        public OperationRequest(OperationCode2 operationCode, byte[] data, DeliveryMethod deliveryMethod)
         {
             OperationCode = operationCode;
             DeliveryMethod = deliveryMethod;

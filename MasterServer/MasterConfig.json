@@ -1,0 +1,10 @@
+﻿{
+  "Port": 6000,
+  "ConnectKey": "yoyo",
+  "MaxPeers": 5000,
+  "PingInterval": 1000,
+  "DisconnectTimeout": 5000,
+  "ReconnectDelay": 500,
+  "MaxConnectAttempts": 10,
+  "SQLConnectionStr": "Server=localhost;Port=3306;Database=database;Uid=root;Pwd=123456;"
+}

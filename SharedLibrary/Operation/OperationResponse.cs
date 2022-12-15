@@ -4,12 +4,12 @@ namespace SharedLibrary.Operation
 {
     public class OperationResponse
     {
-        public OperationCode OperationCode { get; private set; }
+        public OperationCode2 OperationCode { get; private set; }
         public ReturnCode ReturnCode { get; private set; }
         public byte[] Data { get; private set; }
         public DeliveryMethod DeliveryMethod { get; private set; }
 
-        public OperationResponse(OperationCode operationCode, ReturnCode returnCode, byte[] data, DeliveryMethod deliveryMethod)
+        public OperationResponse(OperationCode2 operationCode, ReturnCode returnCode, byte[] data, DeliveryMethod deliveryMethod)
         {
             OperationCode = operationCode;
             ReturnCode = returnCode;
@@ -19,7 +19,7 @@ namespace SharedLibrary.Operation
 
         public void SendTo(params NetPeer[] netPeers)
         {
-            if (OperationCode.None == OperationCode)
+            if (OperationCode2.None == OperationCode)
                 return;
 
             NetDataWriter netDataWriter = new NetDataWriter();
@@ -48,7 +48,7 @@ namespace SharedLibrary.Operation
 
         public static OperationResponse CreateNoneResponse()
         {
-            return new OperationResponse(OperationCode.None, ReturnCode.Success, null, DeliveryMethod.ReliableOrdered);
+            return new OperationResponse(OperationCode2.None, ReturnCode.Success, null, DeliveryMethod.ReliableOrdered);
         }
     }
 }
