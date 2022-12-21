@@ -1,88 +1,68 @@
 ﻿using LiteNetLib;
-using MasterServer.MySQL;
 using MasterServer.Operation;
-using Newtonsoft.Json;
 using Serilog;
+using SharedLibrary.Operation;
+using SharedLibrary.Server;
+
 namespace MasterServer
 {
-    internal class MasterServer
+    internal class MasterServer : ServerBase
     {
-        private NetManager server;
-        private EventBasedNetListener listener;
-        private OperationHandler handler;
         public MasterConfig MasterConfig { get; private set; }
 
-        private List<MasterPeer> masterPeers = new List<MasterPeer>();
-        public MasterServer()
+        public Dictionary<int, MasterPeer> MasterPeers { get; private set; } = new Dictionary<int, MasterPeer>();
+
+        public OperationHandler OperationHandler { get; private set; } = new OperationHandler();
+        public MasterServer(MasterConfig serverConfig) : base(serverConfig)
         {
-            listener = new EventBasedNetListener();
-            listener.ConnectionRequestEvent += OnConnectionRequestEvent;
-            listener.PeerConnectedEvent += OnPeerConnected;
-            listener.PeerDisconnectedEvent += OnPeerDisconnected;
-            listener.NetworkReceiveEvent += OnNetworkReceive;
-
-            handler = new OperationHandler();
-
-            MasterConfig = JsonConvert.DeserializeObject<MasterConfig>(File.ReadAllText("./MasterConfig.json"));
-
-            MySQLTool.SQLConnectionStr = MasterConfig.SQLConnectionStr;
-
-            server = new NetManager(listener);
-
-            server.PingInterval = MasterConfig.PingInterval;
-            server.DisconnectTimeout = MasterConfig.DisconnectTimeout;
-            server.ReconnectDelay = MasterConfig.ReconnectDelay;
-            server.MaxConnectAttempts = MasterConfig.MaxConnectAttempts;
+            MasterConfig = serverConfig;
         }
 
-        public void Start()
+        protected override void OnConnectionRequest(ConnectionRequest request)
         {
-            server.Start(MasterConfig.Port);
-            Log.Information("start server:{0}", server.LocalPort);
-        }
-
-        public void Update()
-        {
-            server.PollEvents();
-        }
-
-        private void OnConnectionRequestEvent(ConnectionRequest request)
-        {
-            if (server.ConnectedPeersCount < MasterConfig.MaxPeers)
-                request.AcceptIfKey(MasterConfig.ConnectKey);
+            if (request.Data.GetString() == ServerConfig.ServerConnectKey)
+                request.AcceptIfKey(ServerConfig.ServerConnectKey);
+            else if (netManager.ConnectedPeersCount < ServerConfig.MaxPeers)
+                request.AcceptIfKey(ServerConfig.ClientConnectKey);
             else
                 request.Reject();
         }
 
-        private void OnPeerConnected(NetPeer peer)
+        protected override void OnPeerConnected(NetPeer peer)
         {
-            masterPeers.Add(new MasterPeer(peer));
+            MasterPeers[peer.Id] = new MasterPeer(peer);
             Log.Information("peer connection: {0}", peer.EndPoint);
         }
 
-        private void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
+        protected override void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
         {
-            masterPeers.Remove(masterPeers.First((a) => a.NetPeer == peer));
+            MasterPeers.Remove(peer.Id);
             Log.Information("peer disconnection: {0} info: {1}", peer.EndPoint, disconnectInfo.Reason.ToString());
         }
 
-        private void OnNetworkReceive(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
+        protected override void OnNetworkReceive(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
         {
             try
             {
+                OperationType operationType = (OperationType)reader.GetByte();
                 OperationCode operationCode = (OperationCode)reader.GetByte();
-                MasterPeer masterPeer = masterPeers.First((a) => a.NetPeer == peer);
-                handler.OnOperationRequest(operationCode, masterPeer, reader.GetRemainingBytes(), deliveryMethod);
+                switch (operationType)
+                {
+                    case OperationType.Request:
+                        OperationHandler.OnRequest(operationCode, MasterPeers[peer.Id], reader.GetRemainingBytes(), deliveryMethod);
+                        break;
+                    case OperationType.Response:
+                        ReturnCode returnCode = (ReturnCode)reader.GetByte();
+                        OperationHandler.OnResponse(operationCode, returnCode, MasterPeers[peer.Id], reader.GetRemainingBytes(), deliveryMethod);
+                        break;
+                    default:
+                        break;
+                }
             }
             catch (Exception ex)
             {
                 Log.Error("peer receive error: {0}", ex.Message);
             }
-        }
-
-        public void Stop()
-        {
-            server.Stop();
         }
     }
 }

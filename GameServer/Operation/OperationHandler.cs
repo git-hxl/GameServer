@@ -2,23 +2,23 @@
 using SharedLibrary.Operation;
 using SharedLibrary.Server;
 
-namespace MasterServer.Operation
+namespace GameServer.Operation
 {
     internal class OperationHandler : OperationHandlerBase
     {
         public override void OnRequest(OperationCode operationCode, ServerPeer serverPeer, byte[] data, DeliveryMethod deliveryMethod)
         {
-            MasterPeer masterPeer = (MasterPeer)serverPeer;
+            GamePeer gamePeer = (GamePeer)serverPeer;
             switch (operationCode)
             {
                 case OperationCode.GameServerRegister:
-                    masterPeer.RegisterGameServer(data);
+
                     break;
                 case OperationCode.Register:
-                    masterPeer.RegisterRequest(data);
+
                     break;
                 case OperationCode.Login:
-                    masterPeer.LoginRequest(data);
+
                     break;
                 case OperationCode.Logout:
                     break;

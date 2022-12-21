@@ -1,12 +1,14 @@
-﻿using GameServer.Client;
-using GameServer.Request;
+﻿
 using LiteNetLib;
 using LiteNetLib.Utils;
-using MasterServer.Operation;
-using MasterServer.Operation.Request;
+using SharedLibrary.Operation;
+using SharedLibrary.Operation.Request;
 using MessagePack;
 using Newtonsoft.Json;
 using Serilog;
+using SharedLibrary.Operation;
+using System.Net;
+
 namespace TestClient
 {
     internal class TestApplication
@@ -39,6 +41,11 @@ namespace TestClient
                         {
                             Login(testServer);
                         }
+
+                        if (command.Contains("server register"))
+                        {
+                            ServerRegister(testServer);
+                        }
                     }
                 });
 
@@ -57,7 +64,7 @@ namespace TestClient
         static void Register(TestServer testServer)
         {
             NetDataWriter netDataWriter = new NetDataWriter();
-            netDataWriter.Put((byte)OperationCode.Register);
+            netDataWriter.Put((ushort)OperationCode.Register);
             RegisterRequest request = new RegisterRequest();
             request.Account = "hxl";
             request.Password = "123456";
@@ -70,7 +77,7 @@ namespace TestClient
         static void Login(TestServer testServer)
         {
             NetDataWriter netDataWriter = new NetDataWriter();
-            netDataWriter.Put((byte)OperationCode.Login);
+            netDataWriter.Put((ushort)OperationCode.Login);
             RegisterRequest request = new RegisterRequest();
             request.Account = "hxl";
             request.Password = "123456";
@@ -78,7 +85,15 @@ namespace TestClient
             netDataWriter.Put(MessagePackSerializer.Serialize(request));
             testServer.MasterPeer.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
         }
+        static void ServerRegister(TestServer testServer)
+        {
+            NetDataWriter netDataWriter = new NetDataWriter();
+            netDataWriter.Put((ushort)OperationCode.GameServerRegister);
+            ServerRegisterRequest request = new ServerRegisterRequest();
 
+            netDataWriter.Put(MessagePackSerializer.Serialize(request));
+            testServer.MasterPeer.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
+        }
 
         async void Test()
         {

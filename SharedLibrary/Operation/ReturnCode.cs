@@ -2,27 +2,16 @@
 {
     public enum ReturnCode : byte
     {
-        Success,
-        Failed,
+        Success = 0,
 
-        InvalidOperation,
-
-        AlreadyAuth,
-        AuthTokenError,
-        NoAuth,
-
-        NotInLobby,
-        GetLobbyFailed,
-        AlreadyJoinLobby,
-
-        CreateRooming,
-        NoMatchGameServer,
-        AlreadyInRoom,
-        PasswordError,
-        FullRoom,
-        NotInRoom,
-        RoomNotExisted,
-        JoinRooming,
+        InvalidRequest,
         
+        GameServerRegisterFailed,
+
+        RegisterFailed,
+        LoginFailed,
+
+        JoinRoomFailed,
+        CreateRoomFailed,
     }
 }

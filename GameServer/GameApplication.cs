@@ -1,30 +1,26 @@
 ﻿using Newtonsoft.Json;
 using Serilog;
-using SharedLibrary.Server;
 
 namespace GameServer
 {
     internal class GameApplication
     {
-        public static ServerConfig ServerConfig { get; private set; }
-
         static void Main(string[] args)
         {
-            LoggerConfiguration loggerConfiguration = new LoggerConfiguration();
-            loggerConfiguration.WriteTo.File("./log.txt", rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true).WriteTo.Console();
-            loggerConfiguration.MinimumLevel.Information();
-            Log.Logger = loggerConfiguration.CreateLogger();
-
-            ServerConfig = JsonConvert.DeserializeObject<ServerConfig>(File.ReadAllText("./ServerConfig.json"));
-
-            GameServer gameServer = new GameServer(ServerConfig);
-
-            gameServer.Start(ServerConfig.port);
-
-            while (true)
+            try
             {
-                gameServer.Update();
-                Thread.Sleep(15);
+                GameConfig gameConfig = JsonConvert.DeserializeObject<GameConfig>(File.ReadAllText("./GameConfig.json"));
+                GameServer gameServer = new GameServer(gameConfig);
+                gameServer.Start();
+                while (true)
+                {
+                    gameServer.Update();
+                    Thread.Sleep(15);
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex.Message);
             }
         }
     }

@@ -1,52 +1,79 @@
-﻿using GameServer.Client;
+﻿using GameServer.Operation;
 using LiteNetLib;
 using Serilog;
 using SharedLibrary.Operation;
 using SharedLibrary.Server;
+
 namespace GameServer
 {
-    public class GameServer : Server
+    internal class GameServer : ServerBase
     {
-        private OperationHandler operationHandler;
-        public GameServer(ServerConfig serverConfig) : base(serverConfig)
+        public GameConfig GameConfig { get; private set; }
+
+        public Dictionary<int, GamePeer> GamePeers = new Dictionary<int, GamePeer>();
+        public OperationHandler OperationHandler { get; private set; } = new OperationHandler();
+        public GameServer(GameConfig serverConfig) : base(serverConfig)
         {
-            operationHandler = new OperationHandler();
+            GameConfig = serverConfig;
+        }
+
+        public override async void Start()
+        {
+            base.Start();
+        }
+
+
+        private void RegisterServer()
+        {
+
+        }
+
+        protected override void OnConnectionRequest(ConnectionRequest request)
+        {
+            if (request.Data.GetString() == ServerConfig.ServerConnectKey)
+                request.AcceptIfKey(ServerConfig.ServerConnectKey);
+            else if (netManager.ConnectedPeersCount < ServerConfig.MaxPeers)
+                request.AcceptIfKey(ServerConfig.ClientConnectKey);
+            else
+                request.Reject();
+        }
+
+        protected override void OnPeerConnected(NetPeer peer)
+        {
+            GamePeers[peer.Id] = new GamePeer(peer);
+            Log.Information("peer connection: {0}", peer.EndPoint);
+        }
+
+        protected override void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
+        {
+            GamePeers.Remove(peer.Id);
+            Log.Information("peer disconnection: {0} info: {1}", peer.EndPoint, disconnectInfo.Reason.ToString());
         }
 
         protected override void OnNetworkReceive(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
         {
             try
             {
-                byte operationType = reader.GetByte();
-                if (operationType == 0)
+                OperationType operationType = (OperationType)reader.GetByte();
+                OperationCode operationCode = (OperationCode)reader.GetByte();
+                switch (operationType)
                 {
-                    OperationCode2 operationCode = (OperationCode2)reader.GetByte();
-                    OperationRequest operationRequest = new OperationRequest(operationCode, reader.GetRemainingBytes(), deliveryMethod);
-                    operationHandler.OnOperationRequest(peer, operationRequest);
+                    case OperationType.Request:
+                        OperationHandler.OnRequest(operationCode, GamePeers[peer.Id], reader.GetRemainingBytes(), deliveryMethod);
+                        break;
+                    case OperationType.Response:
+                        ReturnCode returnCode = (ReturnCode)reader.GetByte();
+                        OperationHandler.OnResponse(operationCode, returnCode, GamePeers[peer.Id], reader.GetRemainingBytes(), deliveryMethod);
+                        break;
+                    default:
+                        break;
                 }
-                Log.Error("peer receive: {0} threadid：{1}", operationType, Environment.CurrentManagedThreadId);
             }
-            catch (Exception e)
+            catch (Exception ex)
             {
-                Log.Error("peer receive error: {0} threadid：{1}", e.ToString(), Environment.CurrentManagedThreadId);
+                Log.Error("peer receive error: {0}", ex.Message);
             }
-
         }
 
-        protected override void OnPeerConnected(NetPeer peer)
-        {
-            PeerManager.Instance.AddClientPeer(peer.Id, new ClientPeer(peer));
-            Log.Information("peer connected:{0} threadid:{1}", peer.EndPoint.ToString(), Thread.CurrentThread.ManagedThreadId);
-        }
-
-        protected override void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
-        {
-            ClientPeer? clientPeer = PeerManager.Instance.RemoveClientPeer(peer.Id);
-            if (clientPeer != null)
-            {
-                clientPeer.OnDisconnected();
-            }
-            Log.Information("peer disconnected:{0} info:{1} threadid:{2}", peer.EndPoint.ToString(), disconnectInfo.Reason.ToString(), Thread.CurrentThread.ManagedThreadId);
-        }
     }
 }

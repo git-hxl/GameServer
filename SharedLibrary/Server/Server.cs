@@ -3,14 +3,12 @@ using Serilog;
 
 namespace SharedLibrary.Server
 {
-    public class Server
+    public abstract class ServerBase
     {
-        private NetManager netManager;
-
-        private EventBasedNetListener eventBasedNetListener;
-
+        protected NetManager netManager;
+        protected EventBasedNetListener eventBasedNetListener;
         public ServerConfig ServerConfig { get; private set; }
-        public Server(ServerConfig serverConfig)
+        public ServerBase(ServerConfig serverConfig)
         {
             ServerConfig = serverConfig;
 
@@ -22,28 +20,30 @@ namespace SharedLibrary.Server
             eventBasedNetListener.NetworkReceiveEvent += OnNetworkReceive;
 
             netManager = new NetManager(eventBasedNetListener);
-            netManager.PingInterval = serverConfig.pingInterval;
-            netManager.DisconnectTimeout = serverConfig.disconnectTimeout;
-            netManager.ReconnectDelay = serverConfig.reconnectDelay;
-            netManager.MaxConnectAttempts = serverConfig.maxConnectAttempts;
-            netManager.UnsyncedEvents = true;
+            netManager.PingInterval = serverConfig.PingInterval;
+            netManager.DisconnectTimeout = serverConfig.DisconnectTimeout;
+            netManager.ReconnectDelay = serverConfig.ReconnectDelay;
+            netManager.MaxConnectAttempts = serverConfig.MaxConnectAttempts;
+            InitLog();
         }
 
-        public void Start(int port)
+        protected virtual void InitLog()
         {
-            netManager.Start(port);
+            LoggerConfiguration loggerConfiguration = new LoggerConfiguration();
+            loggerConfiguration.WriteTo.File("./Log.txt", rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true).WriteTo.Console();
+            loggerConfiguration.MinimumLevel.Information();
+            Log.Logger = loggerConfiguration.CreateLogger();
+        }
+
+        public virtual void Start()
+        {
+            netManager.Start(ServerConfig.Port);
             Log.Information("start server:{0}", netManager.LocalPort);
         }
 
-        public void Start()
+        public void Connect(string ip, int port, string key)
         {
-            netManager.Start();
-            Log.Information("start server:{0}", netManager.LocalPort);
-        }
-
-        public NetPeer Connect(string ip, int port, string key)
-        {
-            return netManager.Connect(ip, port, key);
+            netManager.Connect(ip, port, key);
         }
 
         public void Update()
@@ -51,30 +51,9 @@ namespace SharedLibrary.Server
             netManager.PollEvents();
         }
 
-        protected virtual void OnNetworkReceive(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod)
-        {
-            throw new NotImplementedException();
-        }
-
-        protected virtual void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
-        {
-            throw new NotImplementedException();
-        }
-
-        protected virtual void OnPeerConnected(NetPeer peer)
-        {
-            throw new NotImplementedException();
-        }
-
-        protected virtual void OnConnectionRequest(ConnectionRequest request)
-        {
-            if (netManager.ConnectedPeersCount <= ServerConfig.maxPeers)
-                request.AcceptIfKey(ServerConfig.connectKey);
-            else
-            {
-                request.Reject();
-                Log.Information("Reject game Connect:{0}", request.RemoteEndPoint.ToString());
-            }
-        }
+        protected abstract void OnPeerConnected(NetPeer peer);
+        protected abstract void OnConnectionRequest(ConnectionRequest request);
+        protected abstract void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo);
+        protected abstract void OnNetworkReceive(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod);
     }
 }

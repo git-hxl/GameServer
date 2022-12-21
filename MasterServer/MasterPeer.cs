@@ -1,52 +1,69 @@
 ﻿using LiteNetLib;
+using MasterServer.Game;
 using MasterServer.MySQL;
-using MasterServer.MySQL.Table;
-using MasterServer.Operation.Request;
 using MessagePack;
 using Serilog;
+using SharedLibrary.Model;
+using SharedLibrary.Operation;
+using SharedLibrary.Server;
+
 namespace MasterServer
 {
-    internal class MasterPeer
+    internal class MasterPeer : ServerPeer
     {
-        public NetPeer NetPeer { get; private set; }
-
-        public MasterPeer(NetPeer netPeer)
+        public MasterPeer(NetPeer peer) : base(peer)
         {
-            NetPeer = netPeer;
         }
+
+        public async void RegisterGameServer(byte[] data)
+        {
+            ServerInfo serverInfo = MessagePackSerializer.Deserialize<ServerInfo>(data);
+
+            GameServerManager.Instance.RegisterOrUpdate(Peer.EndPoint.ToString(), serverInfo);
+
+            Log.Information("server register request:{0}", Peer.EndPoint.ToString());
+
+            SendResponse(OperationCode.GameServerRegister, ReturnCode.Success, null, DeliveryMethod.ReliableOrdered);
+        }
+
 
         public async void RegisterRequest(byte[] data)
         {
-            RegisterRequest request = MessagePackSerializer.Deserialize<RegisterRequest>(data);
-            string sql = $"insert into user(account,password) values('{request.Account}','{request.Password}')";
+            UserInfo userInfo = MessagePackSerializer.Deserialize<UserInfo>(data);
+            string sql = $"insert into user(uid, account,password) values('{Guid.NewGuid().ToString()}','{userInfo.Account}','{userInfo.Password}')";
             var result = await MySQLTool.ExecuteAsync(sql);
             if (result > 0)
             {
-                sql = $"select * from user where account='{request.Account}'";
-                var userTable = await MySQLTool.QueryFirstOrDefaultAsync<UserTable>(sql);
-                Log.Information("register success id:{0}", userTable.ID);
+                sql = $"select * from user where account='{userInfo.Account}'";
+                userInfo = await MySQLTool.QueryFirstOrDefaultAsync<UserInfo>(sql);
+                Log.Information("register success uid:{0}", userInfo.UID);
+
+                SendResponse(OperationCode.Register, ReturnCode.Success, null, DeliveryMethod.ReliableOrdered);
             }
             else
             {
                 Log.Information("register failed");
+
+                SendResponse(OperationCode.Register, ReturnCode.RegisterFailed, null, DeliveryMethod.ReliableOrdered);
             }
         }
 
         public async void LoginRequest(byte[] data)
         {
-            LoginRequest request = MessagePackSerializer.Deserialize<LoginRequest>(data);
-            string sql = $"select * from user where account='{request.Account}' && password='{request.Password}'";
-            var userTable = await MySQLTool.QueryFirstOrDefaultAsync<UserTable>(sql);
-            if (userTable != null)
-            {
-                Log.Information("login success id:{0}", userTable.ID);
-            }
-        }
+            UserInfo userInfo = MessagePackSerializer.Deserialize<UserInfo>(data);
 
-        public async void CreateRoomRequest(byte[] data)
-        {
-            CreateRoomRequest request = MessagePackSerializer.Deserialize<CreateRoomRequest>(data);
-            
+            string sql = $"select * from user where account='{userInfo.Account}' && password='{userInfo.Password}'";
+            userInfo = await MySQLTool.QueryFirstOrDefaultAsync<UserInfo>(sql);
+            if (userInfo != null)
+            {
+                Log.Information("login success uid:{0}", userInfo.UID);
+                SendResponse(OperationCode.Login, ReturnCode.Success, null, DeliveryMethod.ReliableOrdered);
+            }
+            else
+            {
+                Log.Information("login failed account:{0}", userInfo.Account);
+                SendResponse(OperationCode.Login, ReturnCode.LoginFailed, null, DeliveryMethod.ReliableOrdered);
+            }
         }
     }
 }

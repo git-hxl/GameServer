@@ -1,4 +1,4 @@
-﻿namespace SharedLibrary.Utils
+﻿namespace MasterServer.Utils
 {
     public static class DateTimeEx
     {

@@ -1,15 +1,14 @@
-﻿using GameServer.Request;
+﻿
 using LiteNetLib;
 using MessagePack;
 using Newtonsoft.Json;
 using Serilog;
-using SharedLibrary.Operation;
 using SharedLibrary.Server;
 namespace TestClient
 {
     public class TestServer
     {
-        private NetManager client;
+        public NetManager client;
         private EventBasedNetListener listener;
 
         public NetPeer MasterPeer;
@@ -51,7 +50,7 @@ namespace TestClient
         {
             try
             {
-                OperationCode2 operationCode = (OperationCode2)reader.GetByte();
+               // OperationCode2 operationCode = (OperationCode2)reader.GetByte();
 
             }
             catch (Exception ex)

@@ -1,7 +1,7 @@
 ﻿
 using System.Diagnostics;
 
-namespace SharedLibrary.Utils
+namespace MasterServer.Utils
 {
     public class SystemInfo
     {
