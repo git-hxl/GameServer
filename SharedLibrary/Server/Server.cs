@@ -1,5 +1,6 @@
 ﻿using LiteNetLib;
 using Serilog;
+using System.Net;
 
 namespace SharedLibrary.Server
 {
@@ -39,11 +40,6 @@ namespace SharedLibrary.Server
         {
             netManager.Start(ServerConfig.Port);
             Log.Information("start server:{0}", netManager.LocalPort);
-        }
-
-        public void Connect(string ip, int port, string key)
-        {
-            netManager.Connect(ip, port, key);
         }
 
         public void Update()

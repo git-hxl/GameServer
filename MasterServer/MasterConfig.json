@@ -1,7 +1,6 @@
 ﻿{
   "Port": 6666,
-  "ClientConnectKey": "xoxo123",
-  "ServerConnectKey": "yoyo456",
+  "ConnectKey": "xoxo123",
   "MaxPeers": 5000,
   "PingInterval": 1000,
   "DisconnectTimeout": 5000,

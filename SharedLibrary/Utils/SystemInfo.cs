@@ -10,17 +10,17 @@ namespace MasterServer.Utils
 
         public double GetCPUPercent()
         {
-            return Math.Round(cpuCounter.NextValue());
+            return cpuCounter.NextValue();
         }
 
         public double GetMemoryPercent()
         {
-            return Math.Round(ramCounter.NextValue());
+            return ramCounter.NextValue();
         }
 
         public override string ToString()
         {
-            return $"CPU: {GetCPUPercent()}% Mem: {GetMemoryPercent()}%";
+            return $"CPU: {GetCPUPercent():F2}% Mem: {GetMemoryPercent():F2}%";
         }
     }
 }

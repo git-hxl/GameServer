@@ -7,13 +7,9 @@
         /// </summary>
         public int Port;
         /// <summary>
-        /// Client连接Key
+        /// 连接Key
         /// </summary>
-        public string ClientConnectKey;
-        /// <summary>
-        /// Server连接Key
-        /// </summary>
-        public string ServerConnectKey;
+        public string ConnectKey;
         /// <summary>
         /// 最大连接数
         /// </summary>

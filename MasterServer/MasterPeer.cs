@@ -2,6 +2,7 @@
 using MasterServer.Game;
 using MasterServer.MySQL;
 using MessagePack;
+using Newtonsoft.Json;
 using Serilog;
 using SharedLibrary.Model;
 using SharedLibrary.Operation;
@@ -11,19 +12,29 @@ namespace MasterServer
 {
     internal class MasterPeer : ServerPeer
     {
+        public bool IsGame { get;private set; }
         public MasterPeer(NetPeer peer) : base(peer)
         {
         }
 
         public async void RegisterGameServer(byte[] data)
         {
-            ServerInfo serverInfo = MessagePackSerializer.Deserialize<ServerInfo>(data);
-
-            GameServerManager.Instance.RegisterOrUpdate(Peer.EndPoint.ToString(), serverInfo);
+            IsGame = true;
+            GameServerManager.Instance.RegisterOrUpdate(Peer.EndPoint.ToString(), null);
 
             Log.Information("server register request:{0}", Peer.EndPoint.ToString());
 
             SendResponse(OperationCode.GameServerRegister, ReturnCode.Success, null, DeliveryMethod.ReliableOrdered);
+        }
+
+        public async void UpdateGameServer(byte[] data)
+        {
+            if (GameServerManager.Instance.ServerInfos.ContainsKey(Peer.EndPoint.ToString()))
+            {
+                ServerInfo serverInfo = MessagePackSerializer.Deserialize<ServerInfo>(data);
+                GameServerManager.Instance.RegisterOrUpdate(Peer.EndPoint.ToString(), serverInfo);
+                Log.Information("server update {0}", JsonConvert.SerializeObject(serverInfo));
+            }
         }
 
 

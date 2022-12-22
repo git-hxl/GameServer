@@ -1,39 +1,77 @@
 ﻿using GameServer.Operation;
 using LiteNetLib;
+using MasterServer.Utils;
+using MessagePack;
 using Serilog;
+using SharedLibrary.Model;
 using SharedLibrary.Operation;
 using SharedLibrary.Server;
+using System.Net;
 
 namespace GameServer
 {
     internal class GameServer : ServerBase
     {
+        public static GameServer Instance { get; set; }
         public GameConfig GameConfig { get; private set; }
-
         public Dictionary<int, GamePeer> GamePeers = new Dictionary<int, GamePeer>();
         public OperationHandler OperationHandler { get; private set; } = new OperationHandler();
+
+        public SystemInfo SystemInfo { get; private set; } = new SystemInfo();
+
         public GameServer(GameConfig serverConfig) : base(serverConfig)
         {
             GameConfig = serverConfig;
         }
 
-        public override async void Start()
+        public async void RegisterToMasterServer(int timeout)
         {
-            base.Start();
+            NetPeer peer = netManager.Connect(IPEndPoint.Parse(GameConfig.MasterIPEndPoint), GameConfig.ConnectKey);
+
+            CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+            cancellationTokenSource.CancelAfter(timeout);
+            await Task.Run(() =>
+            {
+                while (peer.ConnectionState != ConnectionState.Connected && !cancellationTokenSource.IsCancellationRequested)
+                {
+                    Thread.Sleep(100);
+                }
+            }, cancellationTokenSource.Token);
+
+            if (peer.ConnectionState == ConnectionState.Connected)
+            {
+                GamePeers[peer.Id].SendRequest(OperationCode.GameServerRegister, null, DeliveryMethod.ReliableOrdered);
+            }
+            else
+            {
+                Log.Error("server register failed");
+                System.Environment.Exit(0);
+            }
         }
 
-
-        private void RegisterServer()
+        public void OnRegisterToMasterSuccess(GamePeer gamePeer)
         {
+            Task.Run(() =>
+            {
+                while (gamePeer.Peer.ConnectionState == ConnectionState.Connected)
+                {
+                    ServerInfo serverInfo = new ServerInfo();
+                    serverInfo.CPUPercent = SystemInfo.GetCPUPercent();
+                    serverInfo.MemoryPercent = SystemInfo.GetMemoryPercent();
 
+                    byte[] data = MessagePackSerializer.Serialize(serverInfo);
+
+                    gamePeer.SendRequest(OperationCode.UpdateServerState, data, DeliveryMethod.ReliableOrdered);
+
+                    Thread.Sleep(1000);
+                }
+            });
         }
 
         protected override void OnConnectionRequest(ConnectionRequest request)
         {
-            if (request.Data.GetString() == ServerConfig.ServerConnectKey)
-                request.AcceptIfKey(ServerConfig.ServerConnectKey);
-            else if (netManager.ConnectedPeersCount < ServerConfig.MaxPeers)
-                request.AcceptIfKey(ServerConfig.ClientConnectKey);
+            if (netManager.ConnectedPeersCount < ServerConfig.MaxPeers)
+                request.AcceptIfKey(ServerConfig.ConnectKey);
             else
                 request.Reject();
         }
@@ -64,8 +102,6 @@ namespace GameServer
                     case OperationType.Response:
                         ReturnCode returnCode = (ReturnCode)reader.GetByte();
                         OperationHandler.OnResponse(operationCode, returnCode, GamePeers[peer.Id], reader.GetRemainingBytes(), deliveryMethod);
-                        break;
-                    default:
                         break;
                 }
             }

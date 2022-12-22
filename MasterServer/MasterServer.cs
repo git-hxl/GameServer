@@ -8,6 +8,7 @@ namespace MasterServer
 {
     internal class MasterServer : ServerBase
     {
+        public static MasterServer Instance { get; set; }
         public MasterConfig MasterConfig { get; private set; }
 
         public Dictionary<int, MasterPeer> MasterPeers { get; private set; } = new Dictionary<int, MasterPeer>();
@@ -20,10 +21,8 @@ namespace MasterServer
 
         protected override void OnConnectionRequest(ConnectionRequest request)
         {
-            if (request.Data.GetString() == ServerConfig.ServerConnectKey)
-                request.AcceptIfKey(ServerConfig.ServerConnectKey);
-            else if (netManager.ConnectedPeersCount < ServerConfig.MaxPeers)
-                request.AcceptIfKey(ServerConfig.ClientConnectKey);
+            if (netManager.ConnectedPeersCount < ServerConfig.MaxPeers)
+                request.AcceptIfKey(ServerConfig.ConnectKey);
             else
                 request.Reject();
         }
@@ -54,8 +53,6 @@ namespace MasterServer
                     case OperationType.Response:
                         ReturnCode returnCode = (ReturnCode)reader.GetByte();
                         OperationHandler.OnResponse(operationCode, returnCode, MasterPeers[peer.Id], reader.GetRemainingBytes(), deliveryMethod);
-                        break;
-                    default:
                         break;
                 }
             }

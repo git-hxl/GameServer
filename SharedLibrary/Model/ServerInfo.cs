@@ -17,8 +17,8 @@ namespace SharedLibrary.Model
         [Key(4)]
         public RoomInfo[] RoomInfos { get; set; }
         [Key(5)]
-        public int CPUPercent { get; set; }
+        public double CPUPercent { get; set; }
         [Key(6)]
-        public int MemoryPercent { get; set; }
+        public double MemoryPercent { get; set; }
     }
 }

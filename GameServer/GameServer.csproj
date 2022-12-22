@@ -18,6 +18,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="GameConfig.json">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="ServerConfig.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
