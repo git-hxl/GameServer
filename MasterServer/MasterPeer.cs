@@ -41,7 +41,7 @@ namespace MasterServer
         public async void RegisterRequest(byte[] data)
         {
             UserInfo userInfo = MessagePackSerializer.Deserialize<UserInfo>(data);
-            string sql = $"insert into user(uid, account,password) values('{Guid.NewGuid().ToString()}','{userInfo.Account}','{userInfo.Password}')";
+            string sql = $"insert into user(uid, account,password) values('{Guid.NewGuid()}','{userInfo.Account}','{userInfo.Password}')";
             var result = await MySQLTool.ExecuteAsync(sql);
             if (result > 0)
             {
