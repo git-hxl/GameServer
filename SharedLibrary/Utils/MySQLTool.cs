@@ -2,12 +2,12 @@
 using MySqlConnector;
 using Serilog;
 
-namespace MasterServer.MySQL
+namespace SharedLibrary.Utils
 {
-    internal class MySQLTool
+    public class MySQLTool
     {
-        public static string SQLConnectionStr = "";
-        public static async Task<IEnumerable<T>> QueryAsync<T>(string sql)
+        public static string SQLConnectionStr { get; set; }
+        public static async Task<List<T>> QueryAsync<T>(string sql)
         {
             try
             {
@@ -15,7 +15,7 @@ namespace MasterServer.MySQL
                 {
                     await conn.OpenAsync();
                     var result = await conn.QueryAsync<T>(sql);
-                    return result;
+                    return result.ToList();
                 }
             }
             catch (Exception ex)
@@ -39,7 +39,7 @@ namespace MasterServer.MySQL
             catch (Exception ex)
             {
                 Log.Information(ex.Message);
-                return default(T);
+                return default;
             }
         }
 
@@ -54,7 +54,7 @@ namespace MasterServer.MySQL
                     return result;
                 }
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 Log.Information(ex.Message);
                 return -1;

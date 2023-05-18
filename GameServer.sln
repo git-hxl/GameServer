@@ -9,6 +9,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "SharedLibrary", "SharedLibr
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MasterServer", "MasterServer\MasterServer.csproj", "{82B0F644-6D56-408B-81D5-405EBB755C70}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestClient", "TestClient\TestClient.csproj", "{2108CAFD-090D-43DA-9194-C5EB34238F6A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{82B0F644-6D56-408B-81D5-405EBB755C70}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{82B0F644-6D56-408B-81D5-405EBB755C70}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{82B0F644-6D56-408B-81D5-405EBB755C70}.Release|Any CPU.Build.0 = Release|Any CPU
+		{2108CAFD-090D-43DA-9194-C5EB34238F6A}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{2108CAFD-090D-43DA-9194-C5EB34238F6A}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{2108CAFD-090D-43DA-9194-C5EB34238F6A}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{2108CAFD-090D-43DA-9194-C5EB34238F6A}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

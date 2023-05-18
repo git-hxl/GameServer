@@ -1,6 +1,6 @@
 ﻿{
   "Port": 8888,
-  "ConnectKey": "xoxo123",
+  "ConnectKey": "qwer123456",
   "MaxPeers": 5000,
   "PingInterval": 1000,
   "DisconnectTimeout": 5000,

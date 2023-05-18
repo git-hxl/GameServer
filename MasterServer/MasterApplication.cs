@@ -1,6 +1,6 @@
-﻿using MasterServer.MySQL;
-using Newtonsoft.Json;
+﻿using Newtonsoft.Json;
 using Serilog;
+using SharedLibrary.Utils;
 
 namespace MasterServer
 {
@@ -11,12 +11,12 @@ namespace MasterServer
             try
             {
                 MasterConfig MasterConfig = JsonConvert.DeserializeObject<MasterConfig>(File.ReadAllText("./MasterConfig.json"));
+                Server.MasterServer.Instance = new Server.MasterServer(MasterConfig);
                 MySQLTool.SQLConnectionStr = MasterConfig.SQLConnectionStr;
-                MasterServer.Instance = new MasterServer(MasterConfig);
-                MasterServer.Instance.Start();
+                Server.MasterServer.Instance.Start();
                 while (true)
                 {
-                    MasterServer.Instance.Update();
+                    Server.MasterServer.Instance.Update();
                     Thread.Sleep(15);
                 }
             }

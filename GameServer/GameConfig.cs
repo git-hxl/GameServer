@@ -1,10 +1,12 @@
-﻿
-using SharedLibrary.Server;
+﻿using SharedLibrary.Server;
 
 namespace GameServer
 {
     internal class GameConfig : ServerConfig
     {
-        public string MasterIPEndPoint { get; set; }
+        /// <summary>
+        /// Master连接配置
+        /// </summary>
+        public string MasterIPEndPoint = "";
     }
 }

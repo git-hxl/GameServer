@@ -10,12 +10,12 @@ namespace GameServer
             try
             {
                 GameConfig gameConfig = JsonConvert.DeserializeObject<GameConfig>(File.ReadAllText("./GameConfig.json"));
-                GameServer.Instance = new GameServer(gameConfig);
-                GameServer.Instance.Start();
-                GameServer.Instance.RegisterToMasterServer(5000);
+                GameServer.Server.GameServer.Instance = new Server.GameServer(gameConfig);
+
+                Server.GameServer.Instance.Start();
                 while (true)
                 {
-                    GameServer.Instance.Update();
+                    Server.GameServer.Instance.Update();
                     Thread.Sleep(15);
                 }
             }

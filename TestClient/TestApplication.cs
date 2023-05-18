@@ -1,126 +1,213 @@
-﻿
+﻿using LiteNetLib.Utils;
 using LiteNetLib;
-using LiteNetLib.Utils;
-using SharedLibrary.Operation;
-using SharedLibrary.Operation.Request;
-using MessagePack;
-using Newtonsoft.Json;
 using Serilog;
+using MessagePack;
+using System.Diagnostics;
+using MasterServer.Operation;
 using SharedLibrary.Operation;
+using SharedLibrary.Message;
 using System.Net;
 
 namespace TestClient
 {
     internal class TestApplication
     {
+        protected static NetManager netManager;
+        protected static EventBasedNetListener eventBasedNetListener;
+
+        protected static NetPeer ServerNetPeer { get; set; }
+
         static void Main(string[] args)
+        {
+            Console.WriteLine("Hello, World!");
+
+            eventBasedNetListener = new EventBasedNetListener();
+
+            eventBasedNetListener.ConnectionRequestEvent += OnConnectionRequest;
+            eventBasedNetListener.PeerConnectedEvent += OnPeerConnected;
+            eventBasedNetListener.PeerDisconnectedEvent += OnPeerDisconnected;
+            eventBasedNetListener.NetworkReceiveEvent += OnNetworkReceive;
+
+            netManager = new NetManager(eventBasedNetListener);
+            netManager.ChannelsCount = 4;
+
+            netManager.Start();
+
+            ServerNetPeer = netManager.Connect("127.0.0.1", 6666, "qwer123456");
+
+            while (true)
+            {
+                netManager.PollEvents();
+                Thread.Sleep(15);
+
+                string command = Console.ReadLine();
+
+                try
+                {
+                    if (command.Contains("register"))
+                    {
+                        string[] commands = command.Split(" ");
+                        RegisterTest(commands[1], commands[2]);
+                    }
+
+                    if (command.Contains("login"))
+                    {
+                        string[] commands = command.Split(" ");
+                        LoginTest(commands[1], commands[2]);
+                    }
+
+                    if (command.Contains("createroom"))
+                    {
+                        string[] commands = command.Split(" ");
+                        CreateRoomTest(commands[1], commands[2]);
+                    }
+
+                    if (command.Contains("joinroom"))
+                    {
+                        string[] commands = command.Split(" ");
+                        JoinRoomTest(commands[1], commands[2]);
+                    }
+
+                    if (command.Contains("exitroom"))
+                    {
+                        string[] commands = command.Split(" ");
+                        ExitRoomTest();
+                    }
+
+                    if (command.Contains("getroomlist"))
+                    {
+                        GetRoomListTest();
+                    }
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine(e.ToString());
+                }
+            }
+
+        }
+
+        protected static void OnConnectionRequest(ConnectionRequest request)
+        {
+            if (netManager.ConnectedPeersCount < 999)
+                request.AcceptIfKey("");
+            else
+                request.Reject();
+        }
+
+        protected static void OnPeerConnected(NetPeer peer)
+        {
+            Log.Information("peer connection: {0}", peer.EndPoint);
+        }
+
+        protected static void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
+        {
+            Log.Information("peer disconnection: {0} info: {1}", peer.EndPoint, disconnectInfo.Reason.ToString());
+        }
+
+        protected static void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
         {
             try
             {
-                LoggerConfiguration loggerConfiguration = new LoggerConfiguration();
-                loggerConfiguration.WriteTo.File("./TestLog.txt", rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true).WriteTo.Console();
-                loggerConfiguration.MinimumLevel.Information();
-                Log.Logger = loggerConfiguration.CreateLogger();
-
-                TestServer testServer = new TestServer();
-
-                testServer.Start();
-
-                Task.Run(() =>
+                OperationCode operationCode = (OperationCode)reader.GetByte();
+                ReturnCode returnCode;
+                switch (channel)
                 {
+                    case 2:
+                        //OperationDefaultHandler.OnRequest(operationCode, MasterPeers[peer.Id], reader.GetRemainingBytes(), deliveryMethod);
+                        break;
+                    case 3:
+                        returnCode = (ReturnCode)reader.GetByte();
 
-                    while(true)
-                    {
-                        string command = Console.ReadLine();
-                        if (command.Contains("register"))
+                        Console.WriteLine(operationCode.ToString() + " " + returnCode.ToString());
+
+                        if(operationCode == OperationCode.CreateRoom&& returnCode == ReturnCode.Success)
                         {
-                            Register(testServer);
-                        }
+                            CreateRoomResponse response = MessagePackSerializer.Deserialize<CreateRoomResponse>(reader.GetRemainingBytes());
 
-                        if (command.Contains("login"))
-                        {
-                            Login(testServer);
-                        }
+                            IPEndPoint iPEndPoint = IPEndPoint.Parse(response.GameServer);
 
-                        if (command.Contains("server register"))
-                        {
-                            ServerRegister(testServer);
-                        }
-                    }
-                });
+                            Console.WriteLine(response.GameServer);
 
-                while (true)
-                {
-                    testServer.Update();
-                    Thread.Sleep(15);
+                            ServerNetPeer = netManager.Connect(iPEndPoint, "qwer123456");
+                        }
+                        //OperationDefaultHandler.OnResponse(operationCode, returnCode, MasterPeers[peer.Id], reader.GetRemainingBytes(), deliveryMethod);
+                        break;
                 }
             }
             catch (Exception ex)
             {
-                Log.Error(ex.Message);
+                Log.Error("peer receive error: {0}", ex.Message);
             }
         }
 
-        static void Register(TestServer testServer)
+
+        private static void RegisterTest(string arg1, string arg2, string arg3 = "", string arg4 = "")
         {
-            NetDataWriter netDataWriter = new NetDataWriter();
-            netDataWriter.Put((ushort)OperationCode.Register);
             RegisterRequest request = new RegisterRequest();
-            request.Account = "hxl";
-            request.Password = "123456";
+            request.Account = arg1;
+            request.Password = arg2;
+            request.UserInfo = new UserInfo();
+            request.UserInfo.NickName= "Test";
 
-            netDataWriter.Put(MessagePackSerializer.Serialize(request));
-
-            testServer.MasterPeer.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
+            SendRequest(OperationCode.Register, MessagePackSerializer.Serialize(request), DeliveryMethod.ReliableOrdered);
         }
 
-        static void Login(TestServer testServer)
+        private static void LoginTest(string arg1, string arg2)
+        {
+            LoginRequest request = new LoginRequest();
+            request.Account = arg1;
+            request.Password = arg2;
+            SendRequest(OperationCode.Login, MessagePackSerializer.Serialize(request), DeliveryMethod.ReliableOrdered);
+        }
+
+        private static void CreateRoomTest(string arg1, string arg2)
+        {
+            CreateRoomRequest request = new CreateRoomRequest();
+            request.RoomInfo = new RoomInfo();
+            request.RoomInfo.RoomName = arg1;
+            request.RoomInfo.RoomType = 1;
+            request.RoomInfo.RoomMaxPlayers = 6;
+            request.RoomInfo.RoomPassword = arg2;
+            SendRequest(OperationCode.CreateRoom, MessagePackSerializer.Serialize(request), DeliveryMethod.ReliableOrdered);
+        }
+
+        private static void JoinRoomTest(string arg1, string arg2)
+        {
+            JoinRoomRequest request = new JoinRoomRequest();
+            request.RoomID = arg1;
+            request.RoomPassword = arg2;
+            SendRequest(OperationCode.JoinRoom, MessagePackSerializer.Serialize(request), DeliveryMethod.ReliableOrdered);
+        }
+
+        private static void ExitRoomTest()
+        {
+            SendRequest(OperationCode.LeaveRoom, null, DeliveryMethod.ReliableOrdered);
+        }
+
+
+        private static void GetRoomListTest()
+        {
+            SendRequest(OperationCode.GetRoomList, null, DeliveryMethod.ReliableOrdered);
+        }
+
+        public static void SendRequest(OperationCode operationCode, byte[] data, DeliveryMethod deliveryMethod)
         {
             NetDataWriter netDataWriter = new NetDataWriter();
-            netDataWriter.Put((ushort)OperationCode.Login);
-            RegisterRequest request = new RegisterRequest();
-            request.Account = "hxl";
-            request.Password = "123456";
-
-            netDataWriter.Put(MessagePackSerializer.Serialize(request));
-            testServer.MasterPeer.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
+            netDataWriter.Put((byte)operationCode);
+            if (data != null)
+                netDataWriter.Put(data);
+            ServerNetPeer.Send(netDataWriter, 2, deliveryMethod);
         }
-        static void ServerRegister(TestServer testServer)
+
+        public static void SendResponse(OperationCode operationCode, ReturnCode returnCode, byte[] data, DeliveryMethod deliveryMethod)
         {
             NetDataWriter netDataWriter = new NetDataWriter();
-            netDataWriter.Put((ushort)OperationCode.GameServerRegister);
-            ServerRegisterRequest request = new ServerRegisterRequest();
-
-            netDataWriter.Put(MessagePackSerializer.Serialize(request));
-            testServer.MasterPeer.Send(netDataWriter, DeliveryMethod.ReliableOrdered);
-        }
-
-        async void Test()
-        {
-            //var userTable = await MySQLTool.QueryFirstOrDefaultAsync<UserTable>($"select * from user where Account='{"hxl"}' and Password={123456}");
-
-            //if (userTable != null)
-            //{
-            //    Log.Information("select user info:" + userTable.ID);
-            //}
-
-            //string sql = $"INSERT INTO `user` (Account,`Password`) VALUES('{"qwe1"}',{123456})";
-
-            //int result = await MySQLTool.ExecuteAsync(sql);
-
-            //Log.Information("INSERT effect rows:" + result);
-
-            //sql = $"update user set password={123456},nickname='{"xxxxx"}' where account='{"hxl"}'";
-
-            //result = await MySQLTool.ExecuteAsync(sql);
-
-            //Log.Information("update effect rows:" + result);
-
-            //sql = $"delete from user where account='{"qwe1"}'";
-
-            //result = await MySQLTool.ExecuteAsync(sql);
-
-            //Log.Information("delete effect rows:" + result);
+            netDataWriter.Put((byte)operationCode);
+            netDataWriter.Put((byte)returnCode);
+            if (data != null)
+                netDataWriter.Put(data);
+            ServerNetPeer.Send(netDataWriter, 3, deliveryMethod);
         }
     }
 }

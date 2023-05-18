@@ -4,14 +4,19 @@
     {
         Success = 0,
 
-        InvalidRequest,
-        
-        GameServerRegisterFailed,
-
         RegisterFailed,
+        RegisterFailedByAccountIsExisted,
         LoginFailed,
+
+        ConnectFailed,
 
         JoinRoomFailed,
         CreateRoomFailed,
+        JoinRoomFailedByIsInRoom,
+        JoinRoomFailedByPassword,
+        JoinRoomFailedByIsNotExistedRoomID,
+
+        LeaveRoomFailed,
+
     }
 }

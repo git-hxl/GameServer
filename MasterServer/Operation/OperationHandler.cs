@@ -1,46 +1,61 @@
 ﻿using LiteNetLib;
+using MasterServer.Game;
+using MasterServer.Server;
 using Serilog;
 using SharedLibrary.Operation;
 using SharedLibrary.Server;
-
 namespace MasterServer.Operation
 {
     internal class OperationHandler : OperationHandlerBase
     {
-        public override void OnRequest(OperationCode operationCode, ServerPeer serverPeer, byte[] data, DeliveryMethod deliveryMethod)
+        public override void OnClientRequest(OperationCode operationCode, ServerPeer serverPeer, byte[] data, DeliveryMethod deliveryMethod)
         {
-            Log.Information("receive request {0}", operationCode.ToString());
+            Log.Information("Client request {0}", operationCode.ToString());
             MasterPeer masterPeer = (MasterPeer)serverPeer;
             switch (operationCode)
             {
-                case OperationCode.GameServerRegister:
-                    masterPeer.RegisterGameServer(data);
-                    break;
-                case OperationCode.UpdateServerState:
-                    masterPeer.UpdateGameServer(data);
-                    break;
                 case OperationCode.Register:
                     masterPeer.RegisterRequest(data);
                     break;
                 case OperationCode.Login:
                     masterPeer.LoginRequest(data);
                     break;
-                case OperationCode.Logout:
-                    break;
-                case OperationCode.JoinRoom:
-                    break;
-                case OperationCode.LeaveRoom:
+                case OperationCode.GetRoomList:
+                    masterPeer.GetRoomListRequest(data);
                     break;
                 case OperationCode.CreateRoom:
-                    break;
-                case OperationCode.GetRoomList:
+                    masterPeer.CreateRoomRequest(data);
                     break;
             }
         }
 
-        public override void OnResponse(OperationCode operationCode, ReturnCode returnCode, ServerPeer serverPeer, byte[] data, DeliveryMethod deliveryMethod)
+        public override void OnClientResponse(OperationCode operationCode, ReturnCode returnCode, ServerPeer serverPeer, byte[] data, DeliveryMethod deliveryMethod)
         {
-            Log.Information("receive response {0} returncode {1}", operationCode.ToString(), returnCode.ToString());
+            //throw new NotImplementedException();
+        }
+
+        public override void OnServerRequest(ServerOperationCode operationCode, ServerPeer serverPeer, byte[] data, DeliveryMethod deliveryMethod)
+        {
+            Log.Information("Server request {0}", operationCode.ToString());
+            GamePeer gamePeer = (GamePeer)serverPeer;
+            switch (operationCode)
+            {
+                case ServerOperationCode.RegisterToMaster:
+                    gamePeer.RegisterGameServerRequest(data);
+                    break;
+                case ServerOperationCode.UpdateGameServerInfo:
+                    gamePeer.UpdateGamerServerInfoRequest(data);
+                    break;
+
+                case ServerOperationCode.UpdateRoomList:
+                    gamePeer.UpdateRoomListRequest(data);
+                    break;
+            }
+        }
+
+        public override void OnServerResponse(ServerOperationCode operationCode, ReturnCode returnCode, ServerPeer serverPeer, byte[] data, DeliveryMethod deliveryMethod)
+        {
+            //throw new NotImplementedException();
         }
     }
 }

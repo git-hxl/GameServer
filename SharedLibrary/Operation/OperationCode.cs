@@ -2,19 +2,14 @@
 {
     public enum OperationCode : byte
     {
-        //Server
-        GameServerRegister = 0,
-        UpdateServerState,
-
         //Client
-        Register,
+        Register = 100,
         Login,
-        Logout,
-
-        JoinRoom,
-        LeaveRoom,
-        CreateRoom,
 
         GetRoomList,
+        CreateRoom,
+        JoinRoom,
+        LeaveRoom,
+        ReplaceRoomOwner,
     }
 }

@@ -1,26 +1,26 @@
 ﻿
 using System.Diagnostics;
 
-namespace MasterServer.Utils
+namespace SharedLibrary.Utils
 {
     public class SystemInfo
     {
         PerformanceCounter cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
         PerformanceCounter ramCounter = new PerformanceCounter("Memory", "% Committed Bytes In Use");
 
-        public double GetCPUPercent()
+        public int GetCPUPercent()
         {
-            return cpuCounter.NextValue();
+            return (int)cpuCounter.NextValue();
         }
 
-        public double GetMemoryPercent()
+        public int GetMemoryPercent()
         {
-            return ramCounter.NextValue();
+            return (int)ramCounter.NextValue();
         }
 
         public override string ToString()
         {
-            return $"CPU: {GetCPUPercent():F2}% Mem: {GetMemoryPercent():F2}%";
+            return $"CPU: {GetCPUPercent()}% Mem: {GetMemoryPercent()}%";
         }
     }
 }

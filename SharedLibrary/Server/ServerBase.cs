@@ -1,7 +1,5 @@
 ﻿using LiteNetLib;
 using Serilog;
-using System.Net;
-
 namespace SharedLibrary.Server
 {
     public abstract class ServerBase
@@ -25,6 +23,9 @@ namespace SharedLibrary.Server
             netManager.DisconnectTimeout = serverConfig.DisconnectTimeout;
             netManager.ReconnectDelay = serverConfig.ReconnectDelay;
             netManager.MaxConnectAttempts = serverConfig.MaxConnectAttempts;
+
+            netManager.ChannelsCount = 4;
+
             InitLog();
         }
 
@@ -42,14 +43,27 @@ namespace SharedLibrary.Server
             Log.Information("start server:{0}", netManager.LocalPort);
         }
 
-        public void Update()
+        public virtual void Update()
         {
             netManager.PollEvents();
         }
 
         protected abstract void OnPeerConnected(NetPeer peer);
-        protected abstract void OnConnectionRequest(ConnectionRequest request);
+        protected virtual void OnConnectionRequest(ConnectionRequest request)
+        {
+            if (netManager.ConnectedPeersCount < ServerConfig.MaxPeers)
+            {
+                request.AcceptIfKey(ServerConfig.ConnectKey);
+            }
+        }
         protected abstract void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo);
-        protected abstract void OnNetworkReceive(NetPeer peer, NetPacketReader reader, DeliveryMethod deliveryMethod);
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="peer"></param>
+        /// <param name="reader"></param>
+        /// <param name="channel">[0,1]服务器内部通信通道，[2,3]外部客户端通信通道</param>
+        /// <param name="deliveryMethod"></param>
+        protected abstract void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod);
     }
 }

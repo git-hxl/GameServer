@@ -1,7 +1,7 @@
 using Serilog;
 using System.Security.Cryptography;
 using System.Text;
-namespace MasterServer.Utils
+namespace SharedLibrary.Utils
 {
     public static class SecurityUtil
     {

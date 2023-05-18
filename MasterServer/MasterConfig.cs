@@ -2,7 +2,7 @@
 
 namespace MasterServer
 {
-    internal class MasterConfig : ServerConfig
+    public class MasterConfig : ServerConfig
     {
         /// <summary>
         /// MySQL连接配置
