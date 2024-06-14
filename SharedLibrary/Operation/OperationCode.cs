@@ -4,6 +4,7 @@
     {
         UpdateGameServerInfo = 0,
         UpdateRoomList,
+        CloseRoom,
 
         Register,
         Login,
@@ -15,6 +16,6 @@
         OtherJoinedRoom,
         OtherLeaveRoom,
 
-        SyncEvent,
+        SyncEvent = 1000,
     }
 }

@@ -94,7 +94,23 @@ namespace GameServer
                         SendResponse(operationCode, ReturnCode.CreateRoomFailed, null, DeliveryMethod.ReliableOrdered);
                     }
                     break;
+                case OperationCode.CloseRoom:
 
+                    CloseRoomRequest closeRoomRequest = MessagePackSerializer.Deserialize<CloseRoomRequest>(data);
+
+                    Room? room = RoomManager.Instance.GetRoom(closeRoomRequest.RoomID);
+
+                    if (room != null)
+                    {
+                        RoomManager.Instance.CloseRoom(room);
+
+                        SendResponse(operationCode, ReturnCode.Success, null, DeliveryMethod.ReliableOrdered);
+                    }
+                    else
+                    {
+                        SendResponse(operationCode, ReturnCode.CloseRoomFailed, null, DeliveryMethod.ReliableOrdered);
+                    }
+                    break;
             }
 
         }

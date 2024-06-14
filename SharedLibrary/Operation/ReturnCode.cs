@@ -18,5 +18,7 @@
 
         LeaveRoomFailed,
 
+        CloseRoomFailed,
+
     }
 }

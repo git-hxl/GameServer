@@ -1,4 +1,5 @@
 ﻿
+using LiteNetLib;
 using Serilog;
 using SharedLibrary;
 using SharedLibrary.Utils;
@@ -80,6 +81,34 @@ namespace GameServer
             }
         }
 
+        public void CloseRoom(Room room)
+        {
+            lock (Instance)
+            {
+                string roomID = room.RoomInfo.RoomID;
+                foreach (var item in _rooms)
+                {
+                    if (item.Key == roomID)
+                    {
+                        foreach (var clientPeer in item.Value.ClientPeers)
+                        {
+                            if (clientPeer != null)
+                            {
+                                clientPeer.SendRequest(OperationCode.CloseRoom, null, DeliveryMethod.ReliableOrdered);
+                            }
+                        }
+
+                        room.Dispose();
+
+                        _rooms.Remove(roomID);
+
+                        Log.Information("关闭房间{0}", roomID);
+
+                        break;
+                    }
+                }
+            }
+        }
 
         public void Update()
         {
@@ -92,9 +121,10 @@ namespace GameServer
             {
                 if (room.IsActive == false)
                 {
-                    _rooms.Remove(room.RoomInfo.RoomID);
+                    string roomID = room.RoomInfo.RoomID;
+                    _rooms.Remove(roomID);
 
-                    Log.Information("清理不活跃的房间{0}", room.RoomInfo.RoomID);
+                    Log.Information("清理不活跃的房间{0}", roomID);
                 }
 
                 else

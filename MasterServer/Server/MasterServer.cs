@@ -56,6 +56,8 @@ namespace MasterServer
                 return;
             }
 
+            HttpServer.Instance.Start();
+
             Log.Information("连接Redis");
 
             RedisManager.Instance = new RedisManager(MasterConfig.RedisConnectionStr);

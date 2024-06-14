@@ -114,5 +114,11 @@ namespace GameServer
                 IsActive = true;
             }
         }
+
+        public void Dispose()
+        {
+            ClientPeers.Clear();
+            IsActive = false;
+        }
     }
 }
