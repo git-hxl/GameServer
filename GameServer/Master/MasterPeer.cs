@@ -1,82 +1,108 @@
-﻿using GameServer.Server;
-using LiteNetLib;
+﻿using LiteNetLib;
 using MessagePack;
+using Newtonsoft.Json;
 using Serilog;
-using SharedLibrary.Message;
-using SharedLibrary.Operation;
-using SharedLibrary.Room;
-using SharedLibrary.Server;
-using SharedLibrary.Utils;
+using SharedLibrary;
 
-namespace GameServer.Master
+namespace GameServer
 {
-    internal class MasterPeer : ServerPeer
+    internal class MasterPeer : BasePeer
     {
-        public bool IsRegister { get; private set; }
-
-        public SystemInfo SystemInfo { get; private set; }
-
         public MasterPeer(NetPeer peer) : base(peer)
         {
-            SystemInfo = new SystemInfo();
+            SendToMasterState();
         }
 
-        public void RegisterToMaster()
-        {
-            SendRequestToServer(ServerOperationCode.RegisterToMaster, null, DeliveryMethod.ReliableOrdered);
-        }
 
-        public void RegisterToMasterResponse()
+        public async void SendToMasterState()
         {
-            if (IsRegister == false)
+            await Task.Delay(2000);
+            if (NetPeer.ConnectionState != ConnectionState.Connected)
             {
-                Task.Run(async () =>
-                {
-                    while (NetPeer != null && NetPeer.ConnectionState == ConnectionState.Connected)
-                    {
-                        await Task.Delay(1000);
-                        SendGameServerInfo();
+                Log.Error("Master connect Failed!!!");
+                Environment.Exit(0);
 
-                        SendRoomList();
-                    }
-                    IsRegister = false;
-                });
-                IsRegister = true;
+                return;
             }
-        }
 
-        public void CreateRoomRequest(byte[] data)
-        {
-            CreateRoomRequest request = MessagePackSerializer.Deserialize<CreateRoomRequest>(data);
-
-            if (request.RoomInfo != null)
+            _ = Task.Run(async () =>
             {
-                if (!string.IsNullOrEmpty(request.RoomInfo.RoomID))
+                while (NetPeer != null && NetPeer.ConnectionState == ConnectionState.Connected)
                 {
-                    Room room = new Room(request.RoomInfo);
-                    GameServer.Server.GameServer.Instance.Rooms.Add(room);
-                    Log.Information($"CreateRoom Success {0}" + room.RoomInfo.RoomID);
+                    await Task.Delay(10000);
+                    SendGameServerInfo();
                 }
-            }
-        }
+            });
 
+            _ = Task.Run(async () =>
+            {
+                while (NetPeer != null && NetPeer.ConnectionState == ConnectionState.Connected)
+                {
+                    await Task.Delay(5000);
+                    SendRoomList();
+                }
+            });
+        }
 
 
         private void SendGameServerInfo()
         {
-            ServerInfo serverInfo = new ServerInfo();
-            serverInfo.CPU = SystemInfo.GetCPUPercent();
-            serverInfo.Memory = SystemInfo.GetCPUPercent();
-            serverInfo.Players = GameServer.Server.GameServer.Instance.GamePeers.Count();
-            byte[] data = MessagePackSerializer.Serialize(serverInfo);
-            SendRequestToServer(ServerOperationCode.UpdateGameServerInfo, data, DeliveryMethod.ReliableOrdered);
+            if (GameServer.Instance.SystemInfo == null)
+            {
+                return;
+            }
+
+            GameInfo gameInfo = new GameInfo();
+            gameInfo.CPU = GameServer.Instance.SystemInfo.GetCPUPercent();
+            gameInfo.Memory = GameServer.Instance.SystemInfo.GetMemoryPercent();
+            gameInfo.Players = GameServer.Instance.ClientPeers.Count();
+            gameInfo.IPEndPoint = NetPeer.EndPoint.ToString();
+            gameInfo.Rooms = RoomManager.Instance.GetRooms().Count;
+            byte[] data = MessagePackSerializer.Serialize(gameInfo);
+            SendRequest(OperationCode.UpdateGameServerInfo, data, DeliveryMethod.ReliableOrdered);
         }
+
 
         private void SendRoomList()
         {
-            List<RoomInfo> roomList = GameServer.Server.GameServer.Instance.Rooms.Select(a => a.RoomInfo).ToList();
+            List<RoomInfo> roomList = RoomManager.Instance.GetRooms().Select(a => a.RoomInfo).ToList();
             byte[] data = MessagePackSerializer.Serialize(roomList);
-            SendRequestToServer(ServerOperationCode.UpdateRoomList, data, DeliveryMethod.ReliableOrdered);
+            SendRequest(OperationCode.UpdateRoomList, data, DeliveryMethod.ReliableOrdered);
+        }
+
+        public override void OnRequest(OperationCode operationCode, byte[] data, DeliveryMethod deliveryMethod)
+        {
+            //base.OnRequest(operationCode, data, deliveryMethod);
+
+            switch (operationCode)
+            {
+                case OperationCode.CreateRoom:
+
+                    RoomInfo roomInfo = MessagePackSerializer.Deserialize<RoomInfo>(data);
+                    bool success = RoomManager.Instance.CreateRoom(roomInfo);
+
+                    if (success)
+                    {
+                        Log.Information("创建房间信息：{0}", JsonConvert.SerializeObject(roomInfo));
+                        SendResponse(operationCode, ReturnCode.Success, null, DeliveryMethod.ReliableOrdered);
+
+                        SendRoomList();
+                    }
+
+                    else
+                    {
+                        SendResponse(operationCode, ReturnCode.CreateRoomFailed, null, DeliveryMethod.ReliableOrdered);
+                    }
+                    break;
+
+            }
+
+        }
+
+
+        public override void OnResponse(OperationCode operationCode, ReturnCode returnCode, byte[] data, DeliveryMethod deliveryMethod)
+        {
+
         }
     }
 }

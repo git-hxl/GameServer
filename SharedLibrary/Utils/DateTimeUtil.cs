@@ -1,6 +1,6 @@
 ﻿namespace SharedLibrary.Utils
 {
-    public static class DateTimeEx
+    public static class DateTimeUtil
     {
         /// <summary>
         /// 时间戳（毫秒）

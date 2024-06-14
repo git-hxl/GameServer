@@ -1,106 +1,196 @@
-﻿using GameServer.Master;
-using GameServer.Operation;
-using LiteNetLib;
+﻿using LiteNetLib;
+using LiteNetLib.Utils;
 using Serilog;
-using SharedLibrary.Operation;
-using SharedLibrary.Room;
-using SharedLibrary.Server;
+using SharedLibrary;
+using SharedLibrary.Utils;
 using System.Net;
 
-namespace GameServer.Server
+namespace GameServer
 {
-    internal class GameServer : ServerBase
+    internal class GameServer
     {
-        public static GameServer Instance { get; set; }
+        public static GameServer Instance { get; private set; } = new GameServer();
 
-        public Dictionary<int, GamePeer> GamePeers { get; private set; }
+        public Dictionary<int, ClientPeer> ClientPeers { get; private set; } = new Dictionary<int, ClientPeer>();
+        public MasterPeer? MasterPeer { get; private set; }
+        public GameConfig? GameConfig { get; private set; }
 
-        public MasterPeer MasterPeer { get; private set; }
+        public SystemInfo? SystemInfo { get; private set; }
 
-        public GameConfig GameConfig { get; private set; }
+        protected NetManager? netManager;
+        protected EventBasedNetListener? eventBasedNetListener;
 
-        public HashSet<Room> Rooms { get; private set; }
 
-        private OperationHandler operationHandler;
-
-        public GameServer(GameConfig gameConfig) : base(gameConfig)
+        public void Init(GameConfig serverConfig)
         {
-            GameConfig = gameConfig;
-            GamePeers = new Dictionary<int, GamePeer>();
-            Rooms = new HashSet<Room>();
+            GameConfig = serverConfig;
 
-            operationHandler = new OperationHandler();
+            eventBasedNetListener = new EventBasedNetListener();
+
+            eventBasedNetListener.ConnectionRequestEvent += OnConnectionRequest;
+            eventBasedNetListener.PeerConnectedEvent += OnPeerConnected;
+            eventBasedNetListener.PeerDisconnectedEvent += OnPeerDisconnected;
+            eventBasedNetListener.NetworkReceiveEvent += OnNetworkReceive;
+
+            netManager = new NetManager(eventBasedNetListener);
+            netManager.PingInterval = serverConfig.PingInterval;
+            netManager.DisconnectTimeout = serverConfig.DisconnectTimeout;
+            netManager.ReconnectDelay = serverConfig.ReconnectDelay;
+            netManager.MaxConnectAttempts = serverConfig.MaxConnectAttempts;
+
+            netManager.ChannelsCount = 4;
+
+            MySqlManager.Instance.Init(GameConfig.SQLConnectionStr);
+
+            SystemInfo = new SystemInfo();
+
+            InitLog();
         }
 
-        public override void Start()
+        protected virtual void InitLog()
         {
-            base.Start();
-            _ = RegisterToMaster();
+            LoggerConfiguration loggerConfiguration = new LoggerConfiguration();
+            loggerConfiguration.WriteTo.File("./Log.txt", rollingInterval: RollingInterval.Day, rollOnFileSizeLimit: true).WriteTo.Console();
+            loggerConfiguration.MinimumLevel.Information();
+            Log.Logger = loggerConfiguration.CreateLogger();
         }
 
-        /// <summary>
-        /// 注册游戏服务器
-        /// </summary>
-        private async Task RegisterToMaster()
+        public virtual void Start()
         {
-            IPEndPoint iPEndPoint = IPEndPoint.Parse(GameConfig.MasterIPEndPoint);
-            NetPeer netPeer = netManager.Connect(iPEndPoint, GameConfig.ConnectKey);
-
-            while (netPeer.ConnectionState != ConnectionState.Connected)
+            if (GameConfig == null)
             {
-                await Task.Delay(100);
+                Log.Error("MasterConfig is Null!!!");
+
+                return;
             }
 
-            MasterPeer = new MasterPeer(netPeer);
+            Log.Information("连接Redis");
 
-            MasterPeer.RegisterToMaster();
+            RedisManager.Instance = new RedisManager(GameConfig.RedisConnectionStr);
 
-            Log.Information("注册到Master服务器：" + GameConfig.MasterIPEndPoint);
-        }
-
-        protected override void OnPeerConnected(NetPeer peer)
-        {
-            GamePeers[peer.Id] = new GamePeer(peer);
-            Log.Information("peer connection: {0}", peer.EndPoint);
-        }
-
-        protected override void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
-        {
-            if (GamePeers.ContainsKey(peer.Id))
+            if (RedisManager.Instance.IsConnected)
             {
-                GamePeers.Remove(peer.Id);
+                Log.Information("连接Redis成功！！！");
             }
-            Log.Information("peer disconnection: {0} info: {1}", peer.EndPoint, disconnectInfo.Reason.ToString());
+            else
+            {
+                throw new Exception("Redis连接失败！！！");
+            }
+            if (netManager != null)
+            {
+                netManager.Start(GameConfig.Port);
+                Log.Information("start server:{0}", netManager.LocalPort);
+
+
+                IPEndPoint iPEndPoint = IPEndPoint.Parse(GameConfig.MasterIP);
+                netManager.Connect(iPEndPoint, GameConfig.ConnectKey);
+                Log.Information("connect master server:{0}", GameConfig.MasterIP);
+            }
         }
 
-        protected override void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
+
+        public virtual void Update()
+        {
+            if (netManager != null)
+            {
+                netManager.PollEvents();
+
+                RoomManager.Instance.Update();
+            }
+        }
+
+        protected virtual void OnConnectionRequest(ConnectionRequest request)
+        {
+            if (netManager == null)
+            {
+                return;
+            }
+
+            if (GameConfig == null)
+            {
+                return;
+            }
+
+            if (netManager.ConnectedPeersCount < GameConfig.MaxPeers)
+            {
+                request.AcceptIfKey(GameConfig.ConnectKey);
+            }
+        }
+
+        protected virtual void OnPeerConnected(NetPeer peer)
+        {
+            if (GameConfig == null)
+            {
+                return;
+            }
+
+            if (GameConfig.MasterIP == peer.EndPoint.ToString())
+            {
+                MasterPeer = new MasterPeer(peer);
+                Log.Information("MasterServer connection: {0}", peer.EndPoint);
+            }
+            else
+            {
+                if (ClientPeers.ContainsKey(peer.Id))
+                {
+                    ClientPeers.Remove(peer.Id);
+                }
+                ClientPeer clientPeer = new ClientPeer(peer);
+                ClientPeers.Add(peer.Id, clientPeer);
+                Log.Information("Client connection: {0}", peer.EndPoint);
+            }
+        }
+
+        protected virtual void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
+        {
+            if (MasterPeer != null && MasterPeer.NetPeer == peer)
+            {
+                MasterPeer = null;
+                Log.Information("MasterServer disconnection: {0} info: {1}", peer.EndPoint, disconnectInfo.Reason.ToString());
+            }
+            else
+            {
+                if (ClientPeers.ContainsKey(peer.Id))
+                {
+                    ClientPeer clientPeer = ClientPeers[peer.Id];
+
+                    RoomManager.Instance.RemoveOfflinePlayer(clientPeer);
+
+                    ClientPeers.Remove(peer.Id);
+                    Log.Information("Client disconnection: {0} info: {1}", peer.EndPoint, disconnectInfo.Reason.ToString());
+                }
+            }
+        }
+
+        protected virtual void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
         {
             try
             {
-                ServerOperationCode serverOperationCode;
-                OperationCode operationCode;
-                ReturnCode returnCode;
-                switch (channel)
-                {
-                    case 0:
-                        serverOperationCode = (ServerOperationCode)reader.GetByte();
-                        operationHandler.OnServerRequest(serverOperationCode, MasterPeer, reader.GetRemainingBytes(), deliveryMethod);
-                        break;
-                    case 1:
-                        serverOperationCode = (ServerOperationCode)reader.GetByte();
-                        returnCode = (ReturnCode)reader.GetByte();
-                        operationHandler.OnServerResponse(serverOperationCode, returnCode, MasterPeer, reader.GetRemainingBytes(), deliveryMethod);
-                        break;
+                BasePeer? basePeer = null;
 
-                    case 2:
-                        operationCode = (OperationCode)reader.GetByte();
-                        operationHandler.OnClientRequest(operationCode, GamePeers[peer.Id], reader.GetRemainingBytes(), deliveryMethod);
-                        break;
-                    case 3:
-                        operationCode = (OperationCode)reader.GetByte();
-                        returnCode = (ReturnCode)reader.GetByte();
-                        operationHandler.OnClientResponse(operationCode, returnCode, GamePeers[peer.Id], reader.GetRemainingBytes(), deliveryMethod);
-                        break;
+                if (MasterPeer != null && MasterPeer.NetPeer == peer)
+                {
+                    basePeer = MasterPeer;
+                }
+
+                if (ClientPeers.ContainsKey(peer.Id))
+                {
+                    basePeer = ClientPeers[peer.Id];
+                }
+
+                if (basePeer != null)
+                {
+                    OperationCode operationCode = (OperationCode)reader.GetUShort();
+                    if (channel == 0)//request
+                    {
+                        basePeer.OnRequest(operationCode, reader.GetRemainingBytes(), deliveryMethod);
+
+                    }
+                    else if (channel == 1)//response
+                    {
+                        ReturnCode returnCode = (ReturnCode)reader.GetUShort();
+                        basePeer.OnResponse(operationCode, returnCode, reader.GetRemainingBytes(), deliveryMethod);
+                    }
                 }
             }
             catch (Exception ex)
@@ -108,5 +198,6 @@ namespace GameServer.Server
                 Log.Error("peer receive error: {0}", ex.Message);
             }
         }
+
     }
 }

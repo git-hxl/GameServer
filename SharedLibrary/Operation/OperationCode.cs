@@ -1,15 +1,20 @@
-﻿namespace SharedLibrary.Operation
+﻿namespace SharedLibrary
 {
-    public enum OperationCode : byte
+    public enum OperationCode : ushort
     {
-        //Client
-        Register = 100,
-        Login,
+        UpdateGameServerInfo = 0,
+        UpdateRoomList,
 
+        Register,
+        Login,
         GetRoomList,
         CreateRoom,
         JoinRoom,
         LeaveRoom,
-        ReplaceRoomOwner,
+
+        OtherJoinedRoom,
+        OtherLeaveRoom,
+
+        SyncEvent,
     }
 }

@@ -2,9 +2,14 @@
   "Port": 8888,
   "ConnectKey": "qwer123456",
   "MaxPeers": 5000,
-  "PingInterval": 1000,
-  "DisconnectTimeout": 5000,
+  "PingInterval": 5000,
+  "DisconnectTimeout": 10000,
   "ReconnectDelay": 500,
   "MaxConnectAttempts": 10,
-  "MasterIPEndPoint": "127.0.0.1:6666"
+  "UpdateInterval": 30,
+  "MasterIP": "127.0.0.1:6666",
+  "SQLConnectionStr": "Server=localhost;Port=3306;Database=database;Uid=root;Pwd=123456;",
+  "RedisConnectionStr": "127.0.0.1:6379,password=pitpat",
+
+  "AutoCleanRoomTime": -1
 }

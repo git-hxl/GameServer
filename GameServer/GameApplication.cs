@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using Serilog;
+using System.Diagnostics;
 
 namespace GameServer
 {
@@ -9,14 +10,23 @@ namespace GameServer
         {
             try
             {
-                GameConfig gameConfig = JsonConvert.DeserializeObject<GameConfig>(File.ReadAllText("./GameConfig.json"));
-                GameServer.Server.GameServer.Instance = new Server.GameServer(gameConfig);
+                GameConfig? gameConfig = JsonConvert.DeserializeObject<GameConfig>(File.ReadAllText("./GameConfig.json"));
 
-                Server.GameServer.Instance.Start();
+                if (gameConfig == null)
+                {
+                    throw new Exception("读取配置文件失败");
+                }
+
+                GameServer.Instance.Init(gameConfig);
+                GameServer.Instance.Start();
+
                 while (true)
                 {
-                    Server.GameServer.Instance.Update();
-                    Thread.Sleep(15);
+                    //Stopwatch stopwatch = Stopwatch.StartNew();
+                    GameServer.Instance.Update();
+                    Thread.Sleep(gameConfig.UpdateInterval);
+                    //stopwatch.Stop();
+                    //Console.WriteLine($"Slept for approximately: {stopwatch.ElapsedMilliseconds}ms");
                 }
             }
             catch (Exception ex)

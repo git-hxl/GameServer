@@ -1,36 +1,65 @@
 ﻿using LiteNetLib;
-using LiteNetLib.Utils;
-using MasterServer.Server;
 using MessagePack;
+using Newtonsoft.Json;
 using Serilog;
-using SharedLibrary.Message;
-using SharedLibrary.Operation;
-using SharedLibrary.Server;
-
-namespace MasterServer.Game
+using SharedLibrary;
+namespace MasterServer
 {
-    internal class GamePeer : ServerPeer
+    public class GamePeer : BasePeer
     {
-        public ServerInfo ServerInfo { get; private set; }
-        public GamePeer(NetPeer peer) : base(peer) { }
+        public GameInfo GameInfo { get; set; }
 
-        public void RegisterGameServerRequest(byte[] data)
+        public List<RoomInfo> Rooms { get; private set; }
+
+        public GamePeer(NetPeer peer) : base(peer)
         {
-            Log.Information("RegisterGameServerRequest:{0}", NetPeer.EndPoint.ToString());
-            SendResponseToServer(ServerOperationCode.RegisterToMaster, ReturnCode.Success, null, DeliveryMethod.ReliableOrdered);
+            GameInfo = new GameInfo();
+
+            Rooms = new List<RoomInfo>();
         }
 
-        public void UpdateGamerServerInfoRequest(byte[] data)
+        public override void OnRequest(OperationCode operationCode, byte[] data, DeliveryMethod deliveryMethod)
         {
-            ServerInfo serverInfo = MessagePackSerializer.Deserialize<ServerInfo>(data);
-            this.ServerInfo = serverInfo;
+            //base.OnRequest(operationCode, data, deliveryMethod);
+
+            switch (operationCode)
+            {
+                case OperationCode.UpdateGameServerInfo:
+
+                    GameInfo = MessagePackSerializer.Deserialize<GameInfo>(data);
+
+                    Log.Information("GamerServer Info {0}", JsonConvert.SerializeObject(GameInfo));
+
+                    break;
+                case OperationCode.UpdateRoomList:
+                    Rooms = MessagePackSerializer.Deserialize<List<RoomInfo>>(data);
+
+                    //Log.Information("GamerServer房间数量：{0}", Rooms.Count);
+                    break;
+            }
+
         }
 
-        public void UpdateRoomListRequest(byte[] data)
-        {
-            List<RoomInfo> roomInfos = MessagePackSerializer.Deserialize<List<RoomInfo>>(data);
 
-            MasterServer.Server.MasterServer.Instance.RoomInfos = roomInfos;
+        public override void OnResponse(OperationCode operationCode, ReturnCode returnCode, byte[] data, DeliveryMethod deliveryMethod)
+        {
+            //base.OnResponse(operationCode, returnCode, data, deliveryMethod);
+
+            Log.Information($"OperationCode：{operationCode} ReturnCode: {returnCode}");
+
+            switch (operationCode)
+            {
+                case OperationCode.CreateRoom:
+
+                    if (returnCode == ReturnCode.Success)
+                    {
+
+                    }
+
+                    break;
+            }
         }
+
+
     }
 }

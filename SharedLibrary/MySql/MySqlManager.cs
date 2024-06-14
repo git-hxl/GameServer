@@ -2,12 +2,29 @@
 using MySqlConnector;
 using Serilog;
 
-namespace SharedLibrary.Utils
+namespace SharedLibrary
 {
-    public class MySQLTool
+    public class MySqlManager
     {
-        public static string SQLConnectionStr { get; set; }
-        public static async Task<List<T>> QueryAsync<T>(string sql)
+        public static MySqlManager Instance { get; private set; } = new MySqlManager();
+
+        public string SQLConnectionStr { get; private set; } = "";
+
+        public void Init(string connectStr)
+        {
+            SQLConnectionStr = connectStr;
+        }
+
+        public async Task<MySqlConnection> GetConnection()
+        {
+            MySqlConnection conn = new MySqlConnection(SQLConnectionStr);
+
+            await conn.OpenAsync();
+
+            return conn;
+        }
+
+        public async Task<List<T>> QueryAsync<T>(string sql)
         {
             try
             {
@@ -25,7 +42,7 @@ namespace SharedLibrary.Utils
             }
         }
 
-        public static async Task<T> QueryFirstOrDefaultAsync<T>(string sql)
+        public async Task<T> QueryFirstOrDefaultAsync<T>(string sql)
         {
             try
             {
@@ -43,7 +60,7 @@ namespace SharedLibrary.Utils
             }
         }
 
-        public static async Task<int> ExecuteAsync(string sql)
+        public async Task<int> ExecuteAsync(string sql)
         {
             try
             {

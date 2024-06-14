@@ -1,15 +1,13 @@
 ﻿using LiteNetLib;
-using SharedLibrary.Server;
-namespace SharedLibrary.Operation
+using Serilog;
+using Dapper;
+using MessagePack;
+
+namespace SharedLibrary
 {
     public abstract class OperationHandlerBase
     {
-        public abstract void OnClientRequest(OperationCode operationCode, ServerPeer serverPeer, byte[] data, DeliveryMethod deliveryMethod);
-
-        public abstract void OnClientResponse(OperationCode operationCode, ReturnCode returnCode, ServerPeer serverPeer, byte[] data, DeliveryMethod deliveryMethod);
-
-        public abstract void OnServerRequest(ServerOperationCode operationCode, ServerPeer serverPeer, byte[] data, DeliveryMethod deliveryMethod);
-
-        public abstract void OnServerResponse(ServerOperationCode operationCode, ReturnCode returnCode, ServerPeer serverPeer, byte[] data, DeliveryMethod deliveryMethod);
+        public abstract void OnRequest(BasePeer basePeer, OperationCode operationCode, byte[] data, DeliveryMethod deliveryMethod);
+        public abstract void OnResponse(BasePeer basePeer, OperationCode operationCode, ReturnCode returnCode, byte[] data, DeliveryMethod deliveryMethod);
     }
 }

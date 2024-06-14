@@ -1,6 +1,5 @@
 ﻿using Newtonsoft.Json;
 using Serilog;
-using SharedLibrary.Utils;
 
 namespace MasterServer
 {
@@ -10,14 +9,20 @@ namespace MasterServer
         {
             try
             {
-                MasterConfig MasterConfig = JsonConvert.DeserializeObject<MasterConfig>(File.ReadAllText("./MasterConfig.json"));
-                Server.MasterServer.Instance = new Server.MasterServer(MasterConfig);
-                MySQLTool.SQLConnectionStr = MasterConfig.SQLConnectionStr;
-                Server.MasterServer.Instance.Start();
+                MasterConfig? masterConfig = JsonConvert.DeserializeObject<MasterConfig>(File.ReadAllText("./MasterConfig.json"));
+
+                if (masterConfig == null)
+                {
+                    throw new Exception("读取配置文件失败");
+                }
+
+                MasterServer.Instance.Init(masterConfig);
+                MasterServer.Instance.Start();
+
                 while (true)
                 {
-                    Server.MasterServer.Instance.Update();
-                    Thread.Sleep(15);
+                    MasterServer.Instance.Update();
+                    Thread.Sleep(masterConfig.UpdateInterval);
                 }
             }
             catch (Exception ex)

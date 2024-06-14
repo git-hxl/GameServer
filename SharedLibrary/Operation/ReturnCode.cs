@@ -1,6 +1,6 @@
-﻿namespace SharedLibrary.Operation
+﻿namespace SharedLibrary
 {
-    public enum ReturnCode : byte
+    public enum ReturnCode : ushort
     {
         Success = 0,
 

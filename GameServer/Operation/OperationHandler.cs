@@ -1,60 +1,121 @@
-﻿using GameServer.Master;
-using GameServer.Server;
-using LiteNetLib;
+﻿using LiteNetLib;
+using MessagePack;
 using Serilog;
-using SharedLibrary.Operation;
-using SharedLibrary.Server;
 
-namespace GameServer.Operation
+using SharedLibrary;
+
+namespace GameServer
 {
-    internal class OperationHandler : OperationHandlerBase
+    public class OperationHandler : OperationHandlerBase
     {
-        public override void OnClientRequest(OperationCode operationCode, ServerPeer serverPeer, byte[] data, DeliveryMethod deliveryMethod)
+        public override void OnRequest(BasePeer basePeer, OperationCode operationCode, byte[] data, DeliveryMethod deliveryMethod)
         {
-            Log.Information("Client request {0}", operationCode.ToString());
-            GamePeer gamePeer = (GamePeer)serverPeer;
+            //Log.Information("操作代码 {0}", operationCode);
             switch (operationCode)
             {
                 case OperationCode.JoinRoom:
-                    gamePeer.JoinRoomRequest(data);
+                    OnJoinRoom(basePeer, data);
                     break;
                 case OperationCode.LeaveRoom:
-                    gamePeer.LeaveRoomRequest(data);
+                    OnLeaveRoom(basePeer, data);
+                    break;
+                case OperationCode.SyncEvent:
+
+                    OnSyncEvent(basePeer, data, deliveryMethod);
+                    break;
+
+                default:
+                    Log.Error("未知的操作代码 {0}", operationCode);
                     break;
             }
         }
-
-        public override void OnClientResponse(OperationCode operationCode, ReturnCode returnCode, ServerPeer serverPeer, byte[] data, DeliveryMethod deliveryMethod)
+        public override void OnResponse(BasePeer basePeer, OperationCode operationCode, ReturnCode returnCode, byte[] data, DeliveryMethod deliveryMethod)
         {
-            //throw new NotImplementedException();
+            Log.Information("操作代码 {0} 返回代码 {1}", operationCode, returnCode);
         }
 
-        public override void OnServerRequest(ServerOperationCode operationCode, ServerPeer serverPeer, byte[] data, DeliveryMethod deliveryMethod)
+        private void OnJoinRoom(BasePeer basePeer, byte[] data)
         {
-            Log.Information("Server request {0}", operationCode.ToString());
-
-            MasterPeer masterPeer = (MasterPeer)serverPeer;
-            switch (operationCode)
+            if (basePeer == null)
             {
-                case ServerOperationCode.CreateRoom:
-                    masterPeer.CreateRoomRequest(data);
-                    break;
+                return;
+            }
+
+            ClientPeer? clientPeer = basePeer as ClientPeer;
+
+            if (clientPeer == null)
+            {
+                return;
+            }
+
+            JoinRoomRequest request = MessagePackSerializer.Deserialize<JoinRoomRequest>(data);
+
+            clientPeer.UserInfo = request.UserInfo;
+
+            Room? room = RoomManager.Instance.GetRoom(request.RoomID);
+
+            if (room == null)
+            {
+                basePeer.SendResponse(OperationCode.JoinRoom, ReturnCode.JoinRoomFailedByIsNotExistedRoomID, null, DeliveryMethod.ReliableOrdered);
+                return;
+            }
+            else
+            {
+                if (room.AddClient(clientPeer))
+                {
+                    JoinRoomResponse response = new JoinRoomResponse();
+                    response.RommInfo = room.RoomInfo;
+                    response.UserInfos = room.ClientPeers.Select((a) => a.UserInfo).ToList();
+
+                    data = MessagePackSerializer.Serialize(response);
+
+                    basePeer.SendResponse(OperationCode.JoinRoom, ReturnCode.Success, data, DeliveryMethod.ReliableOrdered);
+                }
+                else
+                {
+                    basePeer.SendResponse(OperationCode.JoinRoom, ReturnCode.JoinRoomFailed, null, DeliveryMethod.ReliableOrdered);
+                }
             }
         }
 
-        public override void OnServerResponse(ServerOperationCode operationCode, ReturnCode returnCode, ServerPeer serverPeer, byte[] data, DeliveryMethod deliveryMethod)
+        private void OnLeaveRoom(BasePeer basePeer, byte[] data)
         {
-            Log.Information("Server response {0} return {1}", operationCode.ToString(), returnCode.ToString());
-
-            MasterPeer masterPeer = (MasterPeer)serverPeer;
-            switch (operationCode)
+            if (basePeer == null)
             {
-                case ServerOperationCode.RegisterToMaster:
-                    masterPeer.RegisterToMasterResponse();
-                    break;
-                case ServerOperationCode.UpdateGameServerInfo:
-                    break;
+                return;
+            }
 
+            ClientPeer? clientPeer = basePeer as ClientPeer;
+
+            if (clientPeer == null)
+            {
+                return;
+            }
+
+            Room? room = RoomManager.Instance.GetRoomByClientPeer(basePeer);
+
+            if (room == null)
+            {
+                basePeer.SendResponse(OperationCode.LeaveRoom, ReturnCode.LeaveRoomFailed, null, DeliveryMethod.ReliableOrdered);
+                return;
+            }
+            else
+            {
+                room.RemoveClient(clientPeer);
+                basePeer.SendResponse(OperationCode.LeaveRoom, ReturnCode.Success, null, DeliveryMethod.ReliableOrdered);
+            }
+        }
+
+        private void OnSyncEvent(BasePeer basePeer, byte[] data, DeliveryMethod deliveryMethod)
+        {
+            Room? room = RoomManager.Instance.GetRoomByClientPeer(basePeer);
+
+            if (room != null)
+            {
+                foreach (var item in room.ClientPeers)
+                {
+                    item.SendRequest(OperationCode.SyncEvent, data, deliveryMethod);
+                }
             }
         }
     }
