@@ -7,7 +7,7 @@ using System.Net;
 
 namespace GameServer
 {
-    internal class GameServer
+    public class GameServer
     {
         public static GameServer Instance { get; private set; } = new GameServer();
 

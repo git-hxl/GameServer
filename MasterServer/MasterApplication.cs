@@ -1,5 +1,7 @@
 ﻿using Newtonsoft.Json;
 using Serilog;
+using SharedLibrary;
+using System.Runtime.Loader;
 
 namespace MasterServer
 {
@@ -19,6 +21,8 @@ namespace MasterServer
                 MasterServer.Instance.Init(masterConfig);
                 MasterServer.Instance.Start();
 
+                HotManager.Instance.Load();
+
                 while (true)
                 {
                     MasterServer.Instance.Update();
@@ -30,5 +34,11 @@ namespace MasterServer
                 Log.Error(ex.Message);
             }
         }
+
+        private static void LoadContext_Unloading(AssemblyLoadContext obj)
+        {
+            Console.WriteLine("当前卸载的程序集：" + string.Join(',', obj.Assemblies.Select(x => x.FullName)));
+        }
+
     }
 }

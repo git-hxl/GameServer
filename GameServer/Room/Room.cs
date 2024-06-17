@@ -78,7 +78,7 @@ namespace GameServer
         /// 每帧更新
         /// </summary>
         /// <param name="deltaTime">单位时间（毫秒）</param>
-        public void Update(long deltaTime)
+        public virtual void Update(long deltaTime)
         {
             AutoClean(deltaTime);
         }

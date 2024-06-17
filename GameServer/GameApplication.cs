@@ -1,5 +1,6 @@
 ﻿using Newtonsoft.Json;
 using Serilog;
+using SharedLibrary;
 using System.Diagnostics;
 
 namespace GameServer
@@ -19,6 +20,8 @@ namespace GameServer
 
                 GameServer.Instance.Init(gameConfig);
                 GameServer.Instance.Start();
+
+                HotManager.Instance.Load();
 
                 while (true)
                 {

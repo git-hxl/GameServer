@@ -1,5 +1,6 @@
 ﻿
 using Serilog;
+using SharedLibrary;
 using System.Net;
 using System.Text;
 
@@ -13,8 +14,6 @@ namespace MasterServer
 
         private string prefixe = "http://127.0.0.1:8080/";
 
-        private Dictionary<string, Type> actions = new Dictionary<string, Type>();
-
         public HttpServer()
         {
             httpListener = new HttpListener();
@@ -25,9 +24,6 @@ namespace MasterServer
         public void RegisterPrefixes()
         {
             httpListener.Prefixes.Add(prefixe);
-
-            actions.Add("/CreateRoom", typeof(CreateRoom));
-            actions.Add("/CloseRoom", typeof(CloseRoom));
         }
 
         public void Start()
@@ -69,15 +65,7 @@ namespace MasterServer
                         return;
                     }
 
-                    if (!actions.ContainsKey(request.Url.LocalPath))
-                    {
-                        Send404(response);
-                        return;
-                    }
-
-                    Type? type = actions[request.Url.LocalPath];
-
-                    BaseAction? baseAction = Activator.CreateInstance(type) as BaseAction;
+                    BaseAction? baseAction = HotManager.Instance.GetHttpAction(request.Url.LocalPath);
 
                     if (baseAction == null)
                     {
@@ -85,31 +73,42 @@ namespace MasterServer
                         return;
                     }
 
-                    switch (request.HttpMethod)
+                    try
                     {
-                        case "POST":
-                            Stream stream = context.Request.InputStream;
-                            StreamReader streamReader = new StreamReader(stream, Encoding.UTF8);
-                            string content = streamReader.ReadToEnd();
-                            baseAction.OnPost(content);
-                            break;
-                        case "GET":
-                            var data = request.QueryString;
-                            baseAction.OnGet(data);
-                            break;
+                        switch (request.HttpMethod)
+                        {
+                            case "POST":
+                                Stream stream = context.Request.InputStream;
+                                StreamReader streamReader = new StreamReader(stream, Encoding.UTF8);
+                                string content = streamReader.ReadToEnd();
+                                baseAction.OnPost(content);
+                                break;
+                            case "GET":
+                                var data = request.QueryString;
+                                baseAction.OnGet(data);
+                                break;
+                        }
+
+
+                        response.StatusCode = (int)HttpStatusCode.OK;
+                        response.ContentType = "application/json;charset=UTF-8";
+                        response.ContentEncoding = Encoding.UTF8;
+                        response.AddHeader("Content-Type", "application/json;charset=UTF-8");
+
+                        using (StreamWriter writer = new StreamWriter(response.OutputStream, Encoding.UTF8))
+                        {
+                            writer.Write(baseAction.OnResponse());
+                            writer.Close();
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Error(ex.ToString());
+
+                        Send404(response);
                     }
 
 
-                    response.StatusCode = (int)HttpStatusCode.OK;
-                    response.ContentType = "application/json;charset=UTF-8";
-                    response.ContentEncoding = Encoding.UTF8;
-                    response.AddHeader("Content-Type", "application/json;charset=UTF-8");
-
-                    using (StreamWriter writer = new StreamWriter(response.OutputStream, Encoding.UTF8))
-                    {
-                        writer.Write(baseAction.OnResponse());
-                        writer.Close();
-                    }
                 }
             }
             catch (Exception ex)

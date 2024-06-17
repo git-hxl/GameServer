@@ -3,7 +3,7 @@ using Serilog;
 using SharedLibrary;
 namespace MasterServer
 {
-    internal class MasterServer
+    public class MasterServer
     {
         public static MasterServer Instance { get; private set; } = new MasterServer();
 
@@ -193,6 +193,21 @@ namespace MasterServer
         {
             var servers = GamePeers.Values;
             return servers.OrderBy((a) => a.GameInfo.Players).ThenBy((a) => a.GameInfo.Memory).FirstOrDefault();
+        }
+
+        public void HotLoad(string version)
+        {
+            HotManager.Instance.Load(version, true);
+            HotLoadRequest request = new HotLoadRequest();
+            request.Version = version;
+
+            byte[] data = MessagePack.MessagePackSerializer.Serialize(request);
+
+            for (int i = 0; i < GamePeers.Count; i++)
+            {
+
+                GamePeers[i].SendRequest(OperationCode.HotLoad, data, DeliveryMethod.ReliableOrdered);
+            }
         }
     }
 }

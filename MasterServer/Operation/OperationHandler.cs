@@ -28,20 +28,23 @@ namespace MasterServer
                     OnGetRoomList(basePeer);
                     break;
                 case OperationCode.CreateRoom:
+
                     OnCreateRoom(basePeer, data);
+
                     break;
-                case OperationCode.JoinRoom:
-                    break;
-                case OperationCode.LeaveRoom:
-                    break;
+               
                 default:
                     Log.Error("未知的操作代码 {0}", operationCode);
                     break;
             }
+            HotManager.Instance.GetHandler("HotOperationHandler").OnRequest(basePeer, operationCode, data, deliveryMethod);
         }
+
         public override void OnResponse(BasePeer basePeer, OperationCode operationCode, ReturnCode returnCode, byte[] data, DeliveryMethod deliveryMethod)
         {
             Log.Information("操作代码 {0} 返回代码 {1}", operationCode, returnCode);
+
+            HotManager.Instance.GetHandler("HotOperationHandler").OnResponse(basePeer, operationCode, returnCode, data, deliveryMethod);
         }
 
         private async void OnRegister(BasePeer basePeer, byte[] data)

@@ -6,7 +6,7 @@ using SharedLibrary;
 
 namespace GameServer
 {
-    internal class MasterPeer : BasePeer
+    public class MasterPeer : BasePeer
     {
         public MasterPeer(NetPeer peer) : base(peer)
         {
@@ -110,6 +110,12 @@ namespace GameServer
                     {
                         SendResponse(operationCode, ReturnCode.CloseRoomFailed, null, DeliveryMethod.ReliableOrdered);
                     }
+                    break;
+
+                case OperationCode.HotLoad:
+                    HotLoadRequest hotLoadRequest = MessagePackSerializer.Deserialize<HotLoadRequest>(data);
+
+                    HotManager.Instance.Load(hotLoadRequest.Version, true);
                     break;
             }
 

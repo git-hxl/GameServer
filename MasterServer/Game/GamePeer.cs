@@ -28,7 +28,11 @@ namespace MasterServer
 
                     GameInfo = MessagePackSerializer.Deserialize<GameInfo>(data);
 
-                    Log.Information("GamerServer Info {0}", JsonConvert.SerializeObject(GameInfo));
+                    string gameInfo = JsonConvert.SerializeObject(GameInfo);
+
+                    Log.Information("GamerServer Info {0}", gameInfo);
+
+                    RedisManager.Instance.StringSet($"GameInfo_{GameInfo.IPEndPoint}", gameInfo);
 
                     break;
                 case OperationCode.UpdateRoomList:

@@ -16,6 +16,8 @@
         OtherJoinedRoom,
         OtherLeaveRoom,
 
+        HotLoad,
+
         SyncEvent = 1000,
     }
 }
