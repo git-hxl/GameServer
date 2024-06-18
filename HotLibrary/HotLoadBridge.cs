@@ -7,6 +7,11 @@ namespace HotLibrary
 {
     internal class HotLoadBridge : IHotLoadBridge
     {
+        /// <summary>
+        /// dll加载成功
+        /// </summary>
+        /// <param name="reload"></param>
+        /// <returns></returns>
         public async Task<bool> OnLoadSuccess(bool reload)
         {
             return true;

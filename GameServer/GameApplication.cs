@@ -35,6 +35,7 @@ namespace GameServer
             catch (Exception ex)
             {
                 Log.Error(ex.Message);
+                HotManager.Instance.Stop();
             }
         }
     }
