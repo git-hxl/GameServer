@@ -8,6 +8,9 @@ namespace SharedLibrary
     public abstract class BasePeer
     {
         public NetPeer NetPeer { get; protected set; }
+
+        public UserInfo? UserInfo { get; set; }
+
         public BasePeer(NetPeer netPeer)
         {
             NetPeer = netPeer;

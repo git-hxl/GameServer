@@ -20,21 +20,18 @@ namespace GameServer
                     OnLeaveRoom(basePeer, data);
                     break;
                 case OperationCode.SyncEvent:
-
                     OnSyncEvent(basePeer, data, deliveryMethod);
                     break;
-
                 default:
                     Log.Error("未知的操作代码 {0}", operationCode);
                     break;
             }
-
             HotManager.Instance.GetHandler("HotOperationHandler").OnRequest(basePeer, operationCode, data, deliveryMethod);
         }
+
         public override void OnResponse(BasePeer basePeer, OperationCode operationCode, ReturnCode returnCode, byte[] data, DeliveryMethod deliveryMethod)
         {
             Log.Information("操作代码 {0} 返回代码 {1}", operationCode, returnCode);
-
             HotManager.Instance.GetHandler("HotOperationHandler").OnResponse(basePeer, operationCode, returnCode, data, deliveryMethod);
         }
 
@@ -56,7 +53,7 @@ namespace GameServer
 
             clientPeer.UserInfo = request.UserInfo;
 
-            Room? room = RoomManager.Instance.GetRoom(request.RoomID);
+            IRoom? room = RoomManager.Instance.GetRoom(request.RoomID);
 
             if (room == null)
             {
@@ -65,7 +62,7 @@ namespace GameServer
             }
             else
             {
-                if (room.AddClient(clientPeer))
+                if (room.OnPlayerEnter(clientPeer))
                 {
                     JoinRoomResponse response = new JoinRoomResponse();
                     response.RommInfo = room.RoomInfo;
@@ -96,7 +93,7 @@ namespace GameServer
                 return;
             }
 
-            Room? room = RoomManager.Instance.GetRoomByClientPeer(basePeer);
+            IRoom? room = RoomManager.Instance.GetRoomByClientPeer(basePeer);
 
             if (room == null)
             {
@@ -105,14 +102,14 @@ namespace GameServer
             }
             else
             {
-                room.RemoveClient(clientPeer);
+                room.OnPlayerLeave(clientPeer);
                 basePeer.SendResponse(OperationCode.LeaveRoom, ReturnCode.Success, null, DeliveryMethod.ReliableOrdered);
             }
         }
 
         private void OnSyncEvent(BasePeer basePeer, byte[] data, DeliveryMethod deliveryMethod)
         {
-            Room? room = RoomManager.Instance.GetRoomByClientPeer(basePeer);
+            IRoom? room = RoomManager.Instance.GetRoomByClientPeer(basePeer);
 
             if (room != null)
             {

@@ -17,7 +17,6 @@ namespace SharedLibrary
 
         readonly Dictionary<string, OperationHandlerBase> serverHandlerMap = new();
         readonly Dictionary<string, Type> httpActions = new();
-
         public HotModule(string dllPath)
         {
             HotDllPath = dllPath;

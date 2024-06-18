@@ -6,8 +6,7 @@ namespace GameServer
     public class ClientPeer : BasePeer
     {
         private OperationHandler _operationHandler;
-        public UserInfo UserInfo { get; set; }
-
+        
         public ClientPeer(NetPeer peer) : base(peer)
         {
             _operationHandler = new OperationHandler();

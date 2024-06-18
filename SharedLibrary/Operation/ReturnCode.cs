@@ -1,24 +1,21 @@
-﻿namespace SharedLibrary
+﻿public enum ReturnCode : ushort
 {
-    public enum ReturnCode : ushort
-    {
-        Success = 0,
+    Success = 0,
 
-        RegisterFailed,
-        RegisterFailedByAccountIsExisted,
-        LoginFailed,
+    RegisterFailed,
+    RegisterFailedByAccountIsExisted,
+    LoginFailed,
 
-        ConnectFailed,
+    ConnectFailed,
 
-        JoinRoomFailed,
-        CreateRoomFailed,
-        JoinRoomFailedByIsInRoom,
-        JoinRoomFailedByPassword,
-        JoinRoomFailedByIsNotExistedRoomID,
+    JoinRoomFailed,
+    CreateRoomFailed,
+    JoinRoomFailedByIsInRoom,
+    JoinRoomFailedByPassword,
+    JoinRoomFailedByIsNotExistedRoomID,
 
-        LeaveRoomFailed,
+    LeaveRoomFailed,
 
-        CloseRoomFailed,
+    CloseRoomFailed,
 
-    }
 }

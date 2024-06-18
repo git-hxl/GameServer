@@ -10,7 +10,7 @@ namespace GameServer
     {
         public static RoomManager Instance { get; private set; } = new RoomManager();
 
-        private Dictionary<string, Room> _rooms = new Dictionary<string, Room>();
+        private Dictionary<string, IRoom> _rooms = new Dictionary<string, IRoom>();
 
         private long lastUpdateTimeStamp;
 
@@ -19,7 +19,7 @@ namespace GameServer
             lastUpdateTimeStamp = DateTimeUtil.TimeStamp;
         }
 
-        public List<Room> GetRooms()
+        public List<IRoom> GetRooms()
         {
             return _rooms.Values.ToList();
         }
@@ -35,8 +35,15 @@ namespace GameServer
                 }
                 else
                 {
-                    Room room = new Room(roomInfo);
+                    IRoom room = RoomFactory.CreatRoom(roomInfo.RoomType, roomInfo.RoomName);
 
+                    if (room == null)
+                    {
+                        Log.Error("房间不存在：{0}，{1}", roomInfo.RoomType, roomInfo.RoomName);
+                        return false;
+                    }
+
+                    room.OnCreated(roomInfo);
                     _rooms[roomInfo.RoomID] = room;
 
                     return true;
@@ -44,7 +51,7 @@ namespace GameServer
             }
         }
 
-        public Room? GetRoom(string roomID)
+        public IRoom? GetRoom(string roomID)
         {
             if (_rooms.ContainsKey(roomID))
             {
@@ -56,7 +63,7 @@ namespace GameServer
             }
         }
 
-        public Room? GetRoomByClientPeer(BasePeer basePeer)
+        public IRoom? GetRoomByClientPeer(BasePeer basePeer)
         {
             foreach (var item in _rooms)
             {
@@ -76,36 +83,7 @@ namespace GameServer
             {
                 if (item.Value.ClientPeers.Contains(peer))
                 {
-                    item.Value.RemoveClient(peer);
-                }
-            }
-        }
-
-        public void CloseRoom(Room room)
-        {
-            lock (Instance)
-            {
-                string roomID = room.RoomInfo.RoomID;
-                foreach (var item in _rooms)
-                {
-                    if (item.Key == roomID)
-                    {
-                        foreach (var clientPeer in item.Value.ClientPeers)
-                        {
-                            if (clientPeer != null)
-                            {
-                                clientPeer.SendRequest(OperationCode.CloseRoom, null, DeliveryMethod.ReliableOrdered);
-                            }
-                        }
-
-                        room.Dispose();
-
-                        _rooms.Remove(roomID);
-
-                        Log.Information("关闭房间{0}", roomID);
-
-                        break;
-                    }
+                    item.Value.OnPlayerLeave(peer);
                 }
             }
         }
@@ -129,7 +107,7 @@ namespace GameServer
 
                 else
                 {
-                    room.Update(deltaTime);
+                    room.OnUpdate(deltaTime);
                 }
             }
         }

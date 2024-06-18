@@ -1,23 +1,20 @@
-﻿namespace SharedLibrary
+﻿public enum OperationCode : ushort
 {
-    public enum OperationCode : ushort
-    {
-        UpdateGameServerInfo = 0,
-        UpdateRoomList,
-        CloseRoom,
+    UpdateGameServerInfo = 0,
+    UpdateRoomList,
+    CloseRoom,
 
-        Register,
-        Login,
-        GetRoomList,
-        CreateRoom,
-        JoinRoom,
-        LeaveRoom,
+    Register,
+    Login,
+    GetRoomList,
+    CreateRoom,
+    JoinRoom,
+    LeaveRoom,
 
-        OtherJoinedRoom,
-        OtherLeaveRoom,
+    OtherJoinedRoom,
+    OtherLeaveRoom,
 
-        HotLoad,
+    HotLoad,
 
-        SyncEvent = 1000,
-    }
+    SyncEvent = 1000,
 }

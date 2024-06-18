@@ -98,11 +98,11 @@ namespace GameServer
 
                     CloseRoomRequest closeRoomRequest = MessagePackSerializer.Deserialize<CloseRoomRequest>(data);
 
-                    Room? room = RoomManager.Instance.GetRoom(closeRoomRequest.RoomID);
+                    IRoom? room = RoomManager.Instance.GetRoom(closeRoomRequest.RoomID);
 
                     if (room != null)
                     {
-                        RoomManager.Instance.CloseRoom(room);
+                        room.Destroy();
 
                         SendResponse(operationCode, ReturnCode.Success, null, DeliveryMethod.ReliableOrdered);
                     }
