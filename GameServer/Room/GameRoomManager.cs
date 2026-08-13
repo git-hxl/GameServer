@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using MessagePack;
@@ -10,9 +11,10 @@ namespace GameServer.Room;
 public class GameRoomManager
 {
     private readonly NetManager _netManager;
-    private readonly Dictionary<string, GameRoom> _rooms = new();
+    private readonly ConcurrentDictionary<string, GameRoom> _rooms = new();
 
     public int PlayerCount => _rooms.Values.Sum(r => r.Players.Count);
+
     public int RoomCount => _rooms.Count;
 
     public GameRoomManager(NetManager netManager)
@@ -28,7 +30,9 @@ public class GameRoomManager
             RoomType = request.RoomType,
             OwnerUserId = request.OwnerUserId
         };
+
         _rooms[request.RoomId] = room;
+
         Log.Information("[GameRoomManager] 游戏房间创建 roomId={RoomId} type={RoomType} owner={OwnerUserId}",
             request.RoomId, request.RoomType, request.OwnerUserId);
     }
@@ -41,17 +45,14 @@ public class GameRoomManager
             return (new JoinGameResponse(), ReturnCode.RoomNotFound);
         }
 
-        if (room.Players.ContainsKey(peer))
+        var player = request.Player;
+        if (!room.Players.TryAdd(peer, player))
         {
             Log.Warning("[GameRoomManager] 加入游戏失败：已在房间中 userId={UserId} roomId={RoomId}",
-                request.Player.UserId, request.RoomId);
+                player.UserId, request.RoomId);
             return (new JoinGameResponse(), ReturnCode.AlreadyInRoom);
         }
 
-        var player = request.Player;
-        room.Players[peer] = player;
-
-        // 通知其他人
         var notify = new JoinGameNotify { RoomId = request.RoomId, Player = player };
         foreach (var otherPeer in room.Players.Keys.Where(p => p != peer))
         {
@@ -74,7 +75,7 @@ public class GameRoomManager
     {
         foreach (var (roomId, room) in _rooms)
         {
-            if (room.Players.TryGetValue(peer, out var player) && room.Players.Remove(peer))
+            if (room.Players.TryRemove(peer, out var player))
             {
                 Log.Information("[GameRoomManager] 玩家离开游戏房间 roomId={RoomId} 剩余人数={Count}",
                     roomId, room.Players.Count);
@@ -85,14 +86,16 @@ public class GameRoomManager
                     Send(otherPeer, MessageIds.LeaveGameNotify, ReturnCode.Success, notify);
                 }
 
-                if (room.Players.Count == 0)
+                if (room.Players.IsEmpty)
                 {
-                    _rooms.Remove(roomId);
+                    _rooms.TryRemove(roomId, out _);
                     Log.Information("[GameRoomManager] 游戏房间关闭 roomId={RoomId}", roomId);
                 }
+
                 return (ReturnCode.Success, roomId);
             }
         }
+
         return (ReturnCode.NotInRoom, null);
     }
 
@@ -100,7 +103,7 @@ public class GameRoomManager
     {
         foreach (var (roomId, room) in _rooms)
         {
-            if (room.Players.TryGetValue(peer, out var player) && room.Players.Remove(peer))
+            if (room.Players.TryRemove(peer, out var player))
             {
                 Log.Information("[GameRoomManager] 玩家断线离开游戏房间 roomId={RoomId} 剩余人数={Count}",
                     roomId, room.Players.Count);
@@ -111,9 +114,9 @@ public class GameRoomManager
                     Send(otherPeer, MessageIds.LeaveGameNotify, ReturnCode.Success, notify);
                 }
 
-                if (room.Players.Count == 0)
+                if (room.Players.IsEmpty)
                 {
-                    _rooms.Remove(roomId);
+                    _rooms.TryRemove(roomId, out _);
                     Log.Information("[GameRoomManager] 游戏房间关闭 roomId={RoomId}", roomId);
                 }
             }
@@ -137,6 +140,7 @@ public class GameRoomManager
             if (room.Players.ContainsKey(peer))
                 return roomId;
         }
+
         return null;
     }
 
