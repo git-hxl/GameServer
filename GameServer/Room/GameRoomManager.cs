@@ -1,10 +1,9 @@
 using System.Collections.Concurrent;
 using LiteNetLib;
-using LiteNetLib.Utils;
-using MessagePack;
 using Serilog;
 using SharedLib.Models;
 using SharedLib.Protocol;
+using SharedLib.Utils;
 using GameServer.Player;
 
 namespace GameServer.Room;
@@ -47,7 +46,7 @@ public class GameRoomManager
         }
 
         var userId = request.Player.UserId;
-        if (room.Players.ContainsKey(userId))
+        if (room.PlayerIds.Contains(userId))
         {
             Log.Warning("[GameRoomManager] 加入游戏失败：已在房间中 userId={UserId} roomId={RoomId}",
                 userId, request.RoomId);
@@ -56,23 +55,29 @@ public class GameRoomManager
 
         var player = _playerManager.Add(peer, request.Player);
         player.CurrentRoomId = request.RoomId;
-        room.Players[userId] = player;
+        room.PlayerIds.Add(userId);
 
         var notify = new JoinGameNotify { RoomId = request.RoomId, Player = player.Info };
-        foreach (var other in room.Players.Values.Where(p => p.Peer != peer))
+        foreach (var otherId in room.PlayerIds.Where(id => id != userId))
         {
-            Send(other.Peer, MessageIds.JoinGameNotify, ReturnCode.Success, notify);
+            var other = _playerManager.Get(otherId);
+            if (other != null)
+                MessageHelper.Send(other.Peer, MessageIds.JoinGameNotify, ReturnCode.Success, notify);
         }
 
         Log.Information("[GameRoomManager] 玩家加入游戏房间 roomId={RoomId} userId={UserId} 当前人数={Count}",
-            request.RoomId, userId, room.Players.Count);
+            request.RoomId, userId, room.PlayerIds.Count);
 
         return (new JoinGameResponse
         {
             RoomId = request.RoomId,
             RoomType = room.RoomType,
             OwnerUserId = room.OwnerUserId,
-            Players = room.Players.Values.Select(p => p.Info).ToList()
+            Players = room.PlayerIds
+                .Select(id => _playerManager.Get(id))
+                .Where(p => p != null)
+                .Select(p => p!.Info)
+                .ToList()
         }, ReturnCode.Success);
     }
 
@@ -96,19 +101,21 @@ public class GameRoomManager
         if (!_rooms.TryGetValue(roomId, out var room))
             return (ReturnCode.NotInRoom, null);
 
-        room.Players.TryRemove(player.Info.UserId, out _);
+        room.PlayerIds.Remove(player.Info.UserId);
         _playerManager.Remove(player.Info.UserId);
 
         var notify = new LeaveGameNotify { UserId = player.Info.UserId };
-        foreach (var other in room.Players.Values)
+        foreach (var otherId in room.PlayerIds)
         {
-            Send(other.Peer, MessageIds.LeaveGameNotify, ReturnCode.Success, notify);
+            var other = _playerManager.Get(otherId);
+            if (other != null)
+                MessageHelper.Send(other.Peer, MessageIds.LeaveGameNotify, ReturnCode.Success, notify);
         }
 
         Log.Information("[GameRoomManager] 玩家{Reason}游戏房间 roomId={RoomId} 剩余人数={Count}",
-            reason, roomId, room.Players.Count);
+            reason, roomId, room.PlayerIds.Count);
 
-        if (room.Players.IsEmpty)
+        if (room.PlayerIds.Count == 0)
         {
             _rooms.TryRemove(roomId, out _);
             Log.Information("[GameRoomManager] 游戏房间关闭 roomId={RoomId}", roomId);
@@ -121,9 +128,11 @@ public class GameRoomManager
     {
         if (!_rooms.TryGetValue(roomId, out var room)) return;
 
-        foreach (var p in room.Players.Values.Where(p => p.Peer != sender))
+        foreach (var id in room.PlayerIds)
         {
-            Send(p.Peer, messageId, ReturnCode.Success, data);
+            var p = _playerManager.Get(id);
+            if (p != null && p.Peer != sender)
+                MessageHelper.Send(p.Peer, messageId, ReturnCode.Success, data);
         }
     }
 
@@ -132,12 +141,4 @@ public class GameRoomManager
         return _playerManager.GetByPeer(peer)?.CurrentRoomId;
     }
 
-    private void Send(NetPeer peer, ushort messageId, ReturnCode code, object data)
-    {
-        var writer = new NetDataWriter();
-        writer.Put(messageId);
-        writer.Put((byte)code);
-        writer.Put(MessagePackSerializer.Serialize(data));
-        peer.Send(writer, DeliveryMethod.ReliableOrdered);
-    }
 }

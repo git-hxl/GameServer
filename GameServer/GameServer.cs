@@ -1,6 +1,5 @@
 using LiteNetLib;
 using LiteNetLib.Utils;
-using MessagePack;
 using Serilog;
 using SharedLib.Config;
 using SharedLib.Models;
@@ -149,16 +148,12 @@ public class GameServer
         _lobbyPeer = peer;
         Log.Information("[GameServer] 已连接到LobbyServer");
 
-        var writer = new NetDataWriter();
-        writer.Put(MessageIds.GameServerRegister);
-        writer.Put((byte)ReturnCode.Success);
-        writer.Put(MessagePackSerializer.Serialize(new GameServerInfo
+        MessageHelper.Send(peer, MessageIds.GameServerRegister, ReturnCode.Success, new GameServerInfo
         {
             Port = _serverPort,
             PlayerCount = 0,
             RoomCount = 0
-        }));
-        peer.Send(writer, DeliveryMethod.ReliableOrdered);
+        });
         Log.Information("[GameServer] 已向LobbyServer发送注册");
     }
 
@@ -217,17 +212,13 @@ public class GameServer
 
     private void SendGameServerUpdate()
     {
-        var writer = new NetDataWriter();
-        writer.Put(MessageIds.GameServerUpdate);
-        writer.Put((byte)ReturnCode.Success);
-        writer.Put(MessagePackSerializer.Serialize(new GameServerInfo
+        MessageHelper.Send(_lobbyPeer!, MessageIds.GameServerUpdate, ReturnCode.Success, new GameServerInfo
         {
             Port = _serverPort,
             PlayerCount = _roomManager.PlayerCount,
             RoomCount = _roomManager.RoomCount,
             CpuPercent = _perf.CpuPercent,
             MemoryMB = _perf.MemoryMB
-        }));
-        _lobbyPeer!.Send(writer, DeliveryMethod.ReliableOrdered);
+        });
     }
 }

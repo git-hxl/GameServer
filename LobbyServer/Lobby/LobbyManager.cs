@@ -1,10 +1,9 @@
 using LiteNetLib;
-using LiteNetLib.Utils;
-using MessagePack;
 using LobbyServer.Player;
 using Serilog;
 using SharedLib.Models;
 using SharedLib.Protocol;
+using SharedLib.Utils;
 
 namespace LobbyServer.Lobby;
 
@@ -86,25 +85,11 @@ public class LobbyManager
         });
     }
 
-    private void Send(NetPeer peer, ushort messageId, ReturnCode code, object data)
-    {
-        var writer = new NetDataWriter();
-        writer.Put(messageId);
-        writer.Put((byte)code);
-        writer.Put(MessagePackSerializer.Serialize(data));
-        peer.Send(writer, DeliveryMethod.ReliableOrdered);
-    }
-
     private void Broadcast(ushort messageId, ReturnCode code, object data)
     {
-        var writer = new NetDataWriter();
-        writer.Put(messageId);
-        writer.Put((byte)code);
-        writer.Put(MessagePackSerializer.Serialize(data));
-
         foreach (var player in _players.All)
         {
-            player.Peer.Send(writer, DeliveryMethod.ReliableOrdered);
+            MessageHelper.Send(player.Peer, messageId, code, data);
         }
     }
 }

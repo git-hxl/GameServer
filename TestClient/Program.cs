@@ -4,6 +4,7 @@ using MessagePack;
 using Serilog;
 using SharedLib.Models;
 using SharedLib.Protocol;
+using SharedLib.Utils;
 
 // ── 测试用户配置 ─────────────────────────────────────────────────────
 const int ServerPort = 6001;
@@ -199,15 +200,11 @@ gameListener.PeerConnectedEvent += peer =>
 
     if (gameRoomId != null)
     {
-        var writer = new NetDataWriter();
-        writer.Put(MessageIds.JoinGame);
-        writer.Put((byte)ReturnCode.Success);
-        writer.Put(MessagePackSerializer.Serialize(new JoinGameRequest
+        MessageHelper.Send(peer, MessageIds.JoinGame, ReturnCode.Success, new JoinGameRequest
         {
             RoomId = gameRoomId,
             Player = player
-        }));
-        peer.Send(writer, DeliveryMethod.ReliableOrdered);
+        });
         Log.Information("[TestClient] 自动加入游戏房间 roomId={RoomId}", gameRoomId);
     }
 };
@@ -276,11 +273,7 @@ void SendMessage(ushort messageId, object data)
         return;
     }
 
-    var writer = new NetDataWriter();
-    writer.Put(messageId);
-    writer.Put((byte)ReturnCode.Success);
-    writer.Put(MessagePackSerializer.Serialize(data));
-    peer.Send(writer, DeliveryMethod.ReliableOrdered);
+    MessageHelper.Send(peer, messageId, ReturnCode.Success, data);
 }
 
 void SendGameMessage(ushort messageId, object data)
@@ -291,11 +284,7 @@ void SendGameMessage(ushort messageId, object data)
         return;
     }
 
-    var writer = new NetDataWriter();
-    writer.Put(messageId);
-    writer.Put((byte)ReturnCode.Success);
-    writer.Put(MessagePackSerializer.Serialize(data));
-    gamePeer.Send(writer, DeliveryMethod.ReliableOrdered);
+    MessageHelper.Send(gamePeer, messageId, ReturnCode.Success, data);
 }
 
 // ── 主循环 + 命令行交互 ────────────────────────────────────────────

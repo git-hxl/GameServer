@@ -1,11 +1,10 @@
 using LiteNetLib;
-using LiteNetLib.Utils;
-using MessagePack;
 using LobbyServer.Cluster;
 using LobbyServer.Player;
 using Serilog;
 using SharedLib.Models;
 using SharedLib.Protocol;
+using SharedLib.Utils;
 
 namespace LobbyServer.Room;
 
@@ -100,7 +99,7 @@ public class RoomManager
         {
             var otherPlayer = _players.Get(otherId);
             if (otherPlayer != null)
-                Send(otherPlayer.Peer, MessageIds.JoinRoomNotify, ReturnCode.Success, notify);
+                MessageHelper.Send(otherPlayer.Peer, MessageIds.JoinRoomNotify, ReturnCode.Success, notify);
         }
 
         Log.Information("[RoomManager] 加入房间成功 roomId={RoomId} userId={UserId} 房主={Owner} 房间人数={Count}",
@@ -143,7 +142,7 @@ public class RoomManager
             {
                 var otherPlayer = _players.Get(otherId);
                 if (otherPlayer != null)
-                    Send(otherPlayer.Peer, MessageIds.LeaveRoomNotify, ReturnCode.Success, leaveNotify);
+                    MessageHelper.Send(otherPlayer.Peer, MessageIds.LeaveRoomNotify, ReturnCode.Success, leaveNotify);
             }
         }
 
@@ -180,7 +179,7 @@ public class RoomManager
         {
             var otherPlayer = _players.Get(otherId);
             if (otherPlayer != null)
-                Send(otherPlayer.Peer, MessageIds.GameReadyNotify, ReturnCode.Success, notify);
+                MessageHelper.Send(otherPlayer.Peer, MessageIds.GameReadyNotify, ReturnCode.Success, notify);
         }
 
         var allReady = ready >= total;
@@ -217,7 +216,7 @@ public class RoomManager
         {
             var otherPlayer = _players.Get(otherId);
             if (otherPlayer != null)
-                Send(otherPlayer.Peer, MessageIds.GameReadyNotify, ReturnCode.Success, notify);
+                MessageHelper.Send(otherPlayer.Peer, MessageIds.GameReadyNotify, ReturnCode.Success, notify);
         }
 
         return (new GameUnreadyResponse { ReadyCount = ready, TotalCount = total }, ReturnCode.Success);
@@ -253,7 +252,7 @@ public class RoomManager
             return (ReturnCode.NoGameServerAvailable, null);
         }
 
-        Send(room.GameServerPeer, MessageIds.CreateGameRoom, ReturnCode.Success, new CreateGameRoomRequest
+        MessageHelper.Send(room.GameServerPeer, MessageIds.CreateGameRoom, ReturnCode.Success, new CreateGameRoomRequest
         {
             RoomId = roomId,
             RoomType = room.RoomType,
@@ -273,7 +272,7 @@ public class RoomManager
             if (p != null)
             {
                 _players.SetState(id, PlayerState.InGame);
-                Send(p.Peer, MessageIds.GameStartNotify, ReturnCode.Success, notify);
+                MessageHelper.Send(p.Peer, MessageIds.GameStartNotify, ReturnCode.Success, notify);
             }
         }
 
@@ -363,12 +362,4 @@ public class RoomManager
         return result;
     }
 
-    private void Send(NetPeer peer, ushort messageId, ReturnCode code, object data)
-    {
-        var writer = new NetDataWriter();
-        writer.Put(messageId);
-        writer.Put((byte)code);
-        writer.Put(MessagePackSerializer.Serialize(data));
-        peer.Send(writer, DeliveryMethod.ReliableOrdered);
-    }
 }
