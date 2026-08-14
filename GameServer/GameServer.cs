@@ -7,6 +7,7 @@ using SharedLib.Models;
 using SharedLib.Protocol;
 using SharedLib.Utils;
 using GameServer.Handlers;
+using GameServer.Player;
 using GameServer.Room;
 
 namespace GameServer;
@@ -59,7 +60,7 @@ public class GameServer
 
     public void Start()
     {
-        _roomManager = new GameRoomManager(_netManager);
+        _roomManager = new GameRoomManager(new GamePlayerManager());
 
         RegisterHandlers();
 

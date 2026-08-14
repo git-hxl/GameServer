@@ -97,7 +97,7 @@ public class LobbyServer
         {
             var userId = player.Info.UserId;
             _roomManager.RemovePlayer(userId);
-            _players.Unregister(userId);
+            _players.Remove(userId);
         }
 
         _gameServers.TryRemove(peer, out _);

@@ -5,21 +5,22 @@ using MessagePack;
 using Serilog;
 using SharedLib.Models;
 using SharedLib.Protocol;
+using GameServer.Player;
 
 namespace GameServer.Room;
 
 public class GameRoomManager
 {
-    private readonly NetManager _netManager;
+    private readonly GamePlayerManager _playerManager;
     private readonly ConcurrentDictionary<string, GameRoom> _rooms = new();
 
-    public int PlayerCount => _rooms.Values.Sum(r => r.Players.Count);
+    public int PlayerCount => _playerManager.Count;
 
     public int RoomCount => _rooms.Count;
 
-    public GameRoomManager(NetManager netManager)
+    public GameRoomManager(GamePlayerManager playerManager)
     {
-        _netManager = netManager;
+        _playerManager = playerManager;
     }
 
     public void CreateRoom(CreateGameRoomRequest request)
@@ -45,103 +46,90 @@ public class GameRoomManager
             return (new JoinGameResponse(), ReturnCode.RoomNotFound);
         }
 
-        var player = request.Player;
-        if (!room.Players.TryAdd(peer, player))
+        var userId = request.Player.UserId;
+        if (room.Players.ContainsKey(userId))
         {
             Log.Warning("[GameRoomManager] 加入游戏失败：已在房间中 userId={UserId} roomId={RoomId}",
-                player.UserId, request.RoomId);
+                userId, request.RoomId);
             return (new JoinGameResponse(), ReturnCode.AlreadyInRoom);
         }
 
-        var notify = new JoinGameNotify { RoomId = request.RoomId, Player = player };
-        foreach (var otherPeer in room.Players.Keys.Where(p => p != peer))
+        var player = _playerManager.Add(peer, request.Player);
+        player.CurrentRoomId = request.RoomId;
+        room.Players[userId] = player;
+
+        var notify = new JoinGameNotify { RoomId = request.RoomId, Player = player.Info };
+        foreach (var other in room.Players.Values.Where(p => p.Peer != peer))
         {
-            Send(otherPeer, MessageIds.JoinGameNotify, ReturnCode.Success, notify);
+            Send(other.Peer, MessageIds.JoinGameNotify, ReturnCode.Success, notify);
         }
 
         Log.Information("[GameRoomManager] 玩家加入游戏房间 roomId={RoomId} userId={UserId} 当前人数={Count}",
-            request.RoomId, player.UserId, room.Players.Count);
+            request.RoomId, userId, room.Players.Count);
 
         return (new JoinGameResponse
         {
             RoomId = request.RoomId,
             RoomType = room.RoomType,
             OwnerUserId = room.OwnerUserId,
-            Players = room.Players.Values.ToList()
+            Players = room.Players.Values.Select(p => p.Info).ToList()
         }, ReturnCode.Success);
     }
 
     public (ReturnCode Code, string? RoomId) LeaveGame(NetPeer peer)
     {
-        foreach (var (roomId, room) in _rooms)
-        {
-            if (room.Players.TryRemove(peer, out var player))
-            {
-                Log.Information("[GameRoomManager] 玩家离开游戏房间 roomId={RoomId} 剩余人数={Count}",
-                    roomId, room.Players.Count);
-
-                var notify = new LeaveGameNotify { UserId = player.UserId };
-                foreach (var otherPeer in room.Players.Keys)
-                {
-                    Send(otherPeer, MessageIds.LeaveGameNotify, ReturnCode.Success, notify);
-                }
-
-                if (room.Players.IsEmpty)
-                {
-                    _rooms.TryRemove(roomId, out _);
-                    Log.Information("[GameRoomManager] 游戏房间关闭 roomId={RoomId}", roomId);
-                }
-
-                return (ReturnCode.Success, roomId);
-            }
-        }
-
-        return (ReturnCode.NotInRoom, null);
+        return LeaveCore(peer, "离开");
     }
 
     public void RemovePlayer(NetPeer peer)
     {
-        foreach (var (roomId, room) in _rooms)
+        LeaveCore(peer, "断线离开");
+    }
+
+    private (ReturnCode Code, string? RoomId) LeaveCore(NetPeer peer, string reason)
+    {
+        var player = _playerManager.GetByPeer(peer);
+        if (player == null || player.CurrentRoomId == null)
+            return (ReturnCode.NotInRoom, null);
+
+        var roomId = player.CurrentRoomId;
+        if (!_rooms.TryGetValue(roomId, out var room))
+            return (ReturnCode.NotInRoom, null);
+
+        room.Players.TryRemove(player.Info.UserId, out _);
+        _playerManager.Remove(player.Info.UserId);
+
+        var notify = new LeaveGameNotify { UserId = player.Info.UserId };
+        foreach (var other in room.Players.Values)
         {
-            if (room.Players.TryRemove(peer, out var player))
-            {
-                Log.Information("[GameRoomManager] 玩家断线离开游戏房间 roomId={RoomId} 剩余人数={Count}",
-                    roomId, room.Players.Count);
-
-                var notify = new LeaveGameNotify { UserId = player.UserId };
-                foreach (var otherPeer in room.Players.Keys)
-                {
-                    Send(otherPeer, MessageIds.LeaveGameNotify, ReturnCode.Success, notify);
-                }
-
-                if (room.Players.IsEmpty)
-                {
-                    _rooms.TryRemove(roomId, out _);
-                    Log.Information("[GameRoomManager] 游戏房间关闭 roomId={RoomId}", roomId);
-                }
-            }
+            Send(other.Peer, MessageIds.LeaveGameNotify, ReturnCode.Success, notify);
         }
+
+        Log.Information("[GameRoomManager] 玩家{Reason}游戏房间 roomId={RoomId} 剩余人数={Count}",
+            reason, roomId, room.Players.Count);
+
+        if (room.Players.IsEmpty)
+        {
+            _rooms.TryRemove(roomId, out _);
+            Log.Information("[GameRoomManager] 游戏房间关闭 roomId={RoomId}", roomId);
+        }
+
+        return (ReturnCode.Success, roomId);
     }
 
     public void BroadcastToRoom(string roomId, NetPeer sender, ushort messageId, object data)
     {
         if (!_rooms.TryGetValue(roomId, out var room)) return;
 
-        foreach (var otherPeer in room.Players.Keys.Where(p => p != sender))
+        foreach (var p in room.Players.Values.Where(p => p.Peer != sender))
         {
-            Send(otherPeer, messageId, ReturnCode.Success, data);
+            Send(p.Peer, messageId, ReturnCode.Success, data);
         }
     }
 
     public string? GetRoomId(NetPeer peer)
     {
-        foreach (var (roomId, room) in _rooms)
-        {
-            if (room.Players.ContainsKey(peer))
-                return roomId;
-        }
-
-        return null;
+        return _playerManager.GetByPeer(peer)?.CurrentRoomId;
     }
 
     private void Send(NetPeer peer, ushort messageId, ReturnCode code, object data)

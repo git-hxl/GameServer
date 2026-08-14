@@ -31,7 +31,7 @@ public class LobbyManager
             Log.Warning("[LobbyManager] 替换已有连接 userId={UserId}", userId);
         }
 
-        _players.Register(peer, request.Player);
+        _players.Add(peer, request.Player);
 
         Log.Information("[LobbyManager] 大厅加入 userId={UserId} nickname={Nickname} 在线人数={Count}",
             userId, request.Player.Nickname, _players.Count);
@@ -56,7 +56,7 @@ public class LobbyManager
             return (new LeaveLobbyResponse { UserId = request.UserId }, ReturnCode.NotInLobby);
         }
 
-        _players.Unregister(request.UserId);
+        _players.Remove(request.UserId);
 
         Log.Information("[LobbyManager] 大厅离开 userId={UserId} 在线人数={Count}",
             request.UserId, _players.Count);

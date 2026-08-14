@@ -30,7 +30,7 @@ public class PlayerManager
 
     public IEnumerable<LobbyPlayer> All => _players.Values;
 
-    public LobbyPlayer Register(NetPeer peer, PlayerInfo info)
+    public LobbyPlayer Add(NetPeer peer, PlayerInfo info)
     {
         var player = new LobbyPlayer
         {
@@ -45,7 +45,7 @@ public class PlayerManager
         return player;
     }
 
-    public bool Unregister(long userId)
+    public bool Remove(long userId)
     {
         if (_players.TryRemove(userId, out var player))
         {
