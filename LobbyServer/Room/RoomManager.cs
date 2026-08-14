@@ -1,7 +1,7 @@
-using System.Collections.Concurrent;
 using LiteNetLib;
 using LiteNetLib.Utils;
 using MessagePack;
+using LobbyServer.Cluster;
 using LobbyServer.Player;
 using Serilog;
 using SharedLib.Models;
@@ -11,16 +11,14 @@ namespace LobbyServer.Room;
 
 public class RoomManager
 {
-    private readonly NetManager _netManager;
     private readonly PlayerManager _players;
+    private readonly GameServerRegistry _gameServerRegistry;
     private readonly Dictionary<string, LobbyRoom> _rooms = new();
 
-    public ConcurrentDictionary<NetPeer, GameServerInfo> GameServers { get; set; } = new();
-
-    public RoomManager(NetManager netManager, PlayerManager players)
+    public RoomManager(PlayerManager players, GameServerRegistry gameServerRegistry)
     {
-        _netManager = netManager;
         _players = players;
+        _gameServerRegistry = gameServerRegistry;
     }
 
     public (CreateRoomResponse Response, ReturnCode Code) CreateRoom(long userId, CreateRoomRequest request)
@@ -52,15 +50,9 @@ public class RoomManager
 
         var room = new LobbyRoom
         {
-            Info = new RoomInfo
-            {
-                RoomId = roomId,
-                RoomType = request.RoomType,
-                GameServerAddress = gsValue.Value.Address,
-                GameServerPort = gsValue.Value.Port,
-                OwnerUserId = userId,
-                Players = new List<PlayerInfo> { player.Info }
-            },
+            RoomId = roomId,
+            RoomType = request.RoomType,
+            OwnerUserId = userId,
             GameServerPeer = gsValue.Key,
             PlayerIds = new HashSet<long> { userId }
         };
@@ -70,7 +62,7 @@ public class RoomManager
 
         Log.Information("[RoomManager] 房间创建成功 roomId={RoomId} GameServer={Addr}:{Port} 房主={UserId} 总房间数={TotalRooms}",
             roomId, gsValue.Value.Address, gsValue.Value.Port, userId, _rooms.Count);
-        return (new CreateRoomResponse { Room = room.Info }, ReturnCode.Success);
+        return (new CreateRoomResponse { Room = BuildRoomInfo(room) }, ReturnCode.Success);
     }
 
     public (JoinRoomResponse Response, ReturnCode Code) JoinRoom(long userId, JoinRoomRequest request)
@@ -99,8 +91,7 @@ public class RoomManager
         LeaveRoom(userId);
 
         room.PlayerIds.Add(userId);
-        room.Info.Players.Add(player.Info);
-        room.Info.OwnerUserId = _players.Get(room.Info.OwnerUserId)?.Info.UserId ?? 0;
+        room.OwnerUserId = _players.Get(room.OwnerUserId)?.Info.UserId ?? 0;
 
         _players.SetState(userId, PlayerState.InRoom, request.RoomId);
 
@@ -113,8 +104,8 @@ public class RoomManager
         }
 
         Log.Information("[RoomManager] 加入房间成功 roomId={RoomId} userId={UserId} 房主={Owner} 房间人数={Count}",
-            request.RoomId, userId, room.Info.OwnerUserId, room.PlayerIds.Count);
-        return (new JoinRoomResponse { Room = room.Info }, ReturnCode.Success);
+            request.RoomId, userId, room.OwnerUserId, room.PlayerIds.Count);
+        return (new JoinRoomResponse { Room = BuildRoomInfo(room) }, ReturnCode.Success);
     }
 
     public (LeaveRoomResponse Response, ReturnCode Code) LeaveRoom(long userId)
@@ -133,7 +124,6 @@ public class RoomManager
             return (new LeaveRoomResponse(), ReturnCode.NotInRoom);
 
         room.ReadyPlayerIds.Remove(userId);
-        room.Info.Players.Remove(player.Info);
         _players.SetState(userId, PlayerState.InLobby);
 
         var remaining = room.PlayerIds.Count;
@@ -243,7 +233,7 @@ public class RoomManager
         if (!_rooms.TryGetValue(roomId, out var room))
             return (ReturnCode.NotInRoom, null);
 
-        if (room.Info.OwnerUserId != userId)
+        if (room.OwnerUserId != userId)
         {
             Log.Warning("[RoomManager] 开始游戏失败：不是房主 roomId={RoomId}", roomId);
             return (ReturnCode.NotRoomOwner, null);
@@ -256,13 +246,18 @@ public class RoomManager
             return (ReturnCode.NotAllReady, null);
         }
 
-        var gs = GameServers[room.GameServerPeer];
+        var gs = _gameServerRegistry.Get(room.GameServerPeer);
+        if (gs == null)
+        {
+            Log.Warning("[RoomManager] 开始游戏失败：GameServer已离线 roomId={RoomId}", roomId);
+            return (ReturnCode.NoGameServerAvailable, null);
+        }
 
         Send(room.GameServerPeer, MessageIds.CreateGameRoom, ReturnCode.Success, new CreateGameRoomRequest
         {
             RoomId = roomId,
-            RoomType = room.Info.RoomType,
-            OwnerUserId = room.Info.OwnerUserId
+            RoomType = room.RoomType,
+            OwnerUserId = room.OwnerUserId
         });
 
         var notify = new GameStartNotify
@@ -295,8 +290,8 @@ public class RoomManager
 
         var list = _rooms.Values.Select(r => new RoomListInfo
         {
-            RoomId = r.Info.RoomId,
-            RoomType = r.Info.RoomType,
+            RoomId = r.RoomId,
+            RoomType = r.RoomType,
             PlayerCount = r.PlayerIds.Count
         }).ToList();
 
@@ -321,27 +316,44 @@ public class RoomManager
         Log.Information("[RoomManager] 重新分配房主 roomId={RoomId}", roomId);
 
         var newOwnerId = room.PlayerIds.FirstOrDefault();
-        room.Info.OwnerUserId = newOwnerId;
+        room.OwnerUserId = newOwnerId;
 
-        if (room.Info.OwnerUserId != 0)
+        if (room.OwnerUserId != 0)
         {
             Log.Information("[RoomManager] 房主转移 roomId={RoomId} →{NewOwner}",
-                roomId, room.Info.OwnerUserId);
+                roomId, room.OwnerUserId);
         }
+    }
+
+    private RoomInfo BuildRoomInfo(LobbyRoom room)
+    {
+        var gs = _gameServerRegistry.Get(room.GameServerPeer);
+
+        return new RoomInfo
+        {
+            RoomId = room.RoomId,
+            RoomType = room.RoomType,
+            GameServerAddress = gs?.Address ?? string.Empty,
+            GameServerPort = gs?.Port ?? 0,
+            OwnerUserId = room.OwnerUserId,
+            Players = room.PlayerIds
+                .Select(id => _players.Get(id))
+                .Where(p => p != null)
+                .Select(p => p!.Info)
+                .ToList()
+        };
     }
 
     private KeyValuePair<NetPeer, GameServerInfo>? PickGameServer()
     {
         Log.Information("[RoomManager] 选择GameServer");
 
-        var result = GameServers
-            .Where(gs => gs.Key.ConnectionState == ConnectionState.Connected)
-            .MinBy(gs => gs.Value.PlayerCount);
+        var result = _gameServerRegistry.PickLeastLoaded();
 
-        if (result.Key != null)
+        if (result is { } gs)
         {
             Log.Information("[RoomManager] 选择 GameServer {Addr}:{Port} 负载={Players}",
-                result.Value.Address, result.Value.Port, result.Value.PlayerCount);
+                gs.Value.Address, gs.Value.Port, gs.Value.PlayerCount);
         }
         else
         {

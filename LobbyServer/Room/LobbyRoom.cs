@@ -5,7 +5,9 @@ namespace LobbyServer.Room;
 
 public class LobbyRoom
 {
-    public RoomInfo Info { get; set; } = new();
+    public string RoomId { get; set; } = string.Empty;
+    public RoomType RoomType { get; set; }
+    public long OwnerUserId { get; set; }
     public NetPeer GameServerPeer { get; set; } = null!;
     public HashSet<long> PlayerIds { get; set; } = [];
     public HashSet<long> ReadyPlayerIds { get; set; } = [];

@@ -1,9 +1,9 @@
-using System.Collections.Concurrent;
 using LiteNetLib;
 using MessagePack;
 using Serilog;
 using SharedLib.Models;
 using SharedLib.Protocol;
+using LobbyServer.Cluster;
 
 namespace LobbyServer.Handlers;
 
@@ -12,11 +12,11 @@ public class GameServerUpdateHandler : ILobbyHandler
     public ushort MessageId => MessageIds.GameServerUpdate;
     public bool RequireAuth => false;
 
-    private readonly ConcurrentDictionary<NetPeer, GameServerInfo> _gameServers;
+    private readonly GameServerRegistry _registry;
 
-    public GameServerUpdateHandler(ConcurrentDictionary<NetPeer, GameServerInfo> gameServers)
+    public GameServerUpdateHandler(GameServerRegistry registry)
     {
-        _gameServers = gameServers;
+        _registry = registry;
     }
 
     public void Handle(NetPeer peer, byte[] payload)
@@ -28,15 +28,9 @@ public class GameServerUpdateHandler : ILobbyHandler
             return;
         }
 
-        if (!_gameServers.TryGetValue(peer, out var gsInfo))
+        if (!_registry.Update(peer, req))
         {
             Log.Warning("[LobbyServer] 收到未注册 GameServer 的更新");
-            return;
         }
-
-        gsInfo.PlayerCount = req.PlayerCount;
-        gsInfo.RoomCount = req.RoomCount;
-        gsInfo.CpuPercent = req.CpuPercent;
-        gsInfo.MemoryMB = req.MemoryMB;
     }
 }

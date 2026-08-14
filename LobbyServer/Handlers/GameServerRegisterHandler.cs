@@ -1,9 +1,9 @@
-using System.Collections.Concurrent;
 using LiteNetLib;
 using MessagePack;
 using Serilog;
 using SharedLib.Models;
 using SharedLib.Protocol;
+using LobbyServer.Cluster;
 
 namespace LobbyServer.Handlers;
 
@@ -12,11 +12,11 @@ public class GameServerRegisterHandler : ILobbyHandler
     public ushort MessageId => MessageIds.GameServerRegister;
     public bool RequireAuth => false;
 
-    private readonly ConcurrentDictionary<NetPeer, GameServerInfo> _gameServers;
+    private readonly GameServerRegistry _registry;
 
-    public GameServerRegisterHandler(ConcurrentDictionary<NetPeer, GameServerInfo> gameServers)
+    public GameServerRegisterHandler(GameServerRegistry registry)
     {
-        _gameServers = gameServers;
+        _registry = registry;
     }
 
     public void Handle(NetPeer peer, byte[] payload)
@@ -28,11 +28,7 @@ public class GameServerRegisterHandler : ILobbyHandler
             return;
         }
 
-        var ep = peer.Address;
-        var epStr = ep.ToString();
-        var colon = epStr.LastIndexOf(':');
-        req.Address = colon > 0 ? epStr[..colon] : epStr;
-        _gameServers[peer] = req;
+        _registry.Register(peer, req);
         Log.Information("[LobbyServer] GameServer 注册成功 port={Port}", req.Port);
     }
 }

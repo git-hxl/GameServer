@@ -2,9 +2,9 @@ using LiteNetLib;
 using LiteNetLib.Utils;
 using Serilog;
 using SharedLib.Config;
-using System.Collections.Concurrent;
 using SharedLib.Models;
 using SharedLib.Protocol;
+using LobbyServer.Cluster;
 using LobbyServer.Lobby;
 using LobbyServer.Player;
 using LobbyServer.Room;
@@ -22,7 +22,7 @@ public class LobbyServer
     private RoomManager _roomManager = null!;
     private LobbyHandlerRegistry _registry = null!;
 
-    private readonly ConcurrentDictionary<NetPeer, GameServerInfo> _gameServers = new();
+    private readonly GameServerRegistry _gameServerRegistry = new();
 
     public LobbyServer(LobbyServerConfig config)
     {
@@ -40,7 +40,7 @@ public class LobbyServer
     public void Start(int port)
     {
         _lobbyManager = new LobbyManager(_netManager, _players);
-        _roomManager = new RoomManager(_netManager, _players) { GameServers = _gameServers };
+        _roomManager = new RoomManager(_players, _gameServerRegistry);
         _registry = new LobbyHandlerRegistry();
 
         RegisterHandlers();
@@ -67,8 +67,8 @@ public class LobbyServer
             new GameReadyHandler(_players, _roomManager),
             new GameUnreadyHandler(_players, _roomManager),
             new GameStartHandler(_players, _roomManager),
-            new GameServerRegisterHandler(_gameServers),
-            new GameServerUpdateHandler(_gameServers)
+            new GameServerRegisterHandler(_gameServerRegistry),
+            new GameServerUpdateHandler(_gameServerRegistry)
         );
     }
 
@@ -93,7 +93,7 @@ public class LobbyServer
             peer.Address, disconnectInfo.Reason);
 
         _roomManager.RemovePlayer(peer);
-        _gameServers.TryRemove(peer, out _);
+        _gameServerRegistry.Remove(peer);
     }
 
     private void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channel, DeliveryMethod deliveryMethod)
