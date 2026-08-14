@@ -92,14 +92,7 @@ public class LobbyServer
         Log.Information("[LobbyServer] 客户端断开 endpoint={EndPoint} reason={Reason}",
             peer.Address, disconnectInfo.Reason);
 
-        var player = _players.GetByPeer(peer);
-        if (player != null)
-        {
-            var userId = player.Info.UserId;
-            _roomManager.RemovePlayer(userId);
-            _players.Remove(userId);
-        }
-
+        _roomManager.RemovePlayer(peer);
         _gameServers.TryRemove(peer, out _);
     }
 

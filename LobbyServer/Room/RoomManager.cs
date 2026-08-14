@@ -304,10 +304,16 @@ public class RoomManager
         return new RoomListResponse { Rooms = list };
     }
 
-    public void RemovePlayer(long userId)
+    public void RemovePlayer(NetPeer peer)
     {
+        var player = _players.GetByPeer(peer);
+        if (player == null)
+            return;
+
+        var userId = player.Info.UserId;
         Log.Information("[RoomManager] 移除玩家 userId={UserId}", userId);
         LeaveRoom(userId);
+        _players.Remove(userId);
     }
 
     private void ReassignOwner(string roomId, LobbyRoom room)
