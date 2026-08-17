@@ -8,5 +8,4 @@ public class GameRoom
     public RoomType RoomType { get; set; }
     public long OwnerUserId { get; set; }
     public HashSet<long> PlayerIds { get; set; } = [];
-    public bool IsStarted { get; set; }
 }

@@ -292,7 +292,7 @@ using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(15));
 var cts = new CancellationTokenSource();
 var quitFlag = false;
 
-Log.Information("[TestClient] 可用命令: joinlobby | leavelobby | chat <内容> | createroom [quick] [roomId] | joinroom <roomId> | leaveroom | rooms | ready | unready | start | joingame <roomId> | leavegame | status | quit");
+Log.Information("[TestClient] 可用命令: joinlobby | leavelobby | chat <内容> | createroom [quick] [maxPlayers] [roomId] | joinroom <roomId> | leaveroom | rooms | ready | unready | start | joingame <roomId> | leavegame | status | quit");
 
 _ = Task.Run(async () =>
 {
@@ -323,10 +323,24 @@ _ = Task.Run(async () =>
                 var roomType = cArgs.Length > 0 && cArgs[0].ToLower() == "quick"
                     ? RoomType.QuickMatch
                     : RoomType.Default;
-                var roomId = cArgs.Length > 0 && cArgs[0].ToLower() == "quick"
-                    ? (cArgs.Length > 1 ? cArgs[1] : null)
-                    : (cArgs.Length > 0 ? cArgs[0] : null);
-                SendMessage(MessageIds.CreateRoom, new CreateRoomRequest { RoomId = roomId, RoomType = roomType });
+                var maxPlayers = 0;
+                var roomId = null as string;
+                var idx = 0;
+                if (cArgs.Length > 0 && cArgs[0].ToLower() == "quick")
+                {
+                    idx = 1;
+                    maxPlayers = 4;
+                }
+                if (cArgs.Length > idx)
+                {
+                    if (int.TryParse(cArgs[idx], out var parsed))
+                        maxPlayers = parsed;
+                    else
+                        roomId = cArgs[idx];
+                }
+                if (cArgs.Length > idx + 1)
+                    roomId = cArgs[idx + 1];
+                SendMessage(MessageIds.CreateRoom, new CreateRoomRequest { RoomId = roomId, RoomType = roomType, MaxPlayers = maxPlayers });
                 break;
 
             case "joinroom":

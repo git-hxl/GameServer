@@ -13,13 +13,11 @@ public class RoomManager
     private readonly PlayerManager _players;
     private readonly GameServerRegistry _gameServerRegistry;
     private readonly Dictionary<string, LobbyRoom> _rooms = new();
-    private readonly int _maxQuickMatchPlayers;
 
-    public RoomManager(PlayerManager players, GameServerRegistry gameServerRegistry, int maxQuickMatchPlayers)
+    public RoomManager(PlayerManager players, GameServerRegistry gameServerRegistry)
     {
         _players = players;
         _gameServerRegistry = gameServerRegistry;
-        _maxQuickMatchPlayers = maxQuickMatchPlayers;
     }
 
     public (CreateRoomResponse Response, ReturnCode Code) CreateRoom(long userId, CreateRoomRequest request)
@@ -56,7 +54,7 @@ public class RoomManager
             OwnerUserId = userId,
             GameServerPeer = gsValue.Key,
             PlayerIds = new HashSet<long> { userId },
-            MaxPlayers = request.RoomType == RoomType.QuickMatch ? _maxQuickMatchPlayers : 0
+            MaxPlayers = request.MaxPlayers
         };
 
         _rooms[roomId] = room;
@@ -90,7 +88,7 @@ public class RoomManager
             return (new JoinRoomResponse { Room = new RoomInfo { RoomId = request.RoomId } }, ReturnCode.RoomFull);
         }
 
-        if (room.RoomType == RoomType.QuickMatch && room.PlayerIds.Count >= room.MaxPlayers)
+        if (room.MaxPlayers > 0 && room.PlayerIds.Count >= room.MaxPlayers)
         {
             room.IsStarted = true;
             Log.Warning("[RoomManager] 加入房间失败：房间已满 roomId={RoomId} userId={UserId} max={Max}",

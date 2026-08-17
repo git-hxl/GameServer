@@ -42,4 +42,4 @@ LobbyServer 维护两个 registry：`_clientRegistry`（客户端口消息）和
 - 服务端注释和日志是中文，修改相邻代码时保持该风格。
 - 玩家标识是 `long UserId`；`PlayerManager` 维护 `NetPeer → userId` 映射，并跟踪 `PlayerState`（InLobby/InRoom/Ready/InGame）。
 - 房间流程：`RoomManager.PickGameServer` 根据每个 GameServer 周期性 `GameServerUpdate` 上报的 `GameServerInfo.PlayerCount` 做负载均衡。
-- 房间类型：`Default` 房主开局、全员先准备，开局后 `IsStarted` 拒绝加入；`QuickMatch` 自由加入，`MaxQuickMatchPlayers` 满员后拒绝加入，任意玩家点开始只对本人开局。
+- 房间类型：`Default` 房主开局、全员先准备，开局后 `IsStarted` 拒绝加入；`QuickMatch` 自由加入，任意玩家点开始只对本人开局。创建房间时 `CreateRoomRequest.MaxPlayers` 传入人数上限（0=无上限），LobbyServer 在 `JoinRoom` 时按此判断，满员返回 `RoomFull` 且 `IsStarted` 拒绝再加入（人数限制只在 LobbyRoom 层，GameRoom 不限制）。

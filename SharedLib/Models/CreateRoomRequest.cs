@@ -11,5 +11,6 @@ namespace SharedLib.Models
     {
         [Key(0)] public string? RoomId { get; set; }
         [Key(1)] public RoomType RoomType { get; set; } = RoomType.Default;
+        [Key(2)] public int MaxPlayers { get; set; }
     }
 }

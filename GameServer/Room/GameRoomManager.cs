@@ -28,8 +28,7 @@ public class GameRoomManager
         {
             RoomId = request.RoomId,
             RoomType = request.RoomType,
-            OwnerUserId = request.OwnerUserId,
-            IsStarted = true
+            OwnerUserId = request.OwnerUserId
         };
 
         _rooms[request.RoomId] = room;

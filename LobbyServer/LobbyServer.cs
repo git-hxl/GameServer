@@ -58,7 +58,7 @@ public class LobbyServer
 
     public void Start(LobbyServerConfig config)
     {
-        _roomManager = new RoomManager(_players, _gameServerRegistry, config.MaxQuickMatchPlayers);
+        _roomManager = new RoomManager(_players, _gameServerRegistry);
         _lobbyManager = new LobbyManager(_clientNetManager, _players, _roomManager);
 
         _clientRegistry = new HandlerRegistry();
