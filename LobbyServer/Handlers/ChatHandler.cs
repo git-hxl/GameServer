@@ -1,15 +1,14 @@
 using LiteNetLib;
-using MessagePack;
 using SharedLib.Models;
 using SharedLib.Protocol;
+using SharedLib.Handlers;
 using LobbyServer.Lobby;
 
 namespace LobbyServer.Handlers;
 
-public class ChatHandler : ILobbyHandler
+public class ChatHandler : MessageHandler<ChatRequest>
 {
-    public ushort MessageId => MessageIds.Chat;
-    public bool RequireAuth => true;
+    public override ushort MessageId => MessageIds.Chat;
 
     private readonly LobbyManager _lobby;
 
@@ -18,10 +17,8 @@ public class ChatHandler : ILobbyHandler
         _lobby = lobby;
     }
 
-    public void Handle(NetPeer peer, byte[] payload)
+    public override void HandleMessage(NetPeer peer, ChatRequest request)
     {
-        var req = MessagePackSerializer.Deserialize<ChatRequest>(payload);
-        if (req != null)
-            _lobby.Chat(peer, req);
+        _lobby.Chat(peer, request);
     }
 }

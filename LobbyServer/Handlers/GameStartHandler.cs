@@ -2,15 +2,15 @@ using LiteNetLib;
 using SharedLib.Models;
 using SharedLib.Protocol;
 using SharedLib.Utils;
+using SharedLib.Handlers;
 using LobbyServer.Player;
 using LobbyServer.Room;
 
 namespace LobbyServer.Handlers;
 
-public class GameStartHandler : ILobbyHandler
+public class GameStartHandler : MessageHandler<GameStartRequest>
 {
-    public ushort MessageId => MessageIds.GameStart;
-    public bool RequireAuth => true;
+    public override ushort MessageId => MessageIds.GameStart;
 
     private readonly PlayerManager _players;
     private readonly RoomManager _rooms;
@@ -21,7 +21,7 @@ public class GameStartHandler : ILobbyHandler
         _rooms = rooms;
     }
 
-    public void Handle(NetPeer peer, byte[] payload)
+    public override void HandleMessage(NetPeer peer, GameStartRequest request)
     {
         var userId = _players.GetUserId(peer);
         if (userId == 0)

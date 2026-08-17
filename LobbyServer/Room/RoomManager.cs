@@ -13,11 +13,13 @@ public class RoomManager
     private readonly PlayerManager _players;
     private readonly GameServerRegistry _gameServerRegistry;
     private readonly Dictionary<string, LobbyRoom> _rooms = new();
+    private readonly int _maxQuickMatchPlayers;
 
-    public RoomManager(PlayerManager players, GameServerRegistry gameServerRegistry)
+    public RoomManager(PlayerManager players, GameServerRegistry gameServerRegistry, int maxQuickMatchPlayers)
     {
         _players = players;
         _gameServerRegistry = gameServerRegistry;
+        _maxQuickMatchPlayers = maxQuickMatchPlayers;
     }
 
     public (CreateRoomResponse Response, ReturnCode Code) CreateRoom(long userId, CreateRoomRequest request)
@@ -53,14 +55,15 @@ public class RoomManager
             RoomType = request.RoomType,
             OwnerUserId = userId,
             GameServerPeer = gsValue.Key,
-            PlayerIds = new HashSet<long> { userId }
+            PlayerIds = new HashSet<long> { userId },
+            MaxPlayers = request.RoomType == RoomType.QuickMatch ? _maxQuickMatchPlayers : 0
         };
 
         _rooms[roomId] = room;
         _players.SetState(userId, PlayerState.InRoom, roomId);
 
-        Log.Information("[RoomManager] 房间创建成功 roomId={RoomId} GameServer={Addr}:{Port} 房主={UserId} 总房间数={TotalRooms}",
-            roomId, gsValue.Value.Address, gsValue.Value.Port, userId, _rooms.Count);
+        Log.Information("[RoomManager] 房间创建成功 roomId={RoomId} type={RoomType} GameServer={Addr}:{Port} 房主={UserId} 总房间数={TotalRooms}",
+            roomId, room.RoomType, gsValue.Value.Address, gsValue.Value.Port, userId, _rooms.Count);
         return (new CreateRoomResponse { Room = BuildRoomInfo(room) }, ReturnCode.Success);
     }
 
@@ -79,6 +82,20 @@ public class RoomManager
         {
             Log.Warning("[RoomManager] 加入房间失败：房间未找到 roomId={RoomId} userId={UserId}", request.RoomId, userId);
             return (new JoinRoomResponse { Room = new RoomInfo { RoomId = request.RoomId } }, ReturnCode.RoomNotFound);
+        }
+
+        if (room.IsStarted)
+        {
+            Log.Warning("[RoomManager] 加入房间失败：房间已开始 roomId={RoomId} userId={UserId}", request.RoomId, userId);
+            return (new JoinRoomResponse { Room = new RoomInfo { RoomId = request.RoomId } }, ReturnCode.RoomFull);
+        }
+
+        if (room.RoomType == RoomType.QuickMatch && room.PlayerIds.Count >= room.MaxPlayers)
+        {
+            room.IsStarted = true;
+            Log.Warning("[RoomManager] 加入房间失败：房间已满 roomId={RoomId} userId={UserId} max={Max}",
+                request.RoomId, userId, room.MaxPlayers);
+            return (new JoinRoomResponse { Room = new RoomInfo { RoomId = request.RoomId } }, ReturnCode.RoomFull);
         }
 
         if (room.PlayerIds.Contains(userId))
@@ -232,6 +249,11 @@ public class RoomManager
         if (!_rooms.TryGetValue(roomId, out var room))
             return (ReturnCode.NotInRoom, null);
 
+        if (room.RoomType == RoomType.QuickMatch)
+        {
+            return StartPlayer(room, roomId, userId);
+        }
+
         if (room.OwnerUserId != userId)
         {
             Log.Warning("[RoomManager] 开始游戏失败：不是房主 roomId={RoomId}", roomId);
@@ -244,6 +266,8 @@ public class RoomManager
                 roomId, room.ReadyPlayerIds.Count, room.PlayerIds.Count);
             return (ReturnCode.NotAllReady, null);
         }
+
+        room.IsStarted = true;
 
         var gs = _gameServerRegistry.Get(room.GameServerPeer);
         if (gs == null)
@@ -266,13 +290,14 @@ public class RoomManager
             GameServerPort = gs.Port
         };
 
+        var frame = MessageHelper.SerializeFrame(MessageIds.GameStartNotify, ReturnCode.Success, notify);
         foreach (var id in room.PlayerIds)
         {
             var p = _players.Get(id);
             if (p != null)
             {
                 _players.SetState(id, PlayerState.InGame);
-                MessageHelper.Send(p.Peer, MessageIds.GameStartNotify, ReturnCode.Success, notify);
+                MessageHelper.Send(p.Peer, frame, DeliveryMethod.ReliableOrdered);
             }
         }
 
@@ -280,6 +305,45 @@ public class RoomManager
 
         Log.Information("[RoomManager] 游戏开始 roomId={RoomId} GameServer={Addr}:{Port}",
             roomId, gs.Address, gs.Port);
+        return (ReturnCode.Success, notify);
+    }
+
+    private (ReturnCode Code, GameStartNotify? Notify) StartPlayer(LobbyRoom room, string roomId, long userId)
+    {
+        var gs = _gameServerRegistry.Get(room.GameServerPeer);
+        if (gs == null)
+        {
+            Log.Warning("[RoomManager] 开始游戏失败：GameServer已离线 roomId={RoomId}", roomId);
+            return (ReturnCode.NoGameServerAvailable, null);
+        }
+
+        if (!room.GameCreated)
+        {
+            MessageHelper.Send(room.GameServerPeer, MessageIds.CreateGameRoom, ReturnCode.Success, new CreateGameRoomRequest
+            {
+                RoomId = roomId,
+                RoomType = room.RoomType,
+                OwnerUserId = room.OwnerUserId
+            });
+            room.GameCreated = true;
+        }
+
+        var notify = new GameStartNotify
+        {
+            RoomId = roomId,
+            GameServerAddress = gs.Address,
+            GameServerPort = gs.Port
+        };
+
+        var p = _players.Get(userId);
+        if (p == null)
+            return (ReturnCode.NotInRoom, null);
+
+        _players.SetState(userId, PlayerState.InGame);
+        MessageHelper.Send(p.Peer, MessageIds.GameStartNotify, ReturnCode.Success, notify);
+
+        Log.Information("[RoomManager] QuickMatch玩家开始 game roomId={RoomId} userId={UserId}",
+            roomId, userId);
         return (ReturnCode.Success, notify);
     }
 

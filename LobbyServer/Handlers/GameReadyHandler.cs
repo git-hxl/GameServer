@@ -2,15 +2,15 @@ using LiteNetLib;
 using SharedLib.Models;
 using SharedLib.Protocol;
 using SharedLib.Utils;
+using SharedLib.Handlers;
 using LobbyServer.Player;
 using LobbyServer.Room;
 
 namespace LobbyServer.Handlers;
 
-public class GameReadyHandler : ILobbyHandler
+public class GameReadyHandler : MessageHandler<GameReadyRequest>
 {
-    public ushort MessageId => MessageIds.GameReady;
-    public bool RequireAuth => true;
+    public override ushort MessageId => MessageIds.GameReady;
 
     private readonly PlayerManager _players;
     private readonly RoomManager _rooms;
@@ -21,7 +21,7 @@ public class GameReadyHandler : ILobbyHandler
         _rooms = rooms;
     }
 
-    public void Handle(NetPeer peer, byte[] payload)
+    public override void HandleMessage(NetPeer peer, GameReadyRequest request)
     {
         var userId = _players.GetUserId(peer);
         if (userId == 0)
@@ -32,5 +32,10 @@ public class GameReadyHandler : ILobbyHandler
 
         var (res, code) = _rooms.SetReady(userId);
         MessageHelper.Send(peer, MessageId, code, res);
+    }
+
+    protected override void OnDeserializeFailed(NetPeer peer)
+    {
+        MessageHelper.Send(peer, MessageId, ReturnCode.DeserializeFailed, new GameReadyResponse());
     }
 }

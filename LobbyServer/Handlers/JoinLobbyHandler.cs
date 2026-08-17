@@ -1,16 +1,15 @@
 using LiteNetLib;
-using MessagePack;
 using SharedLib.Models;
 using SharedLib.Protocol;
 using SharedLib.Utils;
+using SharedLib.Handlers;
 using LobbyServer.Lobby;
 
 namespace LobbyServer.Handlers;
 
-public class JoinLobbyHandler : ILobbyHandler
+public class JoinLobbyHandler : MessageHandler<JoinLobbyRequest>
 {
-    public ushort MessageId => MessageIds.JoinLobby;
-    public bool RequireAuth => false;
+    public override ushort MessageId => MessageIds.JoinLobby;
 
     private readonly LobbyManager _lobby;
 
@@ -19,15 +18,14 @@ public class JoinLobbyHandler : ILobbyHandler
         _lobby = lobby;
     }
 
-    public void Handle(NetPeer peer, byte[] payload)
+    public override void HandleMessage(NetPeer peer, JoinLobbyRequest request)
     {
-        var req = MessagePackSerializer.Deserialize<JoinLobbyRequest>(payload);
-        if (req == null)
-        {
-            MessageHelper.Send(peer, MessageId, ReturnCode.DeserializeFailed, new JoinLobbyResponse());
-            return;
-        }
-        var (res, code) = _lobby.Join(peer, req);
+        var (res, code) = _lobby.Join(peer, request);
         MessageHelper.Send(peer, MessageId, code, res);
+    }
+
+    protected override void OnDeserializeFailed(NetPeer peer)
+    {
+        MessageHelper.Send(peer, MessageId, ReturnCode.DeserializeFailed, new JoinLobbyResponse());
     }
 }

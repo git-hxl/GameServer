@@ -5,6 +5,7 @@ using SharedLib.Config;
 using SharedLib.Models;
 using SharedLib.Protocol;
 using SharedLib.Utils;
+using SharedLib.Handlers;
 using GameServer.Handlers;
 using GameServer.Player;
 using GameServer.Room;
@@ -20,7 +21,8 @@ public class GameServer
     private readonly EventBasedNetListener _lobbyListener;
     private volatile NetPeer? _lobbyPeer;
 
-    private readonly string _connectionKey;
+    private readonly string _clientKey;
+    private readonly string _lobbyKey;
     private readonly string _lobbyAddress;
     private readonly int _lobbyPort;
     private readonly int _serverPort;
@@ -28,12 +30,13 @@ public class GameServer
     private CancellationTokenSource _updateCts = new();
     private readonly PerformanceMonitor _perf = new();
     private GameRoomManager _roomManager = null!;
-    private GameHandlerRegistry _gameRegistry = null!;
-    private GameHandlerRegistry _lobbyRegistry = null!;
+    private HandlerRegistry _gameRegistry = null!;
+    private HandlerRegistry _lobbyRegistry = null!;
 
     public GameServer(GameServerConfig config)
     {
-        _connectionKey = config.ConnectionKey;
+        _clientKey = config.ClientConnectionKey;
+        _lobbyKey = config.LobbyConnectionKey;
         _lobbyAddress = config.LobbyAddress;
         _lobbyPort = config.LobbyPort;
         _serverPort = config.Port;
@@ -73,7 +76,7 @@ public class GameServer
         _lobbyListener.PeerDisconnectedEvent += OnLobbyDisconnected;
         _lobbyListener.NetworkReceiveEvent += OnLobbyReceive;
         _lobbyClient.Start();
-        _lobbyClient.Connect(_lobbyAddress, _lobbyPort, _connectionKey);
+        _lobbyClient.Connect(_lobbyAddress, _lobbyPort, _lobbyKey);
 
         _updateCts = new CancellationTokenSource();
         _ = UpdateLoop(_updateCts.Token);
@@ -84,7 +87,7 @@ public class GameServer
 
     private void RegisterHandlers()
     {
-        _gameRegistry = new GameHandlerRegistry();
+        _gameRegistry = new HandlerRegistry();
         _gameRegistry.Register(
             new JoinGameHandler(_roomManager),
             new LeaveGameHandler(_roomManager),
@@ -94,7 +97,7 @@ public class GameServer
             new ObjectDespawnHandler(_roomManager)
         );
 
-        _lobbyRegistry = new GameHandlerRegistry();
+        _lobbyRegistry = new HandlerRegistry();
         _lobbyRegistry.Register(
             new CreateGameRoomHandler(_roomManager)
         );
@@ -108,7 +111,7 @@ public class GameServer
 
     private void OnConnectionRequest(ConnectionRequest request)
     {
-        request.AcceptIfKey(_connectionKey);
+        request.AcceptIfKey(_clientKey);
     }
 
     private void OnPeerConnected(NetPeer peer)
@@ -127,11 +130,8 @@ public class GameServer
     {
         try
         {
-            var messageId = reader.GetUShort();
-            reader.GetByte();
-            var payload = reader.GetRemainingBytes();
-
-            _gameRegistry.Handle(peer, payload ?? [], messageId);
+            var (messageId, _, payload) = MessageHelper.ReadFrame(reader);
+            _gameRegistry.Handle(peer, payload, messageId);
         }
         catch (Exception ex)
         {
@@ -167,11 +167,8 @@ public class GameServer
     {
         try
         {
-            var messageId = reader.GetUShort();
-            reader.GetByte();
-            var payload = reader.GetRemainingBytes();
-
-            _lobbyRegistry.Handle(peer, payload ?? [], messageId);
+            var (messageId, _, payload) = MessageHelper.ReadFrame(reader);
+            _lobbyRegistry.Handle(peer, payload, messageId);
         }
         catch (Exception ex)
         {
@@ -205,7 +202,7 @@ public class GameServer
             else
             {
                 Log.Warning("[GameServer] LobbyServer未连接，尝试重连");
-                _lobbyClient.Connect(_lobbyAddress, _lobbyPort, _connectionKey);
+                _lobbyClient.Connect(_lobbyAddress, _lobbyPort, _lobbyKey);
             }
         }
     }

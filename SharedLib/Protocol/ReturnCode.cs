@@ -13,5 +13,6 @@ namespace SharedLib.Protocol
         NotRoomOwner = 7,
         NotAllReady = 8,
         DeserializeFailed = 9,
+        RoomFull = 10,
     }
 }

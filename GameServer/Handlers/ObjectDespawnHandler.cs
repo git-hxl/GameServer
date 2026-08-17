@@ -1,14 +1,14 @@
 using LiteNetLib;
-using MessagePack;
 using SharedLib.Models;
 using SharedLib.Protocol;
+using SharedLib.Handlers;
 using GameServer.Room;
 
 namespace GameServer.Handlers;
 
-public class ObjectDespawnHandler : IGameHandler
+public class ObjectDespawnHandler : MessageHandler<ObjectDespawnData>
 {
-    public ushort MessageId => MessageIds.ObjectDespawn;
+    public override ushort MessageId => MessageIds.ObjectDespawn;
 
     private readonly GameRoomManager _roomManager;
 
@@ -17,13 +17,10 @@ public class ObjectDespawnHandler : IGameHandler
         _roomManager = roomManager;
     }
 
-    public void Handle(NetPeer peer, byte[] payload)
+    public override void HandleMessage(NetPeer peer, ObjectDespawnData data)
     {
-        var data = MessagePackSerializer.Deserialize<ObjectDespawnData>(payload);
-        if (data == null) return;
-
         var roomId = _roomManager.GetRoomId(peer);
         if (roomId != null)
-            _roomManager.BroadcastToRoom(roomId, peer, MessageId, data);
+            _roomManager.BroadcastToRoom(roomId, peer, MessageId, data, DeliveryMethod.Sequenced);
     }
 }

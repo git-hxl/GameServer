@@ -1,6 +1,9 @@
 {
-  "Port": 6001,
-  "ConnectionKey": "Game@wasd9527",
+  "ClientPort": 6001,
+  "ServerPort": 6002,
+  "ClientConnectionKey": "Client@wasd9527",
+  "ServerConnectionKey": "Game@wasd9527",
+  "MaxQuickMatchPlayers": 4,
   "UpdateTime": 15,
   "PingInterval": 1000,
   "DisconnectTimeout": 5000,

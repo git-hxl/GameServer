@@ -1,5 +1,6 @@
 using LiteNetLib;
 using LobbyServer.Player;
+using LobbyServer.Room;
 using Serilog;
 using SharedLib.Models;
 using SharedLib.Protocol;
@@ -11,13 +12,15 @@ public class LobbyManager
 {
     private readonly NetManager _netManager;
     private readonly PlayerManager _players;
+    private readonly RoomManager _rooms;
 
     public int UserCount => _players.Count;
 
-    public LobbyManager(NetManager netManager, PlayerManager players)
+    public LobbyManager(NetManager netManager, PlayerManager players, RoomManager rooms)
     {
         _netManager = netManager;
         _players = players;
+        _rooms = rooms;
     }
 
     public (JoinLobbyResponse Response, ReturnCode Code) Join(NetPeer peer, JoinLobbyRequest request)
@@ -25,9 +28,16 @@ public class LobbyManager
         var userId = request.Player.UserId;
         Log.Information("[LobbyManager] 加入大厅 userId={UserId}", userId);
 
-        if (_players.Get(userId) != null)
+        var existing = _players.Get(userId);
+        if (existing != null)
         {
             Log.Warning("[LobbyManager] 替换已有连接 userId={UserId}", userId);
+
+            if (existing.Peer != peer)
+            {
+                _rooms.RemovePlayer(existing.Peer);
+                _netManager.DisconnectPeer(existing.Peer);
+            }
         }
 
         _players.Add(peer, request.Player);
@@ -87,9 +97,10 @@ public class LobbyManager
 
     private void Broadcast(ushort messageId, ReturnCode code, object data)
     {
+        var frame = MessageHelper.SerializeFrame(messageId, code, data);
         foreach (var player in _players.All)
         {
-            MessageHelper.Send(player.Peer, messageId, code, data);
+            MessageHelper.Send(player.Peer, frame, DeliveryMethod.ReliableOrdered);
         }
     }
 }

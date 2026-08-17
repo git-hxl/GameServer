@@ -1,13 +1,15 @@
 using LiteNetLib;
+using SharedLib.Models;
 using SharedLib.Protocol;
 using SharedLib.Utils;
+using SharedLib.Handlers;
 using GameServer.Room;
 
 namespace GameServer.Handlers;
 
-public class LeaveGameHandler : IGameHandler
+public class LeaveGameHandler : MessageHandler<LeaveGameRequest>
 {
-    public ushort MessageId => MessageIds.LeaveGame;
+    public override ushort MessageId => MessageIds.LeaveGame;
 
     private readonly GameRoomManager _roomManager;
 
@@ -16,9 +18,9 @@ public class LeaveGameHandler : IGameHandler
         _roomManager = roomManager;
     }
 
-    public void Handle(NetPeer peer, byte[] payload)
+    public override void HandleMessage(NetPeer peer, LeaveGameRequest request)
     {
         var (code, roomId) = _roomManager.LeaveGame(peer);
-        MessageHelper.Send(peer, MessageId, code, new { RoomId = roomId ?? "" });
+        MessageHelper.Send(peer, MessageId, code, new LeaveGameResponse { RoomId = roomId ?? "" });
     }
 }

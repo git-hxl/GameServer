@@ -1,16 +1,15 @@
 using LiteNetLib;
-using MessagePack;
-using Serilog;
 using SharedLib.Models;
 using SharedLib.Protocol;
 using SharedLib.Utils;
+using SharedLib.Handlers;
 using GameServer.Room;
 
 namespace GameServer.Handlers;
 
-public class JoinGameHandler : IGameHandler
+public class JoinGameHandler : MessageHandler<JoinGameRequest>
 {
-    public ushort MessageId => MessageIds.JoinGame;
+    public override ushort MessageId => MessageIds.JoinGame;
 
     private readonly GameRoomManager _roomManager;
 
@@ -19,17 +18,14 @@ public class JoinGameHandler : IGameHandler
         _roomManager = roomManager;
     }
 
-    public void Handle(NetPeer peer, byte[] payload)
+    public override void HandleMessage(NetPeer peer, JoinGameRequest request)
     {
-        var req = MessagePackSerializer.Deserialize<JoinGameRequest>(payload);
-        if (req == null)
-        {
-            Log.Warning("[GameServer] JoinGame 反序列化失败");
-            MessageHelper.Send(peer, MessageId, ReturnCode.DeserializeFailed, new JoinGameResponse());
-            return;
-        }
-
-        var (res, code) = _roomManager.JoinGame(peer, req);
+        var (res, code) = _roomManager.JoinGame(peer, request);
         MessageHelper.Send(peer, MessageId, code, res);
+    }
+
+    protected override void OnDeserializeFailed(NetPeer peer)
+    {
+        MessageHelper.Send(peer, MessageId, ReturnCode.DeserializeFailed, new JoinGameResponse());
     }
 }

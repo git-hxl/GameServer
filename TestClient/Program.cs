@@ -8,7 +8,7 @@ using SharedLib.Utils;
 
 // ── 测试用户配置 ─────────────────────────────────────────────────────
 const int ServerPort = 6001;
-const string ConnectionKey = "Game@wasd9527";
+const string ConnectionKey = "Client@wasd9527";
 var userId = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 var player = new PlayerInfo
 {
@@ -292,7 +292,7 @@ using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(15));
 var cts = new CancellationTokenSource();
 var quitFlag = false;
 
-Log.Information("[TestClient] 可用命令: joinlobby | leavelobby | chat <内容> | createroom | joinroom <roomId> | leaveroom | rooms | ready | unready | start | joingame <roomId> | leavegame | status | quit");
+Log.Information("[TestClient] 可用命令: joinlobby | leavelobby | chat <内容> | createroom [quick] [roomId] | joinroom <roomId> | leaveroom | rooms | ready | unready | start | joingame <roomId> | leavegame | status | quit");
 
 _ = Task.Run(async () =>
 {
@@ -319,7 +319,14 @@ _ = Task.Run(async () =>
                 break;
 
             case "createroom":
-                SendMessage(MessageIds.CreateRoom, new CreateRoomRequest());
+                var cArgs = parts.Length > 1 ? parts[1].Split(' ', StringSplitOptions.RemoveEmptyEntries) : [];
+                var roomType = cArgs.Length > 0 && cArgs[0].ToLower() == "quick"
+                    ? RoomType.QuickMatch
+                    : RoomType.Default;
+                var roomId = cArgs.Length > 0 && cArgs[0].ToLower() == "quick"
+                    ? (cArgs.Length > 1 ? cArgs[1] : null)
+                    : (cArgs.Length > 0 ? cArgs[0] : null);
+                SendMessage(MessageIds.CreateRoom, new CreateRoomRequest { RoomId = roomId, RoomType = roomType });
                 break;
 
             case "joinroom":
@@ -352,7 +359,7 @@ _ = Task.Run(async () =>
                 break;
 
             case "unready":
-                SendMessage(MessageIds.GameUnready, new { });
+                SendMessage(MessageIds.GameUnready, new GameReadyRequest());
                 break;
 
             case "joingame":
@@ -370,7 +377,7 @@ _ = Task.Run(async () =>
                 break;
 
             case "leavegame":
-                SendGameMessage(MessageIds.LeaveGame, new { });
+                SendGameMessage(MessageIds.LeaveGame, new LeaveGameRequest());
                 gameRoomId = null;
                 break;
 

@@ -9,7 +9,7 @@ Log.Information("正在启动 LobbyServer");
 
 var config = ConfigLoader.Load<LobbyServerConfig>("LobbyServerConfig.json");
 var server = new LobbyServer.LobbyServer(config);
-server.Start(config.Port);
+server.Start(config);
 
 using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(config.UpdateTime));
 

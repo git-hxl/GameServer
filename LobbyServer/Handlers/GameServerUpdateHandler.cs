@@ -1,16 +1,15 @@
 using LiteNetLib;
-using MessagePack;
 using Serilog;
 using SharedLib.Models;
 using SharedLib.Protocol;
+using SharedLib.Handlers;
 using LobbyServer.Cluster;
 
 namespace LobbyServer.Handlers;
 
-public class GameServerUpdateHandler : ILobbyHandler
+public class GameServerUpdateHandler : MessageHandler<GameServerInfo>
 {
-    public ushort MessageId => MessageIds.GameServerUpdate;
-    public bool RequireAuth => false;
+    public override ushort MessageId => MessageIds.GameServerUpdate;
 
     private readonly GameServerRegistry _registry;
 
@@ -19,16 +18,9 @@ public class GameServerUpdateHandler : ILobbyHandler
         _registry = registry;
     }
 
-    public void Handle(NetPeer peer, byte[] payload)
+    public override void HandleMessage(NetPeer peer, GameServerInfo request)
     {
-        var req = MessagePackSerializer.Deserialize<GameServerInfo>(payload);
-        if (req == null)
-        {
-            Log.Warning("[LobbyServer] GameServerUpdate 反序列化失败");
-            return;
-        }
-
-        if (!_registry.Update(peer, req))
+        if (!_registry.Update(peer, request))
         {
             Log.Warning("[LobbyServer] 收到未注册 GameServer 的更新");
         }

@@ -1,14 +1,15 @@
 using LiteNetLib;
+using SharedLib.Models;
 using SharedLib.Protocol;
 using SharedLib.Utils;
+using SharedLib.Handlers;
 using LobbyServer.Room;
 
 namespace LobbyServer.Handlers;
 
-public class RoomListHandler : ILobbyHandler
+public class RoomListHandler : MessageHandler<RoomListRequest>
 {
-    public ushort MessageId => MessageIds.RoomList;
-    public bool RequireAuth => false;
+    public override ushort MessageId => MessageIds.RoomList;
 
     private readonly RoomManager _rooms;
 
@@ -17,7 +18,7 @@ public class RoomListHandler : ILobbyHandler
         _rooms = rooms;
     }
 
-    public void Handle(NetPeer peer, byte[] payload)
+    public override void HandleMessage(NetPeer peer, RoomListRequest request)
     {
         var res = _rooms.GetRoomList();
         MessageHelper.Send(peer, MessageId, ReturnCode.Success, res);

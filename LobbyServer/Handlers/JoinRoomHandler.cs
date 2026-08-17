@@ -1,18 +1,16 @@
 using LiteNetLib;
-using MessagePack;
-using Serilog;
 using SharedLib.Models;
 using SharedLib.Protocol;
 using SharedLib.Utils;
+using SharedLib.Handlers;
 using LobbyServer.Player;
 using LobbyServer.Room;
 
 namespace LobbyServer.Handlers;
 
-public class JoinRoomHandler : ILobbyHandler
+public class JoinRoomHandler : MessageHandler<JoinRoomRequest>
 {
-    public ushort MessageId => MessageIds.JoinRoom;
-    public bool RequireAuth => true;
+    public override ushort MessageId => MessageIds.JoinRoom;
 
     private readonly PlayerManager _players;
     private readonly RoomManager _rooms;
@@ -23,24 +21,21 @@ public class JoinRoomHandler : ILobbyHandler
         _rooms = rooms;
     }
 
-    public void Handle(NetPeer peer, byte[] payload)
+    public override void HandleMessage(NetPeer peer, JoinRoomRequest request)
     {
         var userId = _players.GetUserId(peer);
         if (userId == 0)
         {
-            Log.Warning("[LobbyServer] JoinRoom 未登录");
             MessageHelper.Send(peer, MessageId, ReturnCode.NotInLobby, new JoinRoomResponse());
             return;
         }
 
-        var req = MessagePackSerializer.Deserialize<JoinRoomRequest>(payload);
-        if (req == null)
-        {
-            MessageHelper.Send(peer, MessageId, ReturnCode.DeserializeFailed, new JoinRoomResponse());
-            return;
-        }
-
-        var (res, code) = _rooms.JoinRoom(userId, req);
+        var (res, code) = _rooms.JoinRoom(userId, request);
         MessageHelper.Send(peer, MessageId, code, res);
+    }
+
+    protected override void OnDeserializeFailed(NetPeer peer)
+    {
+        MessageHelper.Send(peer, MessageId, ReturnCode.DeserializeFailed, new JoinRoomResponse());
     }
 }

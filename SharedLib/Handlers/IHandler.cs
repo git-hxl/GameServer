@@ -1,10 +1,9 @@
 using LiteNetLib;
 
-namespace LobbyServer.Handlers;
+namespace SharedLib.Handlers;
 
-public interface ILobbyHandler
+public interface IHandler
 {
     ushort MessageId { get; }
-    bool RequireAuth { get; }
     void Handle(NetPeer peer, byte[] payload);
 }

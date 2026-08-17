@@ -1,15 +1,14 @@
 using LiteNetLib;
-using MessagePack;
-using Serilog;
 using SharedLib.Models;
 using SharedLib.Protocol;
+using SharedLib.Handlers;
 using GameServer.Room;
 
 namespace GameServer.Handlers;
 
-public class CreateGameRoomHandler : IGameHandler
+public class CreateGameRoomHandler : MessageHandler<CreateGameRoomRequest>
 {
-    public ushort MessageId => MessageIds.CreateGameRoom;
+    public override ushort MessageId => MessageIds.CreateGameRoom;
 
     private readonly GameRoomManager _roomManager;
 
@@ -18,15 +17,8 @@ public class CreateGameRoomHandler : IGameHandler
         _roomManager = roomManager;
     }
 
-    public void Handle(NetPeer peer, byte[] payload)
+    public override void HandleMessage(NetPeer peer, CreateGameRoomRequest request)
     {
-        var req = MessagePackSerializer.Deserialize<CreateGameRoomRequest>(payload);
-        if (req == null)
-        {
-            Log.Warning("[GameServer] CreateGameRoom 反序列化失败");
-            return;
-        }
-
-        _roomManager.CreateRoom(req);
+        _roomManager.CreateRoom(request);
     }
 }

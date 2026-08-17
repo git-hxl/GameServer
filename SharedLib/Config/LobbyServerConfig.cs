@@ -6,8 +6,11 @@ namespace SharedLib.Config
     /// </summary>
     public class LobbyServerConfig
     {
-        public int Port { get; set; } = 9050;
-        public string ConnectionKey { get; set; } = "Game@wasd9527";
+        public int ClientPort { get; set; } = 6001;
+        public int ServerPort { get; set; } = 6002;
+        public string ClientConnectionKey { get; set; } = "Client@wasd9527";
+        public string ServerConnectionKey { get; set; } = "Game@wasd9527";
+        public int MaxQuickMatchPlayers { get; set; } = 4;
         public int UpdateTime { get; set; } = 15;
         public int PingInterval { get; set; } = 1000;
         public int DisconnectTimeout { get; set; } = 5000;

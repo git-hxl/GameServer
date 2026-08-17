@@ -3,18 +3,18 @@ using Serilog;
 using SharedLib.Protocol;
 using SharedLib.Utils;
 
-namespace LobbyServer.Handlers;
+namespace SharedLib.Handlers;
 
-public class LobbyHandlerRegistry
+public class HandlerRegistry
 {
-    private readonly Dictionary<ushort, ILobbyHandler> _handlers = new();
+    private readonly Dictionary<ushort, IHandler> _handlers = new();
 
-    public void Register(ILobbyHandler handler)
+    public void Register(IHandler handler)
     {
         _handlers[handler.MessageId] = handler;
     }
 
-    public void Register(params ILobbyHandler[] handlers)
+    public void Register(params IHandler[] handlers)
     {
         foreach (var handler in handlers)
             _handlers[handler.MessageId] = handler;
@@ -24,8 +24,8 @@ public class LobbyHandlerRegistry
     {
         if (!_handlers.TryGetValue(messageId, out var handler))
         {
-            Log.Warning("[LobbyServer] 未知消息ID messageId={MessageId}", messageId);
-            MessageHelper.Send(peer, messageId, ReturnCode.Error, new { });
+            Log.Warning("未知消息ID messageId={MessageId}", messageId);
+            MessageHelper.Send(peer, messageId, ReturnCode.Error);
             return false;
         }
 

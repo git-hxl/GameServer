@@ -28,7 +28,8 @@ public class GameRoomManager
         {
             RoomId = request.RoomId,
             RoomType = request.RoomType,
-            OwnerUserId = request.OwnerUserId
+            OwnerUserId = request.OwnerUserId,
+            IsStarted = true
         };
 
         _rooms[request.RoomId] = room;
@@ -124,15 +125,16 @@ public class GameRoomManager
         return (ReturnCode.Success, roomId);
     }
 
-    public void BroadcastToRoom(string roomId, NetPeer sender, ushort messageId, object data)
+    public void BroadcastToRoom(string roomId, NetPeer sender, ushort messageId, object data, DeliveryMethod method = DeliveryMethod.ReliableOrdered)
     {
         if (!_rooms.TryGetValue(roomId, out var room)) return;
 
+        var frame = MessageHelper.SerializeFrame(messageId, ReturnCode.Success, data);
         foreach (var id in room.PlayerIds)
         {
             var p = _playerManager.Get(id);
             if (p != null && p.Peer != sender)
-                MessageHelper.Send(p.Peer, messageId, ReturnCode.Success, data);
+                MessageHelper.Send(p.Peer, frame, method);
         }
     }
 
