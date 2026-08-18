@@ -14,5 +14,7 @@ namespace SharedLib.Protocol
         NotAllReady = 8,
         DeserializeFailed = 9,
         RoomFull = 10,
+        GameServerOffline = 11,
+        NotAuthorized = 12,
     }
 }

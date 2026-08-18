@@ -37,6 +37,19 @@ public class GameRoomManager
             request.RoomId, request.RoomType, request.OwnerUserId);
     }
 
+    public void AuthorizePlayer(AuthorizeGamePlayerRequest request)
+    {
+        if (!_rooms.TryGetValue(request.RoomId, out var room))
+        {
+            Log.Warning("[GameRoomManager] 授权失败：房间未找到 roomId={RoomId}", request.RoomId);
+            return;
+        }
+
+        room.AllowedPlayerIds.Add(request.UserId);
+        Log.Information("[GameRoomManager] 授权玩家加入游戏 roomId={RoomId} userId={UserId}",
+            request.RoomId, request.UserId);
+    }
+
     public (JoinGameResponse Response, ReturnCode Code) JoinGame(NetPeer peer, JoinGameRequest request)
     {
         if (!_rooms.TryGetValue(request.RoomId, out var room))
@@ -51,6 +64,13 @@ public class GameRoomManager
             Log.Warning("[GameRoomManager] 加入游戏失败：已在房间中 userId={UserId} roomId={RoomId}",
                 userId, request.RoomId);
             return (new JoinGameResponse(), ReturnCode.AlreadyInRoom);
+        }
+
+        if (!room.AllowedPlayerIds.Contains(userId))
+        {
+            Log.Warning("[GameRoomManager] 加入游戏失败：未授权 userId={UserId} roomId={RoomId}",
+                userId, request.RoomId);
+            return (new JoinGameResponse(), ReturnCode.NotAuthorized);
         }
 
         var player = _playerManager.Add(peer, request.Player);
@@ -128,13 +148,12 @@ public class GameRoomManager
     {
         if (!_rooms.TryGetValue(roomId, out var room)) return;
 
-        var frame = MessageHelper.SerializeFrame(messageId, ReturnCode.Success, data);
-        foreach (var id in room.PlayerIds)
-        {
-            var p = _playerManager.Get(id);
-            if (p != null && p.Peer != sender)
-                MessageHelper.Send(p.Peer, frame, method);
-        }
+        var frame = MessageHelper.CreateFrame(messageId, ReturnCode.Success, data);
+        var peers = room.PlayerIds
+            .Select(id => _playerManager.Get(id))
+            .Where(p => p != null && p.Peer != sender)
+            .Select(p => p!.Peer);
+        MessageHelper.SendToAll(peers, frame, method);
     }
 
     public string? GetRoomId(NetPeer peer)

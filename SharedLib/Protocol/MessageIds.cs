@@ -35,6 +35,7 @@ namespace SharedLib.Protocol
         public const ushort LeaveGame = 31;
         public const ushort JoinGameNotify = 32;
         public const ushort LeaveGameNotify = 33;
+        public const ushort AuthorizeGamePlayer = 34;
 
         // 同步
         public const ushort PositionSync = 40;

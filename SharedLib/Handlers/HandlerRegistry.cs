@@ -20,7 +20,7 @@ public class HandlerRegistry
             _handlers[handler.MessageId] = handler;
     }
 
-    public bool Handle(NetPeer peer, byte[] payload, ushort messageId)
+    public bool Handle(NetPeer peer, ushort messageId, byte[] payload)
     {
         if (!_handlers.TryGetValue(messageId, out var handler))
         {
@@ -29,7 +29,7 @@ public class HandlerRegistry
             return false;
         }
 
-        handler.Handle(peer, payload);
+        handler.Handle(peer, messageId, payload);
         return true;
     }
 }

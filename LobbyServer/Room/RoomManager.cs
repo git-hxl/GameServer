@@ -52,7 +52,7 @@ public class RoomManager
             RoomId = roomId,
             RoomType = request.RoomType,
             OwnerUserId = userId,
-            GameServerPeer = gsValue.Key,
+            GameServerPort = gsValue.Value.Port,
             PlayerIds = new HashSet<long> { userId },
             MaxPlayers = request.MaxPlayers
         };
@@ -267,57 +267,70 @@ public class RoomManager
 
         room.IsStarted = true;
 
-        var gs = _gameServerRegistry.Get(room.GameServerPeer);
+        var gs = _gameServerRegistry.GetByPort(room.GameServerPort);
         if (gs == null)
         {
-            Log.Warning("[RoomManager] 开始游戏失败：GameServer已离线 roomId={RoomId}", roomId);
-            return (ReturnCode.NoGameServerAvailable, null);
+            Log.Warning("[RoomManager] 开始游戏失败：GameServer离线 roomId={RoomId}", roomId);
+            return (ReturnCode.GameServerOffline, null);
         }
 
-        MessageHelper.Send(room.GameServerPeer, MessageIds.CreateGameRoom, ReturnCode.Success, new CreateGameRoomRequest
+        MessageHelper.Send(gs.Peer, MessageIds.CreateGameRoom, ReturnCode.Success, new CreateGameRoomRequest
         {
             RoomId = roomId,
             RoomType = room.RoomType,
             OwnerUserId = room.OwnerUserId
         });
 
+        foreach (var id in room.PlayerIds)
+        {
+            MessageHelper.Send(gs.Peer, MessageIds.AuthorizeGamePlayer, ReturnCode.Success, new AuthorizeGamePlayerRequest
+            {
+                RoomId = roomId,
+                UserId = id
+            });
+        }
+
         var notify = new GameStartNotify
         {
             RoomId = roomId,
-            GameServerAddress = gs.Address,
-            GameServerPort = gs.Port
+            GameServerAddress = gs.Info.Address,
+            GameServerPort = gs.Info.Port
         };
 
-        var frame = MessageHelper.SerializeFrame(MessageIds.GameStartNotify, ReturnCode.Success, notify);
+        var frame = MessageHelper.CreateFrame(MessageIds.GameStartNotify, ReturnCode.Success, notify);
+
+        var peers = new List<NetPeer>();
         foreach (var id in room.PlayerIds)
         {
             var p = _players.Get(id);
             if (p != null)
             {
                 _players.SetState(id, PlayerState.InGame);
-                MessageHelper.Send(p.Peer, frame, DeliveryMethod.ReliableOrdered);
+                peers.Add(p.Peer);
             }
         }
+
+        MessageHelper.SendToAll(peers, frame, DeliveryMethod.ReliableOrdered);
 
         room.ReadyPlayerIds.Clear();
 
         Log.Information("[RoomManager] 游戏开始 roomId={RoomId} GameServer={Addr}:{Port}",
-            roomId, gs.Address, gs.Port);
+            roomId, gs.Info.Address, gs.Info.Port);
         return (ReturnCode.Success, notify);
     }
 
     private (ReturnCode Code, GameStartNotify? Notify) StartPlayer(LobbyRoom room, string roomId, long userId)
     {
-        var gs = _gameServerRegistry.Get(room.GameServerPeer);
+        var gs = _gameServerRegistry.GetByPort(room.GameServerPort);
         if (gs == null)
         {
-            Log.Warning("[RoomManager] 开始游戏失败：GameServer已离线 roomId={RoomId}", roomId);
-            return (ReturnCode.NoGameServerAvailable, null);
+            Log.Warning("[RoomManager] 开始游戏失败：GameServer离线 roomId={RoomId}", roomId);
+            return (ReturnCode.GameServerOffline, null);
         }
 
         if (!room.GameCreated)
         {
-            MessageHelper.Send(room.GameServerPeer, MessageIds.CreateGameRoom, ReturnCode.Success, new CreateGameRoomRequest
+            MessageHelper.Send(gs.Peer, MessageIds.CreateGameRoom, ReturnCode.Success, new CreateGameRoomRequest
             {
                 RoomId = roomId,
                 RoomType = room.RoomType,
@@ -326,11 +339,17 @@ public class RoomManager
             room.GameCreated = true;
         }
 
+        MessageHelper.Send(gs.Peer, MessageIds.AuthorizeGamePlayer, ReturnCode.Success, new AuthorizeGamePlayerRequest
+        {
+            RoomId = roomId,
+            UserId = userId
+        });
+
         var notify = new GameStartNotify
         {
             RoomId = roomId,
-            GameServerAddress = gs.Address,
-            GameServerPort = gs.Port
+            GameServerAddress = gs.Info.Address,
+            GameServerPort = gs.Info.Port
         };
 
         var p = _players.Get(userId);
@@ -388,14 +407,14 @@ public class RoomManager
 
     private RoomInfo BuildRoomInfo(LobbyRoom room)
     {
-        var gs = _gameServerRegistry.Get(room.GameServerPeer);
+        var gs = _gameServerRegistry.GetByPort(room.GameServerPort);
 
         return new RoomInfo
         {
             RoomId = room.RoomId,
             RoomType = room.RoomType,
-            GameServerAddress = gs?.Address ?? string.Empty,
-            GameServerPort = gs?.Port ?? 0,
+            GameServerAddress = gs?.Info.Address ?? string.Empty,
+            GameServerPort = gs?.Info.Port ?? 0,
             OwnerUserId = room.OwnerUserId,
             Players = room.PlayerIds
                 .Select(id => _players.Get(id))

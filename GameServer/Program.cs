@@ -15,8 +15,24 @@ var server = new GameServer.GameServer(config);
 server.Start();
 
 using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(config.UpdateTime));
+var cts = new CancellationTokenSource();
 
-while (await timer.WaitForNextTickAsync())
+Console.CancelKeyPress += (_, e) =>
 {
-    server.PollEvents();
+    e.Cancel = true;
+    Log.Information("[GameServer] 收到停机信号，准备退出");
+    cts.Cancel();
+};
+
+try
+{
+    while (await timer.WaitForNextTickAsync(cts.Token))
+    {
+        server.PollEvents();
+    }
 }
+catch (OperationCanceledException)
+{
+}
+
+Log.Information("[GameServer] 已退出");

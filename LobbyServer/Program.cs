@@ -12,8 +12,24 @@ var server = new LobbyServer.LobbyServer(config);
 server.Start(config);
 
 using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(config.UpdateTime));
+var cts = new CancellationTokenSource();
 
-while (await timer.WaitForNextTickAsync())
+Console.CancelKeyPress += (_, e) =>
 {
-    server.PollEvents();
+    e.Cancel = true;
+    Log.Information("[LobbyServer] 收到停机信号，准备退出");
+    cts.Cancel();
+};
+
+try
+{
+    while (await timer.WaitForNextTickAsync(cts.Token))
+    {
+        server.PollEvents();
+    }
 }
+catch (OperationCanceledException)
+{
+}
+
+Log.Information("[LobbyServer] 已退出");

@@ -1,6 +1,6 @@
 using LiteNetLib;
-using MessagePack;
 using Serilog;
+using SharedLib.Utils;
 
 namespace SharedLib.Handlers;
 
@@ -10,12 +10,18 @@ public abstract class MessageHandler<TRequest> : IHandler where TRequest : class
 
     public abstract void HandleMessage(NetPeer peer, TRequest request);
 
-    public void Handle(NetPeer peer, byte[] payload)
+    public void Handle(NetPeer peer, ushort messageId, byte[] payload)
     {
+        if (!TryAuthorize(peer))
+        {
+            OnUnauthorized(peer);
+            return;
+        }
+
         TRequest? request;
         try
         {
-            request = MessagePackSerializer.Deserialize<TRequest>(payload);
+            request = MessageHelper.Deserialize<TRequest>(payload);
         }
         catch (Exception ex)
         {
@@ -31,6 +37,12 @@ public abstract class MessageHandler<TRequest> : IHandler where TRequest : class
         }
 
         HandleMessage(peer, request);
+    }
+
+    protected virtual bool TryAuthorize(NetPeer peer) => true;
+
+    protected virtual void OnUnauthorized(NetPeer peer)
+    {
     }
 
     protected virtual void OnDeserializeFailed(NetPeer peer)

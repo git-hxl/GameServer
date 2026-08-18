@@ -5,5 +5,5 @@ namespace SharedLib.Handlers;
 public interface IHandler
 {
     ushort MessageId { get; }
-    void Handle(NetPeer peer, byte[] payload);
+    void Handle(NetPeer peer, ushort messageId, byte[] payload);
 }

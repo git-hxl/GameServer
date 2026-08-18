@@ -97,10 +97,7 @@ public class LobbyManager
 
     private void Broadcast(ushort messageId, ReturnCode code, object data)
     {
-        var frame = MessageHelper.SerializeFrame(messageId, code, data);
-        foreach (var player in _players.All)
-        {
-            MessageHelper.Send(player.Peer, frame, DeliveryMethod.ReliableOrdered);
-        }
+        var frame = MessageHelper.CreateFrame(messageId, code, data);
+        MessageHelper.SendToAll(_players.All.Select(p => p.Peer), frame, DeliveryMethod.ReliableOrdered);
     }
 }

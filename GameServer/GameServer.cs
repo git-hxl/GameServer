@@ -99,7 +99,8 @@ public class GameServer
 
         _lobbyRegistry = new HandlerRegistry();
         _lobbyRegistry.Register(
-            new CreateGameRoomHandler(_roomManager)
+            new CreateGameRoomHandler(_roomManager),
+            new AuthorizeGamePlayerHandler(_roomManager)
         );
     }
 
@@ -107,6 +108,13 @@ public class GameServer
     {
         _netManager.PollEvents();
         _lobbyClient.PollEvents();
+    }
+
+    public void Stop()
+    {
+        _updateCts.Cancel();
+        _lobbyClient.Stop();
+        _netManager.Stop();
     }
 
     private void OnConnectionRequest(ConnectionRequest request)
@@ -130,8 +138,8 @@ public class GameServer
     {
         try
         {
-            var (messageId, _, payload) = MessageHelper.ReadFrame(reader);
-            _gameRegistry.Handle(peer, payload, messageId);
+            var frame = MessageHelper.ReadFrame(reader);
+            _gameRegistry.Handle(peer, frame.MessageId, frame.Payload);
         }
         catch (Exception ex)
         {
@@ -167,8 +175,8 @@ public class GameServer
     {
         try
         {
-            var (messageId, _, payload) = MessageHelper.ReadFrame(reader);
-            _lobbyRegistry.Handle(peer, payload, messageId);
+            var frame = MessageHelper.ReadFrame(reader);
+            _lobbyRegistry.Handle(peer, frame.MessageId, frame.Payload);
         }
         catch (Exception ex)
         {

@@ -139,8 +139,8 @@ public class LobbyServer
     {
         try
         {
-            var (messageId, _, payload) = MessageHelper.ReadFrame(reader);
-            _clientRegistry.Handle(peer, payload, messageId);
+            var frame = MessageHelper.ReadFrame(reader);
+            _clientRegistry.Handle(peer, frame.MessageId, frame.Payload);
         }
         catch (Exception ex)
         {
@@ -156,8 +156,8 @@ public class LobbyServer
     {
         try
         {
-            var (messageId, _, payload) = MessageHelper.ReadFrame(reader);
-            _serverRegistry.Handle(peer, payload, messageId);
+            var frame = MessageHelper.ReadFrame(reader);
+            _serverRegistry.Handle(peer, frame.MessageId, frame.Payload);
         }
         catch (Exception ex)
         {

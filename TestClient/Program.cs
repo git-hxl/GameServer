@@ -1,6 +1,5 @@
 ﻿using LiteNetLib;
 using LiteNetLib.Utils;
-using MessagePack;
 using Serilog;
 using SharedLib.Models;
 using SharedLib.Protocol;
@@ -52,47 +51,45 @@ listener.NetworkReceiveEvent += (peer, reader, channel, method) =>
 {
     try
     {
-        var messageId = reader.GetUShort();
-        var code = reader.GetByte();
-        var payload = reader.GetRemainingBytes();
+        var frame = MessageHelper.ReadFrame(reader);
 
-        switch (messageId)
+        switch (frame.MessageId)
         {
             case MessageIds.JoinLobby:
-                var joinRes = MessagePackSerializer.Deserialize<JoinLobbyResponse>(payload);
-                if (code == 0)
+                var joinRes = MessageHelper.Deserialize<JoinLobbyResponse>(frame);
+                if (frame.Code == ReturnCode.Success)
                     Log.Information("[TestClient] 加入大厅成功 userId={UserId} nickname={Nickname}",
                         joinRes?.Player.UserId, joinRes?.Player.Nickname);
                 else
-                    Log.Warning("[TestClient] 加入大厅失败 reason={Reason}", (ReturnCode)code);
+                    Log.Warning("[TestClient] 加入大厅失败 reason={Reason}", frame.Code);
                 break;
 
             case MessageIds.LeaveLobby:
-                var leaveRes = MessagePackSerializer.Deserialize<LeaveLobbyResponse>(payload);
-                if (code == 0)
+                var leaveRes = MessageHelper.Deserialize<LeaveLobbyResponse>(frame);
+                if (frame.Code == ReturnCode.Success)
                     Log.Information("[TestClient] 离开大厅成功 userId={UserId}", leaveRes?.UserId);
                 else
-                    Log.Warning("[TestClient] 离开大厅失败 reason={Reason}", (ReturnCode)code);
+                    Log.Warning("[TestClient] 离开大厅失败 reason={Reason}", frame.Code);
                 break;
 
             case MessageIds.ChatNotify:
-                var chatNotify = MessagePackSerializer.Deserialize<ChatNotify>(payload);
+                var chatNotify = MessageHelper.Deserialize<ChatNotify>(frame);
                 Log.Information("[TestClient] 聊天 nickname={Nickname} content={Content}",
                     chatNotify?.Nickname, chatNotify?.Content);
                 break;
 
             case MessageIds.CreateRoom:
-                var createRes = MessagePackSerializer.Deserialize<CreateRoomResponse>(payload);
-                if (code == 0)
+                var createRes = MessageHelper.Deserialize<CreateRoomResponse>(frame);
+                if (frame.Code == ReturnCode.Success)
                     Log.Information("[TestClient] 房间创建成功 roomId={RoomId} GameServer={Addr}:{Port}",
                         createRes?.Room.RoomId, createRes?.Room.GameServerAddress, createRes?.Room.GameServerPort);
                 else
-                    Log.Warning("[TestClient] 房间创建失败 reason={Reason}", (ReturnCode)code);
+                    Log.Warning("[TestClient] 房间创建失败 reason={Reason}", frame.Code);
                 break;
 
             case MessageIds.JoinRoom:
-                var joinRoomRes = MessagePackSerializer.Deserialize<JoinRoomResponse>(payload);
-                if (code == 0)
+                var joinRoomRes = MessageHelper.Deserialize<JoinRoomResponse>(frame);
+                if (frame.Code == ReturnCode.Success)
                 {
                     var r = joinRoomRes?.Room;
                     Log.Information("[TestClient] 房间加入成功 roomId={RoomId} GameServer={Addr}:{Port} 房主={Owner}",
@@ -105,27 +102,27 @@ listener.NetworkReceiveEvent += (peer, reader, channel, method) =>
                     }
                 }
                 else
-                    Log.Warning("[TestClient] 房间加入失败 reason={Reason}", (ReturnCode)code);
+                    Log.Warning("[TestClient] 房间加入失败 reason={Reason}", frame.Code);
 
                 break;
 
             case MessageIds.LeaveRoom:
-                var leaveRoomRes = MessagePackSerializer.Deserialize<LeaveRoomResponse>(payload);
-                if (code == 0)
+                var leaveRoomRes = MessageHelper.Deserialize<LeaveRoomResponse>(frame);
+                if (frame.Code == ReturnCode.Success)
                     Log.Information("[TestClient] 房间已离开 roomId={RoomId}", leaveRoomRes?.RoomId);
                 else
-                    Log.Warning("[TestClient] 房间离开失败 reason={Reason}", (ReturnCode)code);
+                    Log.Warning("[TestClient] 房间离开失败 reason={Reason}", frame.Code);
                 break;
 
             case MessageIds.JoinRoomNotify:
-                var joinNotify = MessagePackSerializer.Deserialize<JoinRoomNotify>(payload);
+                var joinNotify = MessageHelper.Deserialize<JoinRoomNotify>(frame);
                 Log.Information("[TestClient] 玩家加入房间 nickname={Nickname} userId={UserId} roomId={RoomId}",
                     joinNotify?.Player.Nickname, joinNotify?.Player.UserId, joinNotify?.RoomId);
                 break;
 
             case MessageIds.GameReady:
-                var readyRes = MessagePackSerializer.Deserialize<GameReadyResponse>(payload);
-                if (code == 0)
+                var readyRes = MessageHelper.Deserialize<GameReadyResponse>(frame);
+                if (frame.Code == ReturnCode.Success)
                     Log.Information("[TestClient] 准备状态更新 ready={Ready}/{Total} allReady={AllReady}",
                         readyRes?.ReadyCount, readyRes?.TotalCount, readyRes?.AllReady);
                 else
@@ -133,8 +130,8 @@ listener.NetworkReceiveEvent += (peer, reader, channel, method) =>
                 break;
 
             case MessageIds.GameUnready:
-                var unreadyRes = MessagePackSerializer.Deserialize<GameUnreadyResponse>(payload);
-                if (code == 0)
+                var unreadyRes = MessageHelper.Deserialize<GameUnreadyResponse>(frame);
+                if (frame.Code == ReturnCode.Success)
                     Log.Information("[TestClient] 取消准备 ready={Ready}/{Total}",
                         unreadyRes?.ReadyCount, unreadyRes?.TotalCount);
                 else
@@ -142,14 +139,14 @@ listener.NetworkReceiveEvent += (peer, reader, channel, method) =>
                 break;
 
             case MessageIds.GameStart:
-                if (code == 0)
+                if (frame.Code == ReturnCode.Success)
                     Log.Information("[TestClient] 游戏开始请求成功，等待GameServer通知");
                 else
-                    Log.Warning("[TestClient] 游戏开始失败 reason={Reason}", (ReturnCode)code);
+                    Log.Warning("[TestClient] 游戏开始失败 reason={Reason}", frame.Code);
                 break;
 
             case MessageIds.GameStartNotify:
-                var startNotify = MessagePackSerializer.Deserialize<GameStartNotify>(payload);
+                var startNotify = MessageHelper.Deserialize<GameStartNotify>(frame);
                 Log.Information("[TestClient] 游戏开始通知 address={Addr}:{Port} roomId={RoomId}",
                     startNotify?.GameServerAddress, startNotify?.GameServerPort, startNotify?.RoomId);
                 if (startNotify != null)
@@ -160,7 +157,7 @@ listener.NetworkReceiveEvent += (peer, reader, channel, method) =>
                 break;
 
             case MessageIds.RoomList:
-                var roomList = MessagePackSerializer.Deserialize<RoomListResponse>(payload);
+                var roomList = MessageHelper.Deserialize<RoomListResponse>(frame);
                 if (roomList?.Rooms.Count > 0)
                 {
                     Log.Information("[TestClient] 房间列表");
@@ -175,7 +172,7 @@ listener.NetworkReceiveEvent += (peer, reader, channel, method) =>
                 break;
 
             default:
-                Log.Information("[TestClient] 收到未知Lobby消息 messageId={MessageId}", messageId);
+                Log.Information("[TestClient] 收到未知Lobby消息 messageId={MessageId}", frame.MessageId);
                 break;
         }
     }
@@ -219,30 +216,28 @@ gameListener.NetworkReceiveEvent += (peer, reader, channel, method) =>
 {
     try
     {
-        var messageId = reader.GetUShort();
-        var code = reader.GetByte();
-        var payload = reader.GetRemainingBytes();
+        var frame = MessageHelper.ReadFrame(reader);
 
-        switch (messageId)
+        switch (frame.MessageId)
         {
             case MessageIds.JoinGame:
-                var joinGameRes = MessagePackSerializer.Deserialize<JoinGameResponse>(payload);
-                if (code == 0)
+                var joinGameRes = MessageHelper.Deserialize<JoinGameResponse>(frame);
+                if (frame.Code == ReturnCode.Success)
                     Log.Information("[TestClient] 游戏房间加入成功 roomId={RoomId} 房主={Owner}",
                         joinGameRes?.RoomId, joinGameRes?.OwnerUserId);
                 else
-                    Log.Warning("[TestClient] 游戏房间加入失败 reason={Reason}", (ReturnCode)code);
+                    Log.Warning("[TestClient] 游戏房间加入失败 reason={Reason}", frame.Code);
                 break;
 
             case MessageIds.LeaveGame:
-                if (code == 0)
+                if (frame.Code == ReturnCode.Success)
                     Log.Information("[TestClient] 游戏房间离开成功");
                 else
                     Log.Warning("[TestClient] 游戏房间离开失败");
                 break;
 
             case MessageIds.JoinGameNotify:
-                var gameJoinNotify = MessagePackSerializer.Deserialize<JoinGameNotify>(payload);
+                var gameJoinNotify = MessageHelper.Deserialize<JoinGameNotify>(frame);
                 Log.Information("[TestClient] 玩家加入游戏房间 nickname={Nickname} userId={UserId}",
                     gameJoinNotify?.Player.Nickname, gameJoinNotify?.Player.UserId);
                 break;
