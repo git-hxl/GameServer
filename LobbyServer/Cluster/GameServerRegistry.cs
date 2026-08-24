@@ -6,28 +6,28 @@ namespace LobbyServer.Cluster;
 
 public class GameServerRegistry
 {
-    private readonly ConcurrentDictionary<int, ServerEntry> _byPort = new();
-    private readonly ConcurrentDictionary<NetPeer, int> _portByPeer = new();
+    private readonly ConcurrentDictionary<string, ServerEntry> _byKey = new();
+    private readonly ConcurrentDictionary<NetPeer, string> _keyByPeer = new();
 
     public void Register(NetPeer peer, GameServerInfo info)
     {
-        info.Address = ResolveAddress(peer);
+        var key = MakeKey(info.Address, info.Port);
 
-        if (_portByPeer.TryGetValue(peer, out var oldPort) && oldPort != info.Port)
-            _byPort.TryRemove(oldPort, out _);
+        if (_keyByPeer.TryGetValue(peer, out var oldKey) && oldKey != key)
+            _byKey.TryRemove(oldKey, out _);
 
-        _portByPeer[peer] = info.Port;
-        _byPort[info.Port] = new ServerEntry(peer, info);
+        _keyByPeer[peer] = key;
+        _byKey[key] = new ServerEntry(peer, info);
     }
 
     public bool Update(NetPeer peer, GameServerInfo info)
     {
-        if (!_portByPeer.TryGetValue(peer, out var port))
+        if (!_keyByPeer.TryGetValue(peer, out var key))
             return false;
-        if (!_byPort.TryGetValue(port, out var entry) || entry.Peer != peer)
+        if (!_byKey.TryGetValue(key, out var entry) || entry.Peer != peer)
             return false;
 
-        _byPort[port] = new ServerEntry(peer, new GameServerInfo
+        _byKey[key] = new ServerEntry(peer, new GameServerInfo
         {
             Address = entry.Info.Address,
             Port = entry.Info.Port,
@@ -41,27 +41,28 @@ public class GameServerRegistry
 
     public void Remove(NetPeer peer)
     {
-        if (_portByPeer.TryRemove(peer, out var port))
-            _byPort.TryRemove(port, out _);
+        if (_keyByPeer.TryRemove(peer, out var key))
+            _byKey.TryRemove(key, out _);
     }
 
     public GameServerInfo? Get(NetPeer peer)
     {
-        if (!_portByPeer.TryGetValue(peer, out var port))
+        if (!_keyByPeer.TryGetValue(peer, out var key))
             return null;
-        return _byPort.TryGetValue(port, out var entry) ? entry.Info : null;
+        return _byKey.TryGetValue(key, out var entry) ? entry.Info : null;
     }
 
-    public ServerEntry? GetByPort(int port)
+    public ServerEntry? GetByAddressPort(string address, int port)
     {
-        if (_byPort.TryGetValue(port, out var entry) && entry.Peer.ConnectionState == ConnectionState.Connected)
+        var key = MakeKey(address, port);
+        if (_byKey.TryGetValue(key, out var entry) && entry.Peer.ConnectionState == ConnectionState.Connected)
             return entry;
         return null;
     }
 
     public KeyValuePair<NetPeer, GameServerInfo>? PickLeastLoaded()
     {
-        var connected = _byPort
+        var connected = _byKey
             .Where(s => s.Value.Peer.ConnectionState == ConnectionState.Connected)
             .ToList();
 
@@ -72,13 +73,5 @@ public class GameServerRegistry
         return new KeyValuePair<NetPeer, GameServerInfo>(best.Value.Peer, best.Value.Info);
     }
 
-    private static string ResolveAddress(NetPeer peer)
-    {
-        var ep = peer.Address;
-        var epStr = ep.ToString();
-        var colon = epStr.LastIndexOf(':');
-        return colon > 0 ? epStr[..colon] : epStr;
-    }
-
-    public record ServerEntry(NetPeer Peer, GameServerInfo Info);
+    private static string MakeKey(string address, int port) => $"{address}:{port}";
 }

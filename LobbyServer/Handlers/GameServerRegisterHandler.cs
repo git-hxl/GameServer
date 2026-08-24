@@ -21,6 +21,6 @@ public class GameServerRegisterHandler : MessageHandler<GameServerInfo>
     public override void HandleMessage(NetPeer peer, GameServerInfo request)
     {
         _registry.Register(peer, request);
-        Log.Information("[LobbyServer] GameServer 注册成功 port={Port}", request.Port);
+        Log.Information("[LobbyServer] GameServer 注册成功 address={Address} port={Port}", request.Address, request.Port);
     }
 }

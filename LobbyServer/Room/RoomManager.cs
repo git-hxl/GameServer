@@ -52,6 +52,7 @@ public class RoomManager
             RoomId = roomId,
             RoomType = request.RoomType,
             OwnerUserId = userId,
+            GameServerAddress = gsValue.Value.Address,
             GameServerPort = gsValue.Value.Port,
             PlayerIds = new HashSet<long> { userId },
             MaxPlayers = request.MaxPlayers
@@ -267,7 +268,7 @@ public class RoomManager
 
         room.IsStarted = true;
 
-        var gs = _gameServerRegistry.GetByPort(room.GameServerPort);
+        var gs = _gameServerRegistry.GetByAddressPort(room.GameServerAddress, room.GameServerPort);
         if (gs == null)
         {
             Log.Warning("[RoomManager] 开始游戏失败：GameServer离线 roomId={RoomId}", roomId);
@@ -321,7 +322,7 @@ public class RoomManager
 
     private (ReturnCode Code, GameStartNotify? Notify) StartPlayer(LobbyRoom room, string roomId, long userId)
     {
-        var gs = _gameServerRegistry.GetByPort(room.GameServerPort);
+        var gs = _gameServerRegistry.GetByAddressPort(room.GameServerAddress, room.GameServerPort);
         if (gs == null)
         {
             Log.Warning("[RoomManager] 开始游戏失败：GameServer离线 roomId={RoomId}", roomId);
@@ -407,7 +408,7 @@ public class RoomManager
 
     private RoomInfo BuildRoomInfo(LobbyRoom room)
     {
-        var gs = _gameServerRegistry.GetByPort(room.GameServerPort);
+        var gs = _gameServerRegistry.GetByAddressPort(room.GameServerAddress, room.GameServerPort);
 
         return new RoomInfo
         {

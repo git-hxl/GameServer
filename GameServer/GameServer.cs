@@ -26,6 +26,7 @@ public class GameServer
     private readonly string _lobbyAddress;
     private readonly int _lobbyPort;
     private readonly int _serverPort;
+    private readonly string _advertisedAddress;
 
     private CancellationTokenSource _updateCts = new();
     private readonly PerformanceMonitor _perf = new();
@@ -40,6 +41,7 @@ public class GameServer
         _lobbyAddress = config.LobbyAddress;
         _lobbyPort = config.LobbyPort;
         _serverPort = config.Port;
+        _advertisedAddress = AddressResolver.Resolve(config.PublicAddress);
 
         _listener = new EventBasedNetListener();
         _netManager = new NetManager(_listener)
@@ -158,6 +160,7 @@ public class GameServer
 
         MessageHelper.Send(peer, MessageIds.GameServerRegister, ReturnCode.Success, new GameServerInfo
         {
+            Address = _advertisedAddress,
             Port = _serverPort,
             PlayerCount = 0,
             RoomCount = 0
@@ -219,6 +222,7 @@ public class GameServer
     {
         MessageHelper.Send(_lobbyPeer!, MessageIds.GameServerUpdate, ReturnCode.Success, new GameServerInfo
         {
+            Address = _advertisedAddress,
             Port = _serverPort,
             PlayerCount = _roomManager.PlayerCount,
             RoomCount = _roomManager.RoomCount,

@@ -45,6 +45,7 @@ LobbyServer 维护两个 registry：`_clientRegistry`（客户端口消息）和
 - handler 很薄：继承 `MessageHandler<TRequest>`，委托给 `LobbyManager` / `RoomManager`（LobbyServer）或 `GameRoomManager`（GameServer）。房间/玩家状态放在这些 manager 里，而不是 handler 里。
 - 服务端注释和日志是中文，修改相邻代码时保持该风格。
 - 玩家标识是 `long UserId`；`PlayerManager` 维护 `NetPeer → userId` 映射，并跟踪 `PlayerState`（InLobby/InRoom/Ready/InGame）。
-- 房间流程：`RoomManager.PickGameServer` 根据每个 GameServer 周期性 `GameServerUpdate` 上报的 `GameServerInfo.PlayerCount` 做负载均衡。`GameServerRegistry` 以 Port 为主键定位 GameServer；GameServer 断线时房间保留（可能重连恢复），但 `StartGame` 若该 Port 的 GameServer 离线返回 `GameServerOffline`。
+- 房间流程：`RoomManager.PickGameServer` 根据每个 GameServer 周期性 `GameServerUpdate` 上报的 `GameServerInfo.PlayerCount` 做负载均衡。`GameServerRegistry` 以 `Address:Port`（GameServer 上报的广告地址）为唯一 key 定位 GameServer；GameServer 断线时房间保留（可能重连恢复），但 `StartGame` 若该 key 的 GameServer 离线返回 `GameServerOffline`。
+- GameServer 广告地址：`GameServerInfo.Address` 由 GameServer 在 Register/Update 时自行上报——取 `GameServerConfig.PublicAddress`（可配置覆盖），为空时 `AddressResolver` 自动探测本机首个非回环 IPv4，兜底 127.0.0.1。
 - 房间类型：`Default` 房主开局、全员先准备，开局后 `IsStarted` 拒绝加入；`QuickMatch` 自由加入，任意玩家点开始只对本人开局。创建房间时 `CreateRoomRequest.MaxPlayers` 传入人数上限（0=无上限），LobbyServer 在 `JoinRoom` 时按此判断，满员返回 `RoomFull` 且 `IsStarted` 拒绝再加入（人数限制只在 LobbyRoom 层，GameRoom 不限制）。
 - 开局授权：`StartGame` 时 LobbyServer 发 `CreateGameRoom` 建游戏房间，再逐人发 `AuthorizeGamePlayer` 加入可加入列表；`GameRoomManager.JoinGame` 校验 userId 在 `AllowedPlayerIds` 中，否则返回 `NotAuthorized`。玩家必须先大厅加入→开始→才能进游戏服。

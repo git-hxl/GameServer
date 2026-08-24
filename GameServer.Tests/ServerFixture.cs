@@ -121,6 +121,7 @@ public sealed class TestClient : IDisposable
         _client = new NetManager(_listener);
         _client.Start();
     }
+
     public void Connect(int port, string key)
     {
         _client.Connect("127.0.0.1", port, key);
@@ -135,6 +136,7 @@ public sealed class TestClient : IDisposable
             if (Connected) return true;
             Thread.Sleep(5);
         }
+
         return false;
     }
 
@@ -158,8 +160,10 @@ public sealed class TestClient : IDisposable
                 if (msg != default)
                     return msg;
             }
+
             Thread.Sleep(5);
         }
+
         return null;
     }
 
@@ -167,7 +171,9 @@ public sealed class TestClient : IDisposable
     {
         var msg = WaitMessage(messageId, timeoutMs);
         return msg is { } m ? MessageHelper.Deserialize<T>(m.Payload) : null;
-    }    public void Dispose()
+    }
+
+    public void Dispose()
     {
         _client.Stop();
     }
