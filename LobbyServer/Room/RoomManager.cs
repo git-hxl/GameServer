@@ -20,26 +20,19 @@ public class RoomManager
         _gameServerRegistry = gameServerRegistry;
     }
 
-    public (CreateRoomResponse Response, ReturnCode Code) CreateRoom(long userId, CreateRoomRequest request)
+    public (CreateRoomResponse Response, ReturnCode Code) CreateRoom(CreateRoomRequest request, long? creatorUserId)
     {
-        Log.Information("[RoomManager] 创建房间 userId={UserId} roomId={RoomId}", userId, request.RoomId);
+        Log.Information("[RoomManager] 创建房间 creator={Creator} roomId={RoomId}", creatorUserId, request.RoomId);
 
-        var player = _players.Get(userId);
-        if (player == null)
+        if (creatorUserId.HasValue && _players.Get(creatorUserId.Value) == null)
         {
-            Log.Warning("[RoomManager] 创建房间失败：玩家不存在 userId={UserId}", userId);
+            Log.Warning("[RoomManager] 创建房间失败：玩家不在大厅 userId={UserId}", creatorUserId);
             return (new CreateRoomResponse(), ReturnCode.NotInLobby);
         }
 
-        var gs = PickGameServer();
-        if (gs == null)
-        {
-            Log.Warning("[RoomManager] 创建房间失败：无可用GameServer userId={UserId}", userId);
-            return (new CreateRoomResponse(), ReturnCode.NoGameServerAvailable);
-        }
-
-        var gsValue = gs.Value;
-        var roomId = request.RoomId ?? Guid.NewGuid().ToString("N")[..8];
+        var roomId = string.IsNullOrWhiteSpace(request.RoomId)
+            ? Guid.NewGuid().ToString("N")[..8]
+            : request.RoomId;
 
         if (_rooms.ContainsKey(roomId))
         {
@@ -47,22 +40,58 @@ public class RoomManager
             return (new CreateRoomResponse(), ReturnCode.Error);
         }
 
+        var gs = PickGameServer();
+        if (gs == null)
+        {
+            Log.Warning("[RoomManager] 创建房间失败：无可用GameServer");
+            return (new CreateRoomResponse(), ReturnCode.NoGameServerAvailable);
+        }
+
+        var gsValue = gs.Value;
+
+        try
+        {
+            MessageHelper.Send(gsValue.Key, MessageIds.CreateGameRoom, ReturnCode.Success, new CreateGameRoomRequest
+            {
+                RoomId = roomId,
+                RoomType = request.RoomType,
+                MaxPlayers = request.MaxPlayers,
+                OwnerUserId = creatorUserId ?? 0
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "[RoomManager] 同步创建游戏房间失败 roomId={RoomId}", roomId);
+            return (new CreateRoomResponse(), ReturnCode.GameServerOffline);
+        }
+
+        if (creatorUserId.HasValue && _players.Get(creatorUserId.Value)?.CurrentRoomId != null)
+            LeaveRoom(creatorUserId.Value);
+
         var room = new LobbyRoom
         {
             RoomId = roomId,
             RoomType = request.RoomType,
-            OwnerUserId = userId,
+            MaxPlayers = request.MaxPlayers,
+            OwnerUserId = creatorUserId ?? 0,
+            CreatorUserId = creatorUserId,
             GameServerAddress = gsValue.Value.Address,
-            GameServerPort = gsValue.Value.Port,
-            PlayerIds = new HashSet<long> { userId },
-            MaxPlayers = request.MaxPlayers
+            GameServerPort = gsValue.Value.Port
         };
 
-        _rooms[roomId] = room;
-        _players.SetState(userId, PlayerState.InRoom, roomId);
+        if (creatorUserId.HasValue)
+        {
+            room.PlayerIds.Add(creatorUserId.Value);
+            _players.SetState(creatorUserId.Value, PlayerState.InRoom, roomId);
+        }
 
-        Log.Information("[RoomManager] 房间创建成功 roomId={RoomId} type={RoomType} GameServer={Addr}:{Port} 房主={UserId} 总房间数={TotalRooms}",
-            roomId, room.RoomType, gsValue.Value.Address, gsValue.Value.Port, userId, _rooms.Count);
+        _rooms[roomId] = room;
+
+        Log.Information(
+            "[RoomManager] 房间创建成功 roomId={RoomId} type={RoomType} owner={Owner} GameServer={Addr}:{Port} 成员数={Count}",
+            roomId, room.RoomType, room.OwnerUserId, room.GameServerAddress, room.GameServerPort,
+            room.PlayerIds.Count);
+
         return (new CreateRoomResponse { Room = BuildRoomInfo(room) }, ReturnCode.Success);
     }
 
@@ -79,38 +108,34 @@ public class RoomManager
 
         if (!_rooms.TryGetValue(request.RoomId, out var room))
         {
-            Log.Warning("[RoomManager] 加入房间失败：房间未找到 roomId={RoomId} userId={UserId}", request.RoomId, userId);
+            Log.Warning("[RoomManager] 加入房间失败：房间未找到 roomId={RoomId}", request.RoomId);
             return (new JoinRoomResponse { Room = new RoomInfo { RoomId = request.RoomId } }, ReturnCode.RoomNotFound);
-        }
-
-        if (room.IsStarted)
-        {
-            Log.Warning("[RoomManager] 加入房间失败：房间已开始 roomId={RoomId} userId={UserId}", request.RoomId, userId);
-            return (new JoinRoomResponse { Room = new RoomInfo { RoomId = request.RoomId } }, ReturnCode.RoomFull);
         }
 
         if (room.MaxPlayers > 0 && room.PlayerIds.Count >= room.MaxPlayers)
         {
-            room.IsStarted = true;
-            Log.Warning("[RoomManager] 加入房间失败：房间已满 roomId={RoomId} userId={UserId} max={Max}",
-                request.RoomId, userId, room.MaxPlayers);
+            Log.Warning("[RoomManager] 加入房间失败：房间已满 roomId={RoomId} max={Max}",
+                request.RoomId, room.MaxPlayers);
             return (new JoinRoomResponse { Room = new RoomInfo { RoomId = request.RoomId } }, ReturnCode.RoomFull);
         }
 
         if (room.PlayerIds.Contains(userId))
         {
-            Log.Warning("[RoomManager] 加入房间失败：已在房间中 roomId={RoomId} userId={UserId}", request.RoomId, userId);
-            return (new JoinRoomResponse { Room = new RoomInfo { RoomId = request.RoomId } }, ReturnCode.AlreadyInRoom);
+            Log.Warning("[RoomManager] 加入房间失败：已在房间中 roomId={RoomId} userId={UserId}",
+                request.RoomId, userId);
+            return (new JoinRoomResponse { Room = BuildRoomInfo(room) }, ReturnCode.AlreadyInRoom);
         }
 
-        LeaveRoom(userId);
+        if (player.CurrentRoomId != null)
+            LeaveRoom(userId);
 
         room.PlayerIds.Add(userId);
-        room.OwnerUserId = _players.Get(room.OwnerUserId)?.Info.UserId ?? 0;
+        if (room.OwnerUserId == 0)
+            room.OwnerUserId = userId;
 
         _players.SetState(userId, PlayerState.InRoom, request.RoomId);
 
-        var notify = new JoinRoomNotify { RoomId = request.RoomId, Player = player.Info };
+        var notify = new JoinRoomNotify { RoomId = room.RoomId, Player = player.Info };
         foreach (var otherId in room.PlayerIds.Where(id => id != userId))
         {
             var otherPlayer = _players.Get(otherId);
@@ -119,7 +144,8 @@ public class RoomManager
         }
 
         Log.Information("[RoomManager] 加入房间成功 roomId={RoomId} userId={UserId} 房主={Owner} 房间人数={Count}",
-            request.RoomId, userId, room.OwnerUserId, room.PlayerIds.Count);
+            room.RoomId, userId, room.OwnerUserId, room.PlayerIds.Count);
+
         return (new JoinRoomResponse { Room = BuildRoomInfo(room) }, ReturnCode.Success);
     }
 
@@ -138,7 +164,6 @@ public class RoomManager
         if (!room.PlayerIds.Remove(userId))
             return (new LeaveRoomResponse(), ReturnCode.NotInRoom);
 
-        room.ReadyPlayerIds.Remove(userId);
         _players.SetState(userId, PlayerState.InLobby);
 
         var remaining = room.PlayerIds.Count;
@@ -148,227 +173,64 @@ public class RoomManager
         if (remaining == 0)
         {
             _rooms.Remove(roomId);
+            SendCloseGameRoom(room, RoomCloseReason.Empty);
             Log.Information("[RoomManager] 房间关闭 roomId={RoomId}（无玩家）", roomId);
         }
         else
         {
-            ReassignOwner(roomId, room);
-            var leaveNotify = new LeaveRoomNotify { RoomId = roomId, UserId = userId };
-            foreach (var otherId in room.PlayerIds)
+            if (room.OwnerUserId == userId)
             {
-                var otherPlayer = _players.Get(otherId);
-                if (otherPlayer != null)
-                    MessageHelper.Send(otherPlayer.Peer, MessageIds.LeaveRoomNotify, ReturnCode.Success, leaveNotify);
+                room.OwnerUserId = room.PlayerIds[0];
+                Broadcast(room, MessageIds.RoomOwnerChangedNotify, new RoomOwnerChangedNotify
+                {
+                    RoomId = roomId,
+                    OwnerUserId = room.OwnerUserId
+                });
+                Log.Information("[RoomManager] 房主转移 roomId={RoomId} →{NewOwner}", roomId, room.OwnerUserId);
             }
+
+            Broadcast(room, MessageIds.LeaveRoomNotify, new LeaveRoomNotify
+            {
+                RoomId = roomId,
+                UserId = userId
+            });
         }
 
         return (new LeaveRoomResponse { RoomId = roomId }, ReturnCode.Success);
     }
 
-    public (GameReadyResponse Response, ReturnCode Code) SetReady(long userId)
+    public ReturnCode CloseRoom(string roomId, RoomCloseReason reason)
     {
-        var player = _players.Get(userId);
-        if (player == null || player.CurrentRoomId == null)
-            return (new GameReadyResponse(), ReturnCode.NotInRoom);
-
-        var roomId = player.CurrentRoomId;
-        if (!_rooms.TryGetValue(roomId, out var room))
-            return (new GameReadyResponse(), ReturnCode.NotInRoom);
-
-        room.ReadyPlayerIds.Add(userId);
-        _players.SetState(userId, PlayerState.Ready);
-
-        var ready = room.ReadyPlayerIds.Count;
-        var total = room.PlayerIds.Count;
-        Log.Information("[RoomManager] 玩家准备 roomId={RoomId} userId={UserId} ready={Ready}/{Total}",
-            roomId, userId, ready, total);
-
-        var notify = new GameReadyNotify
+        if (!_rooms.Remove(roomId, out var room))
         {
-            RoomId = roomId,
-            UserId = userId,
-            IsReady = true,
-            ReadyCount = ready,
-            TotalCount = total
-        };
-        foreach (var otherId in room.PlayerIds.Where(id => id != userId))
-        {
-            var otherPlayer = _players.Get(otherId);
-            if (otherPlayer != null)
-                MessageHelper.Send(otherPlayer.Peer, MessageIds.GameReadyNotify, ReturnCode.Success, notify);
+            Log.Warning("[RoomManager] 关闭房间失败：房间未找到 roomId={RoomId}", roomId);
+            return ReturnCode.RoomNotFound;
         }
 
-        var allReady = ready >= total;
-        return (new GameReadyResponse { ReadyCount = ready, TotalCount = total, AllReady = allReady }, ReturnCode.Success);
-    }
-
-    public (GameUnreadyResponse Response, ReturnCode Code) SetUnready(long userId)
-    {
-        var player = _players.Get(userId);
-        if (player == null || player.CurrentRoomId == null)
-            return (new GameUnreadyResponse(), ReturnCode.NotInRoom);
-
-        var roomId = player.CurrentRoomId;
-        if (!_rooms.TryGetValue(roomId, out var room))
-            return (new GameUnreadyResponse(), ReturnCode.NotInRoom);
-
-        room.ReadyPlayerIds.Remove(userId);
-        _players.SetState(userId, PlayerState.InRoom);
-
-        var ready = room.ReadyPlayerIds.Count;
-        var total = room.PlayerIds.Count;
-        Log.Information("[RoomManager] 玩家取消准备 roomId={RoomId} userId={UserId} ready={Ready}/{Total}",
-            roomId, userId, ready, total);
-
-        var notify = new GameReadyNotify
-        {
-            RoomId = roomId,
-            UserId = userId,
-            IsReady = false,
-            ReadyCount = ready,
-            TotalCount = total
-        };
-        foreach (var otherId in room.PlayerIds.Where(id => id != userId))
-        {
-            var otherPlayer = _players.Get(otherId);
-            if (otherPlayer != null)
-                MessageHelper.Send(otherPlayer.Peer, MessageIds.GameReadyNotify, ReturnCode.Success, notify);
-        }
-
-        return (new GameUnreadyResponse { ReadyCount = ready, TotalCount = total }, ReturnCode.Success);
-    }
-
-    public (ReturnCode Code, GameStartNotify? Notify) StartGame(long userId)
-    {
-        var player = _players.Get(userId);
-        if (player == null || player.CurrentRoomId == null)
-            return (ReturnCode.NotInRoom, null);
-
-        var roomId = player.CurrentRoomId;
-        if (!_rooms.TryGetValue(roomId, out var room))
-            return (ReturnCode.NotInRoom, null);
-
-        if (room.RoomType == RoomType.QuickMatch)
-        {
-            return StartPlayer(room, roomId, userId);
-        }
-
-        if (room.OwnerUserId != userId)
-        {
-            Log.Warning("[RoomManager] 开始游戏失败：不是房主 roomId={RoomId}", roomId);
-            return (ReturnCode.NotRoomOwner, null);
-        }
-
-        if (room.ReadyPlayerIds.Count < room.PlayerIds.Count)
-        {
-            Log.Warning("[RoomManager] 开始游戏失败：玩家未全部准备 roomId={RoomId} ready={Ready}/{Total}",
-                roomId, room.ReadyPlayerIds.Count, room.PlayerIds.Count);
-            return (ReturnCode.NotAllReady, null);
-        }
-
-        room.IsStarted = true;
-
-        var gs = _gameServerRegistry.GetByAddressPort(room.GameServerAddress, room.GameServerPort);
-        if (gs == null)
-        {
-            Log.Warning("[RoomManager] 开始游戏失败：GameServer离线 roomId={RoomId}", roomId);
-            return (ReturnCode.GameServerOffline, null);
-        }
-
-        MessageHelper.Send(gs.Peer, MessageIds.CreateGameRoom, ReturnCode.Success, new CreateGameRoomRequest
-        {
-            RoomId = roomId,
-            RoomType = room.RoomType,
-            OwnerUserId = room.OwnerUserId
-        });
-
-        foreach (var id in room.PlayerIds)
-        {
-            MessageHelper.Send(gs.Peer, MessageIds.AuthorizeGamePlayer, ReturnCode.Success, new AuthorizeGamePlayerRequest
-            {
-                RoomId = roomId,
-                UserId = id
-            });
-        }
-
-        var notify = new GameStartNotify
-        {
-            RoomId = roomId,
-            GameServerAddress = gs.Info.Address,
-            GameServerPort = gs.Info.Port
-        };
-
-        var frame = MessageHelper.CreateFrame(MessageIds.GameStartNotify, ReturnCode.Success, notify);
+        var frame = MessageHelper.CreateFrame(MessageIds.RoomClosedNotify, ReturnCode.Success,
+            new RoomClosedNotify { RoomId = roomId, Reason = reason });
 
         var peers = new List<NetPeer>();
-        foreach (var id in room.PlayerIds)
+        foreach (var userId in room.PlayerIds)
         {
-            var p = _players.Get(id);
-            if (p != null)
-            {
-                _players.SetState(id, PlayerState.InGame);
-                peers.Add(p.Peer);
-            }
+            var player = _players.Get(userId);
+            if (player == null)
+                continue;
+
+            peers.Add(player.Peer);
+            _players.SetState(userId, PlayerState.InLobby);
         }
 
         MessageHelper.SendToAll(peers, frame, DeliveryMethod.ReliableOrdered);
+        SendCloseGameRoom(room, reason);
 
-        room.ReadyPlayerIds.Clear();
-
-        Log.Information("[RoomManager] 游戏开始 roomId={RoomId} GameServer={Addr}:{Port}",
-            roomId, gs.Info.Address, gs.Info.Port);
-        return (ReturnCode.Success, notify);
-    }
-
-    private (ReturnCode Code, GameStartNotify? Notify) StartPlayer(LobbyRoom room, string roomId, long userId)
-    {
-        var gs = _gameServerRegistry.GetByAddressPort(room.GameServerAddress, room.GameServerPort);
-        if (gs == null)
-        {
-            Log.Warning("[RoomManager] 开始游戏失败：GameServer离线 roomId={RoomId}", roomId);
-            return (ReturnCode.GameServerOffline, null);
-        }
-
-        if (!room.GameCreated)
-        {
-            MessageHelper.Send(gs.Peer, MessageIds.CreateGameRoom, ReturnCode.Success, new CreateGameRoomRequest
-            {
-                RoomId = roomId,
-                RoomType = room.RoomType,
-                OwnerUserId = room.OwnerUserId
-            });
-            room.GameCreated = true;
-        }
-
-        MessageHelper.Send(gs.Peer, MessageIds.AuthorizeGamePlayer, ReturnCode.Success, new AuthorizeGamePlayerRequest
-        {
-            RoomId = roomId,
-            UserId = userId
-        });
-
-        var notify = new GameStartNotify
-        {
-            RoomId = roomId,
-            GameServerAddress = gs.Info.Address,
-            GameServerPort = gs.Info.Port
-        };
-
-        var p = _players.Get(userId);
-        if (p == null)
-            return (ReturnCode.NotInRoom, null);
-
-        _players.SetState(userId, PlayerState.InGame);
-        MessageHelper.Send(p.Peer, MessageIds.GameStartNotify, ReturnCode.Success, notify);
-
-        Log.Information("[RoomManager] QuickMatch玩家开始 game roomId={RoomId} userId={UserId}",
-            roomId, userId);
-        return (ReturnCode.Success, notify);
+        Log.Information("[RoomManager] 房间关闭 roomId={RoomId} reason={Reason} 成员数={Count}",
+            roomId, reason, peers.Count);
+        return ReturnCode.Success;
     }
 
     public RoomListResponse GetRoomList()
     {
-        Log.Information("[RoomManager] 获取房间列表");
-
         var list = _rooms.Values.Select(r => new RoomListInfo
         {
             RoomId = r.RoomId,
@@ -392,17 +254,37 @@ public class RoomManager
         _players.Remove(userId);
     }
 
-    private void ReassignOwner(string roomId, LobbyRoom room)
+    private void Broadcast(LobbyRoom room, ushort messageId, object data)
     {
-        Log.Information("[RoomManager] 重新分配房主 roomId={RoomId}", roomId);
+        var frame = MessageHelper.CreateFrame(messageId, ReturnCode.Success, data);
+        var peers = room.PlayerIds
+            .Select(id => _players.Get(id))
+            .Where(p => p != null)
+            .Select(p => p!.Peer);
 
-        var newOwnerId = room.PlayerIds.FirstOrDefault();
-        room.OwnerUserId = newOwnerId;
+        MessageHelper.SendToAll(peers, frame, DeliveryMethod.ReliableOrdered);
+    }
 
-        if (room.OwnerUserId != 0)
+    private void SendCloseGameRoom(LobbyRoom room, RoomCloseReason reason)
+    {
+        var gs = _gameServerRegistry.GetByAddressPort(room.GameServerAddress, room.GameServerPort);
+        if (gs == null)
         {
-            Log.Information("[RoomManager] 房主转移 roomId={RoomId} →{NewOwner}",
-                roomId, room.OwnerUserId);
+            Log.Warning("[RoomManager] GameServer离线，跳过关闭游戏房间 roomId={RoomId}", room.RoomId);
+            return;
+        }
+
+        try
+        {
+            MessageHelper.Send(gs.Peer, MessageIds.CloseGameRoom, ReturnCode.Success, new CloseGameRoomRequest
+            {
+                RoomId = room.RoomId,
+                Reason = reason
+            });
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "[RoomManager] 关闭游戏房间失败 roomId={RoomId}", room.RoomId);
         }
     }
 
@@ -414,8 +296,8 @@ public class RoomManager
         {
             RoomId = room.RoomId,
             RoomType = room.RoomType,
-            GameServerAddress = gs?.Info.Address ?? string.Empty,
-            GameServerPort = gs?.Info.Port ?? 0,
+            GameServerAddress = gs?.Info.Address ?? room.GameServerAddress,
+            GameServerPort = gs?.Info.Port ?? room.GameServerPort,
             OwnerUserId = room.OwnerUserId,
             Players = room.PlayerIds
                 .Select(id => _players.Get(id))
@@ -427,10 +309,7 @@ public class RoomManager
 
     private KeyValuePair<NetPeer, GameServerInfo>? PickGameServer()
     {
-        Log.Information("[RoomManager] 选择GameServer");
-
         var result = _gameServerRegistry.PickLeastLoaded();
-
         if (result is { } gs)
         {
             Log.Information("[RoomManager] 选择 GameServer {Addr}:{Port} 负载={Players}",
@@ -443,5 +322,4 @@ public class RoomManager
 
         return result;
     }
-
 }

@@ -91,16 +91,25 @@ public class LobbyServer
             new CreateRoomHandler(_players, _roomManager),
             new JoinRoomHandler(_players, _roomManager),
             new LeaveRoomHandler(_players, _roomManager),
-            new RoomListHandler(_roomManager),
-            new GameReadyHandler(_players, _roomManager),
-            new GameUnreadyHandler(_players, _roomManager),
-            new GameStartHandler(_players, _roomManager)
+            new RoomListHandler(_roomManager)
         );
 
         _serverRegistry.Register(
             new GameServerRegisterHandler(_gameServerRegistry),
             new GameServerUpdateHandler(_gameServerRegistry)
         );
+    }
+
+    /// <summary>服务端内部 API：由外部系统创建房间，首个加入者成为房主</summary>
+    public (CreateRoomResponse Response, ReturnCode Code) CreateSystemRoom(CreateRoomRequest request)
+    {
+        return _roomManager.CreateRoom(request, null);
+    }
+
+    /// <summary>服务端内部 API：关闭房间并同步关闭游戏房间</summary>
+    public ReturnCode CloseRoom(string roomId)
+    {
+        return _roomManager.CloseRoom(roomId, RoomCloseReason.ClosedBySystem);
     }
 
     public void PollEvents()

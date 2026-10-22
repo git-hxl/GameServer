@@ -1,5 +1,6 @@
 using SharedLib.Models;
 using SharedLib.Protocol;
+using SharedLib.Utils;
 
 namespace GameServer.Tests;
 
@@ -12,115 +13,222 @@ public class LobbyFlowTests
         _fixture = new ServerFixture();
     }
 
-    private TestClient ConnectClient(int port, long userId, string nickname)
+    private TestClient ConnectClient(long userId, string nickname)
     {
         var client = new TestClient();
-        client.Connect(port, ServerFixture.ClientKey);
+        client.Connect(_fixture.LobbyClientPort, ServerFixture.ClientKey);
         Assert.True(client.WaitConnected(), "客户端未能在超时内连接");
-        client.Send(MessageIds.JoinLobby, new JoinLobbyRequest { Player = new PlayerInfo { UserId = userId, Nickname = nickname } });
+        client.Send(MessageIds.JoinLobby, new JoinLobbyRequest
+        {
+            Player = new PlayerInfo { UserId = userId, Nickname = nickname }
+        });
         var res = client.WaitPayload<JoinLobbyResponse>(MessageIds.JoinLobby);
         Assert.NotNull(res);
         return client;
     }
 
+    private static CreateRoomResponse CreateRoom(TestClient client, string roomId,
+        RoomType type = RoomType.Default, int maxPlayers = 0)
+    {
+        client.Send(MessageIds.CreateRoom, new CreateRoomRequest
+        {
+            RoomId = roomId,
+            RoomType = type,
+            MaxPlayers = maxPlayers
+        });
+        var res = client.WaitPayload<CreateRoomResponse>(MessageIds.CreateRoom);
+        Assert.NotNull(res);
+        return res!;
+    }
+
+    private static JoinRoomResponse JoinRoom(TestClient client, string roomId,
+        ReturnCode expected = ReturnCode.Success)
+    {
+        client.Send(MessageIds.JoinRoom, new JoinRoomRequest { RoomId = roomId });
+        var message = client.WaitMessage(MessageIds.JoinRoom);
+        Assert.NotNull(message);
+        Assert.Equal(expected, message!.Value.Code);
+        return expected == ReturnCode.Success
+            ? MessageHelper.Deserialize<JoinRoomResponse>(message.Value.Payload)!
+            : new JoinRoomResponse();
+    }
+
     [Fact]
     public void JoinLobby_ShouldSucceed()
     {
-        using var client = new TestClient();
-        client.Connect(_fixture.LobbyClientPort, ServerFixture.ClientKey);
-        Assert.True(client.WaitConnected());
-
-        client.Send(MessageIds.JoinLobby, new JoinLobbyRequest { Player = new PlayerInfo { UserId = 1001, Nickname = "tester" } });
-
-        var res = client.WaitPayload<JoinLobbyResponse>(MessageIds.JoinLobby);
-        Assert.NotNull(res);
-        Assert.Equal(1001, res!.Player.UserId);
+        using var client = ConnectClient(1001, "tester");
+        Assert.True(client.Connected);
     }
 
     [Fact]
-    public void CreateRoom_And_Join_Flow()
+    public void CreateRoom_PlayerCreator_IsOwnerAndMember()
     {
-        using var owner = ConnectClient(_fixture.LobbyClientPort, 2001, "owner");
+        using var owner = ConnectClient(1101, "owner");
 
-        owner.Send(MessageIds.CreateRoom, new CreateRoomRequest { RoomId = "itroom1", RoomType = RoomType.Default });
-        var createRes = owner.WaitPayload<CreateRoomResponse>(MessageIds.CreateRoom);
-        Assert.NotNull(createRes);
-        Assert.Equal("itroom1", createRes!.Room.RoomId);
+        var res = CreateRoom(owner, "room-owner");
 
-        using var joiner = ConnectClient(_fixture.LobbyClientPort, 2002, "joiner");
-
-        joiner.Send(MessageIds.JoinRoom, new JoinRoomRequest { RoomId = "itroom1" });
-        var joinRes = joiner.WaitPayload<JoinRoomResponse>(MessageIds.JoinRoom);
-        Assert.NotNull(joinRes);
-        Assert.Equal(2, joinRes!.Room.Players.Count);
+        Assert.Equal("room-owner", res.Room.RoomId);
+        Assert.Equal(1101, res.Room.OwnerUserId);
+        Assert.Single(res.Room.Players);
+        Assert.Equal(1101, res.Room.Players[0].UserId);
     }
 
     [Fact]
-    public void JoinRoom_ToStartedRoom_ShouldFail_RoomFull()
+    public void CreateSystemRoom_FirstJoiner_BecomesOwner()
     {
-        using var owner = ConnectClient(_fixture.LobbyClientPort, 3001, "owner");
+        var (created, code) = _fixture.CreateSystemRoom("room-system");
+        Assert.Equal(ReturnCode.Success, code);
+        Assert.Equal(0, created.Room.OwnerUserId);
+        Assert.Empty(created.Room.Players);
 
-        owner.Send(MessageIds.CreateRoom, new CreateRoomRequest { RoomId = "itroom2", RoomType = RoomType.Default, MaxPlayers = 1 });
-        Assert.NotNull(owner.WaitPayload<CreateRoomResponse>(MessageIds.CreateRoom));
+        using var joiner = ConnectClient(1201, "joiner");
+        var joined = JoinRoom(joiner, "room-system");
 
-        owner.Send(MessageIds.GameReady, new GameReadyRequest());
-        Assert.NotNull(owner.WaitPayload<GameReadyResponse>(MessageIds.GameReady));
-
-        owner.Send(MessageIds.GameStart, new GameStartRequest());
-        var startMsg = owner.WaitMessage(MessageIds.GameStart);
-        Assert.NotNull(startMsg);
-        Assert.Equal(ReturnCode.Success, startMsg!.Value.Code);
-        Assert.NotNull(owner.WaitPayload<GameStartNotify>(MessageIds.GameStartNotify));
-
-        using var joiner = ConnectClient(_fixture.LobbyClientPort, 3002, "joiner");
-
-        joiner.Send(MessageIds.JoinRoom, new JoinRoomRequest { RoomId = "itroom2" });
-        var joinRes = joiner.WaitMessage(MessageIds.JoinRoom);
-        Assert.NotNull(joinRes);
-        Assert.Equal(ReturnCode.RoomFull, joinRes!.Value.Code);
+        Assert.Equal(1201, joined.Room.OwnerUserId);
+        Assert.Single(joined.Room.Players);
     }
 
     [Fact]
-    public void QuickMatch_Room_Unrelated_Player_JoinGame_ShouldBeRejected()
+    public void JoinRoom_WhenFull_ReturnsRoomFull_AndAllowsJoinAfterLeave()
     {
-        using var owner = ConnectClient(_fixture.LobbyClientPort, 4001, "owner");
+        using var owner = ConnectClient(1301, "owner");
+        using var second = ConnectClient(1302, "second");
+        using var third = ConnectClient(1303, "third");
 
-        owner.Send(MessageIds.CreateRoom, new CreateRoomRequest { RoomId = "itroom3", RoomType = RoomType.QuickMatch, MaxPlayers = 4 });
-        Assert.NotNull(owner.WaitPayload<CreateRoomResponse>(MessageIds.CreateRoom));
+        CreateRoom(owner, "room-full", maxPlayers: 2);
+        JoinRoom(second, "room-full");
 
-        owner.Send(MessageIds.GameStart, new GameStartRequest());
-        var notify = owner.WaitPayload<GameStartNotify>(MessageIds.GameStartNotify);
-        Assert.NotNull(notify);
+        JoinRoom(third, "room-full", ReturnCode.RoomFull);
 
-        using var stranger = new TestClient();
-        stranger.Connect(_fixture.GameServerPort, ServerFixture.ClientKey);
-        Assert.True(stranger.WaitConnected());
-        stranger.Send(MessageIds.JoinGame, new JoinGameRequest
+        second.Send(MessageIds.LeaveRoom, new LeaveRoomRequest());
+        Assert.NotNull(second.WaitMessage(MessageIds.LeaveRoom));
+
+        var joined = JoinRoom(third, "room-full");
+        Assert.Equal(2, joined.Room.Players.Count);
+    }
+
+    [Fact]
+    public void LeaveRoom_OwnerLeaves_TransfersToNextJoiner_AndNotifies()
+    {
+        using var owner = ConnectClient(1401, "owner");
+        using var second = ConnectClient(1402, "second");
+        using var third = ConnectClient(1403, "third");
+
+        CreateRoom(owner, "room-transfer");
+        JoinRoom(second, "room-transfer");
+        JoinRoom(third, "room-transfer");
+
+        owner.Send(MessageIds.LeaveRoom, new LeaveRoomRequest());
+        Assert.NotNull(owner.WaitMessage(MessageIds.LeaveRoom));
+
+        var secondNotify = second.WaitPayload<RoomOwnerChangedNotify>(MessageIds.RoomOwnerChangedNotify);
+        var thirdNotify = third.WaitPayload<RoomOwnerChangedNotify>(MessageIds.RoomOwnerChangedNotify);
+
+        Assert.NotNull(secondNotify);
+        Assert.NotNull(thirdNotify);
+        Assert.Equal(1402, secondNotify!.OwnerUserId);
+        Assert.Equal(1402, thirdNotify!.OwnerUserId);
+    }
+
+    [Fact]
+    public void JoinRoom_FromAnotherRoom_LeavesPreviousRoom()
+    {
+        using var first = ConnectClient(1501, "first");
+        using var second = ConnectClient(1502, "second");
+        using var keeper = ConnectClient(1503, "keeper");
+        using var checker = ConnectClient(1504, "checker");
+
+        CreateRoom(first, "room-a");
+        JoinRoom(keeper, "room-a");
+        CreateRoom(second, "room-b");
+
+        JoinRoom(first, "room-b");
+
+        var roomA = JoinRoom(checker, "room-a");
+        Assert.DoesNotContain(roomA.Room.Players, p => p.UserId == 1501);
+        Assert.Equal(1503, roomA.Room.OwnerUserId);
+    }
+
+    [Fact]
+    public void CreateRoom_WhileInAnotherRoom_ClosesPreviousRoom()
+    {
+        using var first = ConnectClient(1601, "first");
+        using var keeper = ConnectClient(1602, "keeper");
+        using var checker = ConnectClient(1603, "checker");
+
+        CreateRoom(first, "room-old");
+        JoinRoom(keeper, "room-old");
+
+        var newRoom = CreateRoom(first, "room-new");
+        Assert.Equal("room-new", newRoom.Room.RoomId);
+
+        var oldRoom = JoinRoom(checker, "room-old");
+        Assert.DoesNotContain(oldRoom.Room.Players, p => p.UserId == 1601);
+        Assert.Equal(1602, oldRoom.Room.OwnerUserId);
+    }
+
+    [Fact]
+    public void LeaveLobby_WhileInRoom_CleansUpMembership()
+    {
+        using var owner = ConnectClient(1701, "owner");
+        using var member = ConnectClient(1702, "member");
+        using var checker = ConnectClient(1703, "checker");
+
+        CreateRoom(owner, "room-leave-lobby");
+        JoinRoom(member, "room-leave-lobby");
+
+        owner.Send(MessageIds.LeaveLobby, new LeaveLobbyRequest { UserId = 1701 });
+        Assert.NotNull(owner.WaitMessage(MessageIds.LeaveLobby));
+
+        var joined = JoinRoom(checker, "room-leave-lobby");
+        Assert.DoesNotContain(joined.Room.Players, p => p.UserId == 1701);
+        Assert.Equal(1702, joined.Room.OwnerUserId);
+    }
+
+    [Fact]
+    public void JoinLobby_Twice_RemovesPreviousRoomMembership()
+    {
+        using var owner = ConnectClient(1801, "owner");
+        using var keeper = ConnectClient(1802, "keeper");
+        using var checker = ConnectClient(1803, "checker");
+
+        CreateRoom(owner, "room-relogin");
+        JoinRoom(keeper, "room-relogin");
+
+        owner.Send(MessageIds.JoinLobby, new JoinLobbyRequest
         {
-            RoomId = "itroom3",
-            Player = new PlayerInfo { UserId = 9999, Nickname = "stranger" }
+            Player = new PlayerInfo { UserId = 1801, Nickname = "owner2" }
         });
-        var joinGame = stranger.WaitMessage(MessageIds.JoinGame);
-        Assert.NotNull(joinGame);
-        Assert.Equal(ReturnCode.NotAuthorized, joinGame!.Value.Code);
+        Assert.NotNull(owner.WaitMessage(MessageIds.JoinLobby));
+
+        var joined = JoinRoom(checker, "room-relogin");
+        Assert.DoesNotContain(joined.Room.Players, p => p.UserId == 1801);
+        Assert.Equal(1802, joined.Room.OwnerUserId);
     }
 
     [Fact]
-    public void StartGame_AfterGameServerGoesOffline_ShouldFail()
+    public void CreateRoom_DuplicateRoomId_ReturnsError()
     {
-        using var owner = ConnectClient(_fixture.LobbyClientPort, 5001, "owner");
+        using var owner = ConnectClient(1901, "owner");
+        CreateRoom(owner, "room-dup");
 
-        owner.Send(MessageIds.CreateRoom, new CreateRoomRequest { RoomId = "itroom4", RoomType = RoomType.Default });
-        Assert.NotNull(owner.WaitPayload<CreateRoomResponse>(MessageIds.CreateRoom));
+        owner.Send(MessageIds.CreateRoom, new CreateRoomRequest { RoomId = "room-dup" });
+        var message = owner.WaitMessage(MessageIds.CreateRoom);
 
+        Assert.NotNull(message);
+        Assert.Equal(ReturnCode.Error, message!.Value.Code);
+    }
+
+    [Fact]
+    public void CreateRoom_WhenNoGameServer_ReturnsNoGameServerAvailable()
+    {
+        using var owner = ConnectClient(2001, "owner");
         _fixture.StopGameServer();
 
-        owner.Send(MessageIds.GameReady, new GameReadyRequest());
-        Assert.NotNull(owner.WaitPayload<GameReadyResponse>(MessageIds.GameReady));
+        owner.Send(MessageIds.CreateRoom, new CreateRoomRequest { RoomId = "room-no-gs" });
+        var message = owner.WaitMessage(MessageIds.CreateRoom);
 
-        owner.Send(MessageIds.GameStart, new GameStartRequest());
-        var start = owner.WaitMessage(MessageIds.GameStart);
-        Assert.NotNull(start);
-        Assert.Equal(ReturnCode.GameServerOffline, start!.Value.Code);
+        Assert.NotNull(message);
+        Assert.Equal(ReturnCode.NoGameServerAvailable, message!.Value.Code);
     }
 }

@@ -25,9 +25,10 @@ public sealed class ServerFixture : IDisposable
     {
         Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateLogger();
 
-        LobbyClientPort = TestPorts.NextFree();
-        LobbyServerPort = TestPorts.NextFree();
-        GameServerPort = TestPorts.NextFree();
+        var ports = TestPorts.NextFree(3);
+        LobbyClientPort = ports[0];
+        LobbyServerPort = ports[1];
+        GameServerPort = ports[2];
 
         var lobbyConfig = new LobbyServerConfig
         {
@@ -75,6 +76,22 @@ public sealed class ServerFixture : IDisposable
     {
         _game.Stop();
         Thread.Sleep(300);
+    }
+
+    public (CreateRoomResponse Response, ReturnCode Code) CreateSystemRoom(string roomId,
+        RoomType roomType = RoomType.Default, int maxPlayers = 0)
+    {
+        return _lobby.CreateSystemRoom(new CreateRoomRequest
+        {
+            RoomId = roomId,
+            RoomType = roomType,
+            MaxPlayers = maxPlayers
+        });
+    }
+
+    public ReturnCode CloseRoom(string roomId)
+    {
+        return _lobby.CloseRoom(roomId);
     }
 
     public void Dispose()
@@ -156,9 +173,13 @@ public sealed class TestClient : IDisposable
             Poll();
             lock (_lock)
             {
-                var msg = _messages.Find(m => m.MessageId == messageId);
-                if (msg != default)
-                    return msg;
+                var index = _messages.FindIndex(m => m.MessageId == messageId);
+                if (index >= 0)
+                {
+                    var message = _messages[index];
+                    _messages.RemoveAt(index);
+                    return message;
+                }
             }
 
             Thread.Sleep(5);

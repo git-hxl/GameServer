@@ -25,7 +25,6 @@ public class HandlerRegistry
         if (!_handlers.TryGetValue(messageId, out var handler))
         {
             Log.Warning("未知消息ID messageId={MessageId}", messageId);
-            MessageHelper.Send(peer, messageId, ReturnCode.Error);
             return false;
         }
 

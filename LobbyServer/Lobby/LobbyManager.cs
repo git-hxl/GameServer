@@ -33,11 +33,9 @@ public class LobbyManager
         {
             Log.Warning("[LobbyManager] 替换已有连接 userId={UserId}", userId);
 
+            _rooms.RemovePlayer(existing.Peer);
             if (existing.Peer != peer)
-            {
-                _rooms.RemovePlayer(existing.Peer);
                 _netManager.DisconnectPeer(existing.Peer);
-            }
         }
 
         _players.Add(peer, request.Player);
@@ -65,7 +63,7 @@ public class LobbyManager
             return (new LeaveLobbyResponse { UserId = request.UserId }, ReturnCode.NotInLobby);
         }
 
-        _players.Remove(request.UserId);
+        _rooms.RemovePlayer(peer);
 
         Log.Information("[LobbyManager] 大厅离开 userId={UserId} 在线人数={Count}",
             request.UserId, _players.Count);

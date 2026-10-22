@@ -21,7 +21,7 @@ public class CreateRoomHandler : LobbyStateHandler<CreateRoomRequest>
     public override void HandleMessage(NetPeer peer, CreateRoomRequest request)
     {
         var userId = Players.GetUserId(peer);
-        var (res, code) = _rooms.CreateRoom(userId, request);
+        var (res, code) = _rooms.CreateRoom(request, userId);
         MessageHelper.Send(peer, MessageId, code, res);
     }
 
