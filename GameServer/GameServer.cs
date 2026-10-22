@@ -108,8 +108,8 @@ public class GameServer
 
     public void PollEvents()
     {
-        _netManager.PollEvents();
         _lobbyClient.PollEvents();
+        _netManager.PollEvents();
     }
 
     public void Stop()

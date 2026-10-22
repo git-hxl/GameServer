@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using LiteNetLib;
 using LobbyServer.Cluster;
 using LobbyServer.Player;
@@ -20,6 +21,7 @@ public class RoomManager
         _gameServerRegistry = gameServerRegistry;
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public (CreateRoomResponse Response, ReturnCode Code) CreateRoom(CreateRoomRequest request, long? creatorUserId)
     {
         Log.Information("[RoomManager] 创建房间 creator={Creator} roomId={RoomId}", creatorUserId, request.RoomId);
@@ -49,18 +51,17 @@ public class RoomManager
 
         var gsValue = gs.Value;
 
-        try
-        {
-            MessageHelper.Send(gsValue.Key, MessageIds.CreateGameRoom, ReturnCode.Success, new CreateGameRoomRequest
+        var createFrame = MessageHelper.CreateFrame(MessageIds.CreateGameRoom, ReturnCode.Success,
+            new CreateGameRoomRequest
             {
                 RoomId = roomId,
                 RoomType = request.RoomType,
                 MaxPlayers = request.MaxPlayers
             });
-        }
-        catch (Exception ex)
+
+        if (!MessageHelper.TrySend(gsValue.Key, createFrame))
         {
-            Log.Error(ex, "[RoomManager] 同步创建游戏房间失败 roomId={RoomId}", roomId);
+            Log.Warning("[RoomManager] 同步创建游戏房间失败：GameServer连接不可用 roomId={RoomId}", roomId);
             return (new CreateRoomResponse(), ReturnCode.GameServerOffline);
         }
 
@@ -94,6 +95,7 @@ public class RoomManager
         return (new CreateRoomResponse { Room = BuildRoomInfo(room) }, ReturnCode.Success);
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public (JoinRoomResponse Response, ReturnCode Code) JoinRoom(long userId, JoinRoomRequest request)
     {
         Log.Information("[RoomManager] 加入房间 userId={UserId} roomId={RoomId}", userId, request.RoomId);
@@ -148,6 +150,7 @@ public class RoomManager
         return (new JoinRoomResponse { Room = BuildRoomInfo(room) }, ReturnCode.Success);
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public (LeaveRoomResponse Response, ReturnCode Code) LeaveRoom(long userId)
     {
         Log.Information("[RoomManager] 离开房间 userId={UserId}", userId);
@@ -198,6 +201,7 @@ public class RoomManager
         return (new LeaveRoomResponse { RoomId = roomId }, ReturnCode.Success);
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public ReturnCode CloseRoom(string roomId, RoomCloseReason reason)
     {
         if (!_rooms.Remove(roomId, out var room))
@@ -228,6 +232,7 @@ public class RoomManager
         return ReturnCode.Success;
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public RoomListResponse GetRoomList()
     {
         var list = _rooms.Values.Select(r => new RoomListInfo
@@ -241,6 +246,7 @@ public class RoomManager
         return new RoomListResponse { Rooms = list };
     }
 
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public void RemovePlayer(NetPeer peer)
     {
         var player = _players.GetByPeer(peer);
@@ -275,11 +281,15 @@ public class RoomManager
 
         try
         {
-            MessageHelper.Send(gs.Peer, MessageIds.CloseGameRoom, ReturnCode.Success, new CloseGameRoomRequest
-            {
-                RoomId = room.RoomId,
-                Reason = reason
-            });
+            var frame = MessageHelper.CreateFrame(MessageIds.CloseGameRoom, ReturnCode.Success,
+                new CloseGameRoomRequest
+                {
+                    RoomId = room.RoomId,
+                    Reason = reason
+                });
+
+            if (!MessageHelper.TrySend(gs.Peer, frame))
+                Log.Warning("[RoomManager] 关闭游戏房间失败：GameServer连接不可用 roomId={RoomId}", room.RoomId);
         }
         catch (Exception ex)
         {

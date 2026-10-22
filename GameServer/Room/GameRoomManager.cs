@@ -153,10 +153,7 @@ public class GameRoomManager
             reason, roomId, room.PlayerIds.Count);
 
         if (room.PlayerIds.Count == 0)
-        {
-            _rooms.TryRemove(roomId, out _);
-            Log.Information("[GameRoomManager] 游戏房间关闭 roomId={RoomId}", roomId);
-        }
+            Log.Information("[GameRoomManager] 游戏房间已空，等待 Lobby 关闭 roomId={RoomId}", roomId);
 
         return (ReturnCode.Success, roomId);
     }

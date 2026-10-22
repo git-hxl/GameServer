@@ -45,6 +45,24 @@ public static class MessageHelper
         peer.Send(writer, method);
     }
 
+    /// <summary>尝试发送已构建帧；peer 未连接或发送异常时返回 false</summary>
+    public static bool TrySend(NetPeer peer, MessageFrame frame,
+        DeliveryMethod method = DeliveryMethod.ReliableOrdered)
+    {
+        if (peer.ConnectionState != ConnectionState.Connected)
+            return false;
+
+        try
+        {
+            Send(peer, frame, method);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     /// <summary>向多个 peer 广播同一帧，序列化一次、复用字节</summary>
     public static void SendToAll(IEnumerable<NetPeer> peers, MessageFrame frame, DeliveryMethod method)
     {

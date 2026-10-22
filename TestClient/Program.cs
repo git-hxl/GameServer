@@ -37,6 +37,9 @@ var gameListener = new EventBasedNetListener();
 var gameClient = new NetManager(gameListener);
 NetPeer? gamePeer = null;
 string? gameRoomId = null;
+string? pendingJoinRoomId = null;
+long pendingJoinDeadline = 0;
+long lastJoinAttempt = 0;
 
 // ── LobbyServer 消息处理 ─────────────────────────────────────────────
 
@@ -207,9 +210,21 @@ gameListener.NetworkReceiveEvent += (peer, reader, channel, method) =>
             case MessageIds.JoinGame:
                 var joinGameRes = MessageHelper.Deserialize<JoinGameResponse>(frame);
                 if (frame.Code == ReturnCode.Success)
+                {
+                    pendingJoinRoomId = null;
                     Log.Information("[TestClient] 游戏房间加入成功 roomId={RoomId}", joinGameRes?.RoomId);
+                }
+                else if (frame.Code == ReturnCode.RoomNotFound)
+                {
+                    Log.Warning("[TestClient] 游戏房间尚未创建，稍后重试 roomId={RoomId}", gameRoomId);
+                    pendingJoinRoomId = gameRoomId;
+                    pendingJoinDeadline = Environment.TickCount64 + 1000;
+                }
                 else
+                {
+                    pendingJoinRoomId = null;
                     Log.Warning("[TestClient] 游戏房间加入失败 reason={Reason}", frame.Code);
+                }
                 break;
 
             case MessageIds.LeaveGame:
@@ -274,7 +289,15 @@ void SendGameMessage(ushort messageId, object data)
 
 void ConnectGameServer(RoomInfo room)
 {
+    if (gameRoomId != null && gameRoomId != room.RoomId &&
+        gamePeer?.ConnectionState == ConnectionState.Connected)
+    {
+        SendGameMessage(MessageIds.LeaveGame, new LeaveGameRequest());
+    }
+
     gameRoomId = room.RoomId;
+    pendingJoinRoomId = null;
+
     if (gamePeer?.ConnectionState == ConnectionState.Connected)
     {
         SendGameMessage(MessageIds.JoinGame, new JoinGameRequest
@@ -313,6 +336,10 @@ _ = Task.Run(async () =>
                 break;
 
             case "leavelobby":
+                if (gamePeer?.ConnectionState == ConnectionState.Connected)
+                    SendGameMessage(MessageIds.LeaveGame, new LeaveGameRequest());
+                gameRoomId = null;
+                pendingJoinRoomId = null;
                 SendMessage(MessageIds.LeaveLobby, new LeaveLobbyRequest
                 {
                     UserId = userId
@@ -358,6 +385,10 @@ _ = Task.Run(async () =>
                 break;
 
             case "leaveroom":
+                if (gamePeer?.ConnectionState == ConnectionState.Connected)
+                    SendGameMessage(MessageIds.LeaveGame, new LeaveGameRequest());
+                gameRoomId = null;
+                pendingJoinRoomId = null;
                 SendMessage(MessageIds.LeaveRoom, new LeaveRoomRequest());
                 break;
 
@@ -382,6 +413,7 @@ _ = Task.Run(async () =>
             case "leavegame":
                 SendGameMessage(MessageIds.LeaveGame, new LeaveGameRequest());
                 gameRoomId = null;
+                pendingJoinRoomId = null;
                 break;
 
             case "chat":
@@ -432,6 +464,23 @@ try
     {
         client.PollEvents();
         gameClient.PollEvents();
+
+        if (pendingJoinRoomId != null)
+        {
+            if (Environment.TickCount64 >= pendingJoinDeadline)
+            {
+                pendingJoinRoomId = null;
+            }
+            else if (Environment.TickCount64 - lastJoinAttempt >= 100)
+            {
+                lastJoinAttempt = Environment.TickCount64;
+                SendGameMessage(MessageIds.JoinGame, new JoinGameRequest
+                {
+                    RoomId = pendingJoinRoomId,
+                    Player = player
+                });
+            }
+        }
     }
 }
 catch (OperationCanceledException)

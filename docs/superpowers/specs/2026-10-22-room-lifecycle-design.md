@@ -263,12 +263,14 @@ public ReturnCode CloseRoom(string roomId, RoomCloseReason reason)
 
 ### 7.4 LeaveGame / 断线
 
-保持现有逻辑：移除玩家、广播 `LeaveGameNotify`、房间空了自动删除。
+移除玩家并广播 `LeaveGameNotify`。房间变空时**不删除** `GameRoom`——生命周期由 Lobby 决定，只有 `CloseGameRoom` 才删除。这样玩家退出游戏后仍可重新 `JoinGame`，不会出现大厅房存在但游戏房已被删除的情况。
 
 ## 8. 客户端影响（TestClient）
 
 - 删除 `ready`、`unready`、`start` 命令与对应消息处理。
 - `CreateRoom` / `JoinRoom` 成功后：保存 `RoomId` 和 `RoomInfo.GameServerAddress/Port`，自动连接 GameServer；连接成功后发送 `JoinGame`。
+- 离开或切换大厅房间时，客户端应先向 GameServer 发送 `LeaveGame`（成员各自管理，服务端不代发）。
+- `JoinGame` 返回 `RoomNotFound` 时应在 1 秒内短暂重试：Lobby→GameServer 的 `CreateGameRoom` 与客户端 `JoinGame` 走不同连接，且没有 ACK。
 - 处理 `RoomOwnerChangedNotify`（更新房主展示）和 `RoomClosedNotify`（清空本地房间状态，断开或保留 GameServer 连接由客户端决定）。
 - 保留 `joingame <roomId>` 供手动重连。
 
@@ -284,7 +286,7 @@ public ReturnCode CloseRoom(string roomId, RoomCloseReason reason)
 | 玩家不在大厅 | `NotInLobby` |
 | 反序列化失败 | `DeserializeFailed` |
 
-跨服同步没有 ACK：`CreateGameRoom` / `CloseGameRoom` 走 `ReliableOrdered`，依赖同一条 Lobby→GameServer 连接的顺序保证。客户端在 `JoinRoomResponse` 之后再连接 GameServer，正常时序足够；测试若遇到竞态，可对 `JoinGame` 做短时间重试。
+跨服同步没有 ACK：`CreateGameRoom` / `CloseGameRoom` 走 `ReliableOrdered`，依赖同一条 Lobby→GameServer 连接的顺序保证。客户端在 `JoinRoomResponse` 之后再连接 GameServer，正常时序足够；客户端和测试都应对 `JoinGame` 的 `RoomNotFound` 做短时间重试。`CreateGameRoom` 发送前会检查连接状态，但无法完全消除“选中 GameServer 后立即断线”的窗口；该情况下房间可能创建但不可用。
 
 ## 10. 测试计划
 

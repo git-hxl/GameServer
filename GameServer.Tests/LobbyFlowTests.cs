@@ -231,4 +231,26 @@ public class LobbyFlowTests
         Assert.NotNull(message);
         Assert.Equal(ReturnCode.NoGameServerAvailable, message!.Value.Code);
     }
+
+    [Fact]
+    public void CreateSystemRoom_ConcurrentCalls_AllSucceed()
+    {
+        var exceptions = new System.Collections.Concurrent.ConcurrentBag<Exception>();
+        var codes = new System.Collections.Concurrent.ConcurrentBag<ReturnCode>();
+
+        Parallel.For(0, 20, i =>
+        {
+            try
+            {
+                codes.Add(_fixture.CreateSystemRoom($"room-concurrent-{i}").Code);
+            }
+            catch (Exception ex)
+            {
+                exceptions.Add(ex);
+            }
+        });
+
+        Assert.Empty(exceptions);
+        Assert.All(codes, code => Assert.Equal(ReturnCode.Success, code));
+    }
 }

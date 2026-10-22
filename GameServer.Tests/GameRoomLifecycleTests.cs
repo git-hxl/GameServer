@@ -178,4 +178,59 @@ public class GameRoomLifecycleTests
         var message = JoinGameUntil(game, "game-leave", 3601, c => c == ReturnCode.RoomNotFound);
         Assert.Equal(ReturnCode.RoomNotFound, message.Code);
     }
+
+    [Fact]
+    public void LeaveGame_ThenRejoin_Succeeds()
+    {
+        using var lobby = ConnectLobbyClient(3701, "owner");
+        CreateRoom(lobby, "game-rejoin");
+
+        using var game = ConnectGameClient();
+        JoinGameUntil(game, "game-rejoin", 3701, c => c == ReturnCode.Success);
+
+        game.Send(MessageIds.LeaveGame, new LeaveGameRequest());
+        var leave = game.WaitMessage(MessageIds.LeaveGame);
+        Assert.NotNull(leave);
+        Assert.Equal(ReturnCode.Success, leave!.Value.Code);
+
+        var rejoin = JoinGameUntil(game, "game-rejoin", 3701, c => c == ReturnCode.Success);
+        Assert.Equal(ReturnCode.Success, rejoin.Code);
+    }
+
+    [Fact]
+    public void CloseRoom_KickRemovesGamePlayer()
+    {
+        var (_, code) = _fixture.CreateSystemRoom("game-kick");
+        Assert.Equal(ReturnCode.Success, code);
+
+        using var lobby = ConnectLobbyClient(3801, "p");
+        JoinRoom(lobby, "game-kick");
+
+        using var game = ConnectGameClient();
+        JoinGameUntil(game, "game-kick", 3801, c => c == ReturnCode.Success);
+
+        Assert.Equal(ReturnCode.Success, _fixture.CloseRoom("game-kick"));
+        Assert.NotNull(game.WaitPayload<RoomClosedNotify>(MessageIds.RoomClosedNotify));
+
+        var (_, nextCode) = _fixture.CreateSystemRoom("game-kick-next");
+        Assert.Equal(ReturnCode.Success, nextCode);
+
+        var message = JoinGameUntil(game, "game-kick-next", 3801, c => c == ReturnCode.Success);
+        Assert.Equal(ReturnCode.Success, message.Code);
+    }
+
+    [Fact]
+    public void CreateRoom_LeavingOnlyRoom_ClosesGameRoom()
+    {
+        using var lobby = ConnectLobbyClient(3901, "owner");
+        CreateRoom(lobby, "game-only-old");
+
+        using var game = ConnectGameClient();
+        JoinGameUntil(game, "game-only-old", 3901, c => c == ReturnCode.Success);
+
+        CreateRoom(lobby, "game-only-new");
+
+        var message = JoinGameUntil(game, "game-only-old", 3901, c => c == ReturnCode.RoomNotFound);
+        Assert.Equal(ReturnCode.RoomNotFound, message.Code);
+    }
 }

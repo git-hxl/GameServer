@@ -48,6 +48,7 @@ LobbyServer 维护两个 registry：`_clientRegistry`（客户端口消息）和
 - 玩家拿到 `JoinRoomResponse` 里的 GameServer 地址后直接连游戏服发 `JoinGame`，GameServer 不校验授权。
 - 房主离开时按 `PlayerIds` 加入顺序转移给下一个成员，并广播 `RoomOwnerChangedNotify`。
 - `MaxPlayers` 只在 Lobby 层校验；GameServer 不限制人数。
+- 玩家离开/切换大厅房间时由客户端先发 `LeaveGame`；GameServer 不会因为游戏房间暂时为空而删除房间，删除只由 Lobby 的 `CloseGameRoom` 触发。
 
 ## 约定
 
