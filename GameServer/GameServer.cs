@@ -102,7 +102,7 @@ public class GameServer
         _lobbyRegistry = new HandlerRegistry();
         _lobbyRegistry.Register(
             new CreateGameRoomHandler(_roomManager),
-            new AuthorizeGamePlayerHandler(_roomManager)
+            new CloseGameRoomHandler(_roomManager)
         );
     }
 

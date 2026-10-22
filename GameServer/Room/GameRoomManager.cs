@@ -22,32 +22,52 @@ public class GameRoomManager
         _playerManager = playerManager;
     }
 
+    public GameRoom? GetRoom(string roomId)
+    {
+        return _rooms.TryGetValue(roomId, out var room) ? room : null;
+    }
+
     public void CreateRoom(CreateGameRoomRequest request)
     {
         var room = new GameRoom
         {
             RoomId = request.RoomId,
             RoomType = request.RoomType,
-            OwnerUserId = request.OwnerUserId
+            OwnerUserId = request.OwnerUserId,
+            MaxPlayers = request.MaxPlayers
         };
 
-        _rooms[request.RoomId] = room;
-
-        Log.Information("[GameRoomManager] 游戏房间创建 roomId={RoomId} type={RoomType} owner={OwnerUserId}",
-            request.RoomId, request.RoomType, request.OwnerUserId);
-    }
-
-    public void AuthorizePlayer(AuthorizeGamePlayerRequest request)
-    {
-        if (!_rooms.TryGetValue(request.RoomId, out var room))
+        if (!_rooms.TryAdd(request.RoomId, room))
         {
-            Log.Warning("[GameRoomManager] 授权失败：房间未找到 roomId={RoomId}", request.RoomId);
+            Log.Warning("[GameRoomManager] 游戏房间已存在，忽略重复创建 roomId={RoomId}", request.RoomId);
             return;
         }
 
-        room.AllowedPlayerIds.Add(request.UserId);
-        Log.Information("[GameRoomManager] 授权玩家加入游戏 roomId={RoomId} userId={UserId}",
-            request.RoomId, request.UserId);
+        Log.Information("[GameRoomManager] 游戏房间创建 roomId={RoomId} type={RoomType} maxPlayers={Max}",
+            request.RoomId, request.RoomType, request.MaxPlayers);
+    }
+
+    public void CloseRoom(CloseGameRoomRequest request)
+    {
+        if (!_rooms.TryRemove(request.RoomId, out var room))
+        {
+            Log.Warning("[GameRoomManager] 关闭游戏房间失败：房间未找到 roomId={RoomId}", request.RoomId);
+            return;
+        }
+
+        var notify = new RoomClosedNotify { RoomId = request.RoomId, Reason = request.Reason };
+        foreach (var userId in room.PlayerIds)
+        {
+            var player = _playerManager.Get(userId);
+            if (player == null)
+                continue;
+
+            MessageHelper.Send(player.Peer, MessageIds.RoomClosedNotify, ReturnCode.Success, notify);
+            _playerManager.Remove(userId);
+        }
+
+        Log.Information("[GameRoomManager] 游戏房间关闭 roomId={RoomId} reason={Reason} 移出玩家={Count}",
+            request.RoomId, request.Reason, room.PlayerIds.Count);
     }
 
     public (JoinGameResponse Response, ReturnCode Code) JoinGame(NetPeer peer, JoinGameRequest request)
@@ -58,19 +78,18 @@ public class GameRoomManager
             return (new JoinGameResponse(), ReturnCode.RoomNotFound);
         }
 
-        var userId = request.Player.UserId;
-        if (room.PlayerIds.Contains(userId))
+        if (_playerManager.GetByPeer(peer) != null)
         {
-            Log.Warning("[GameRoomManager] 加入游戏失败：已在房间中 userId={UserId} roomId={RoomId}",
-                userId, request.RoomId);
+            Log.Warning("[GameRoomManager] 加入游戏失败：连接已在游戏房间中 endpoint={EndPoint}", peer.Address);
             return (new JoinGameResponse(), ReturnCode.AlreadyInRoom);
         }
 
-        if (!room.AllowedPlayerIds.Contains(userId))
+        var userId = request.Player.UserId;
+        if (room.PlayerIds.Contains(userId))
         {
-            Log.Warning("[GameRoomManager] 加入游戏失败：未授权 userId={UserId} roomId={RoomId}",
+            Log.Warning("[GameRoomManager] 加入游戏失败：玩家已在房间中 userId={UserId} roomId={RoomId}",
                 userId, request.RoomId);
-            return (new JoinGameResponse(), ReturnCode.NotAuthorized);
+            return (new JoinGameResponse(), ReturnCode.AlreadyInRoom);
         }
 
         var player = _playerManager.Add(peer, request.Player);
@@ -144,7 +163,8 @@ public class GameRoomManager
         return (ReturnCode.Success, roomId);
     }
 
-    public void BroadcastToRoom(string roomId, NetPeer sender, ushort messageId, object data, DeliveryMethod method = DeliveryMethod.ReliableOrdered)
+    public void BroadcastToRoom(string roomId, NetPeer sender, ushort messageId, object data,
+        DeliveryMethod method = DeliveryMethod.ReliableOrdered)
     {
         if (!_rooms.TryGetValue(roomId, out var room)) return;
 
@@ -160,5 +180,4 @@ public class GameRoomManager
     {
         return _playerManager.GetByPeer(peer)?.CurrentRoomId;
     }
-
 }
