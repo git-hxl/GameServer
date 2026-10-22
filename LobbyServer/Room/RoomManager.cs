@@ -55,8 +55,7 @@ public class RoomManager
             {
                 RoomId = roomId,
                 RoomType = request.RoomType,
-                MaxPlayers = request.MaxPlayers,
-                OwnerUserId = creatorUserId ?? 0
+                MaxPlayers = request.MaxPlayers
             });
         }
         catch (Exception ex)

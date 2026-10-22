@@ -10,11 +10,6 @@ namespace SharedLib.Protocol
         public const ushort Chat = 3;
         public const ushort ChatNotify = 4;
 
-        // GameServer 内部通信
-        public const ushort GameServerRegister = 100;
-        public const ushort GameServerUpdate = 101;
-        public const ushort CloseGameRoom = 103;
-
         // 房间
         public const ushort CreateRoom = 10;
         public const ushort JoinRoom = 11;
@@ -25,20 +20,17 @@ namespace SharedLib.Protocol
         public const ushort RoomOwnerChangedNotify = 16;
         public const ushort RoomClosedNotify = 17;
 
-        // 准备与开始
-        public const ushort GameReady = 20;
-        public const ushort GameUnready = 21;
-        public const ushort GameStart = 22;
-        public const ushort GameStartNotify = 23;
-        public const ushort CreateGameRoom = 24;
-        public const ushort GameReadyNotify = 25;
-
         // 游戏房间（GameServer 侧）
         public const ushort JoinGame = 30;
         public const ushort LeaveGame = 31;
         public const ushort JoinGameNotify = 32;
         public const ushort LeaveGameNotify = 33;
-        public const ushort AuthorizeGamePlayer = 34;
+
+        // GameServer 内部通信
+        public const ushort GameServerRegister = 100;
+        public const ushort GameServerUpdate = 101;
+        public const ushort CreateGameRoom = 102;
+        public const ushort CloseGameRoom = 103;
 
         // 同步
         public const ushort PositionSync = 40;

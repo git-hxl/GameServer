@@ -81,8 +81,12 @@ listener.NetworkReceiveEvent += (peer, reader, channel, method) =>
             case MessageIds.CreateRoom:
                 var createRes = MessageHelper.Deserialize<CreateRoomResponse>(frame);
                 if (frame.Code == ReturnCode.Success)
+                {
                     Log.Information("[TestClient] 房间创建成功 roomId={RoomId} GameServer={Addr}:{Port}",
                         createRes?.Room.RoomId, createRes?.Room.GameServerAddress, createRes?.Room.GameServerPort);
+                    if (createRes?.Room != null)
+                        ConnectGameServer(createRes.Room);
+                }
                 else
                     Log.Warning("[TestClient] 房间创建失败 reason={Reason}", frame.Code);
                 break;
@@ -100,6 +104,9 @@ listener.NetworkReceiveEvent += (peer, reader, channel, method) =>
                         foreach (var p in r.Players)
                             Log.Information("[TestClient] 成员 nickname={Nickname} userId={UserId}", p.Nickname, p.UserId);
                     }
+
+                    if (r != null)
+                        ConnectGameServer(r);
                 }
                 else
                     Log.Warning("[TestClient] 房间加入失败 reason={Reason}", frame.Code);
@@ -120,40 +127,17 @@ listener.NetworkReceiveEvent += (peer, reader, channel, method) =>
                     joinNotify?.Player.Nickname, joinNotify?.Player.UserId, joinNotify?.RoomId);
                 break;
 
-            case MessageIds.GameReady:
-                var readyRes = MessageHelper.Deserialize<GameReadyResponse>(frame);
-                if (frame.Code == ReturnCode.Success)
-                    Log.Information("[TestClient] 准备状态更新 ready={Ready}/{Total} allReady={AllReady}",
-                        readyRes?.ReadyCount, readyRes?.TotalCount, readyRes?.AllReady);
-                else
-                    Log.Warning("[TestClient] 准备失败：不在房间中");
+            case MessageIds.RoomOwnerChangedNotify:
+                var ownerNotify = MessageHelper.Deserialize<RoomOwnerChangedNotify>(frame);
+                Log.Information("[TestClient] 房主变更 roomId={RoomId} owner={Owner}",
+                    ownerNotify?.RoomId, ownerNotify?.OwnerUserId);
                 break;
 
-            case MessageIds.GameUnready:
-                var unreadyRes = MessageHelper.Deserialize<GameUnreadyResponse>(frame);
-                if (frame.Code == ReturnCode.Success)
-                    Log.Information("[TestClient] 取消准备 ready={Ready}/{Total}",
-                        unreadyRes?.ReadyCount, unreadyRes?.TotalCount);
-                else
-                    Log.Warning("[TestClient] 取消准备失败：不在房间中");
-                break;
-
-            case MessageIds.GameStart:
-                if (frame.Code == ReturnCode.Success)
-                    Log.Information("[TestClient] 游戏开始请求成功，等待GameServer通知");
-                else
-                    Log.Warning("[TestClient] 游戏开始失败 reason={Reason}", frame.Code);
-                break;
-
-            case MessageIds.GameStartNotify:
-                var startNotify = MessageHelper.Deserialize<GameStartNotify>(frame);
-                Log.Information("[TestClient] 游戏开始通知 address={Addr}:{Port} roomId={RoomId}",
-                    startNotify?.GameServerAddress, startNotify?.GameServerPort, startNotify?.RoomId);
-                if (startNotify != null)
-                {
-                    gameRoomId = startNotify.RoomId;
-                    gameClient.Connect(startNotify.GameServerAddress, startNotify.GameServerPort, ConnectionKey);
-                }
+            case MessageIds.RoomClosedNotify:
+                var closedNotify = MessageHelper.Deserialize<RoomClosedNotify>(frame);
+                Log.Information("[TestClient] 房间已关闭 roomId={RoomId} reason={Reason}",
+                    closedNotify?.RoomId, closedNotify?.Reason);
+                gameRoomId = null;
                 break;
 
             case MessageIds.RoomList:
@@ -223,8 +207,7 @@ gameListener.NetworkReceiveEvent += (peer, reader, channel, method) =>
             case MessageIds.JoinGame:
                 var joinGameRes = MessageHelper.Deserialize<JoinGameResponse>(frame);
                 if (frame.Code == ReturnCode.Success)
-                    Log.Information("[TestClient] 游戏房间加入成功 roomId={RoomId} 房主={Owner}",
-                        joinGameRes?.RoomId, joinGameRes?.OwnerUserId);
+                    Log.Information("[TestClient] 游戏房间加入成功 roomId={RoomId}", joinGameRes?.RoomId);
                 else
                     Log.Warning("[TestClient] 游戏房间加入失败 reason={Reason}", frame.Code);
                 break;
@@ -240,6 +223,13 @@ gameListener.NetworkReceiveEvent += (peer, reader, channel, method) =>
                 var gameJoinNotify = MessageHelper.Deserialize<JoinGameNotify>(frame);
                 Log.Information("[TestClient] 玩家加入游戏房间 nickname={Nickname} userId={UserId}",
                     gameJoinNotify?.Player.Nickname, gameJoinNotify?.Player.UserId);
+                break;
+
+            case MessageIds.RoomClosedNotify:
+                var gameClosed = MessageHelper.Deserialize<RoomClosedNotify>(frame);
+                Log.Information("[TestClient] 游戏房间已关闭 roomId={RoomId} reason={Reason}",
+                    gameClosed?.RoomId, gameClosed?.Reason);
+                gameRoomId = null;
                 break;
         }
     }
@@ -282,12 +272,28 @@ void SendGameMessage(ushort messageId, object data)
     MessageHelper.Send(gamePeer, messageId, ReturnCode.Success, data);
 }
 
+void ConnectGameServer(RoomInfo room)
+{
+    gameRoomId = room.RoomId;
+    if (gamePeer?.ConnectionState == ConnectionState.Connected)
+    {
+        SendGameMessage(MessageIds.JoinGame, new JoinGameRequest
+        {
+            RoomId = room.RoomId,
+            Player = player
+        });
+        return;
+    }
+
+    gameClient.Connect(room.GameServerAddress, room.GameServerPort, ConnectionKey);
+}
+
 // ── 主循环 + 命令行交互 ────────────────────────────────────────────
 using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(15));
 var cts = new CancellationTokenSource();
 var quitFlag = false;
 
-Log.Information("[TestClient] 可用命令: joinlobby | leavelobby | chat <内容> | createroom [quick] [maxPlayers] [roomId] | joinroom <roomId> | leaveroom | rooms | ready | unready | start | joingame <roomId> | leavegame | status | quit");
+Log.Information("[TestClient] 可用命令: joinlobby | leavelobby | chat <内容> | createroom [quick] [maxPlayers] [roomId] | joinroom <roomId> | leaveroom | rooms | joingame <roomId> | leavegame | status | quit");
 
 _ = Task.Run(async () =>
 {
@@ -357,18 +363,6 @@ _ = Task.Run(async () =>
 
             case "rooms":
                 SendMessage(MessageIds.RoomList, new RoomListRequest());
-                break;
-
-            case "ready":
-                SendMessage(MessageIds.GameReady, new GameReadyRequest());
-                break;
-
-            case "start":
-                SendMessage(MessageIds.GameStart, new GameStartRequest());
-                break;
-
-            case "unready":
-                SendMessage(MessageIds.GameUnready, new GameReadyRequest());
                 break;
 
             case "joingame":

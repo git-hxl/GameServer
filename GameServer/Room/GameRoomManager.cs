@@ -33,7 +33,6 @@ public class GameRoomManager
         {
             RoomId = request.RoomId,
             RoomType = request.RoomType,
-            OwnerUserId = request.OwnerUserId,
             MaxPlayers = request.MaxPlayers
         };
 
@@ -111,7 +110,6 @@ public class GameRoomManager
         {
             RoomId = request.RoomId,
             RoomType = room.RoomType,
-            OwnerUserId = room.OwnerUserId,
             Players = room.PlayerIds
                 .Select(id => _playerManager.Get(id))
                 .Where(p => p != null)
