@@ -268,11 +268,11 @@ public ReturnCode CloseRoom(string roomId, RoomCloseReason reason)
 ## 8. 客户端影响（TestClient）
 
 - 删除 `ready`、`unready`、`start` 命令与对应消息处理。
-- `CreateRoom` / `JoinRoom` 成功后：保存 `RoomId` 和 `RoomInfo.GameServerAddress/Port`，自动连接 GameServer；连接成功后发送 `JoinGame`。
-- 离开或切换大厅房间时，客户端应先向 GameServer 发送 `LeaveGame`（成员各自管理，服务端不代发）。
+- `CreateRoom` / `JoinRoom` 成功后：只保存 `RoomId → RoomInfo.GameServerAddress/Port` 映射并提示用户，不自动连接或加入游戏房间。
+- `joingame <roomId>` 手动连接对应 GameServer（目标在不同 GameServer 时先断开旧连接）；连接成功后发送 `JoinGame`，同一连接切换房间时先发 `LeaveGame`。
+- 离开或切换大厅房间时，客户端应清理游戏侧状态（`LeaveGame` / 断开 GameServer 连接）。
 - `JoinGame` 返回 `RoomNotFound` 时应在 1 秒内短暂重试：Lobby→GameServer 的 `CreateGameRoom` 与客户端 `JoinGame` 走不同连接，且没有 ACK。
 - 处理 `RoomOwnerChangedNotify`（更新房主展示）和 `RoomClosedNotify`（清空本地房间状态，断开或保留 GameServer 连接由客户端决定）。
-- 保留 `joingame <roomId>` 供手动重连。
 
 ## 9. 错误码与失败处理
 

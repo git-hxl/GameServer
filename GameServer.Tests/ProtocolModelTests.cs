@@ -23,11 +23,11 @@ public class ProtocolModelTests
         var create = RoundTrip(new CreateGameRoomRequest
         {
             RoomId = "r1",
-            RoomType = RoomType.QuickMatch,
+            RoomType = RoomType.Default,
             MaxPlayers = 8
         });
         Assert.Equal("r1", create.RoomId);
-        Assert.Equal(RoomType.QuickMatch, create.RoomType);
+        Assert.Equal(RoomType.Default, create.RoomType);
         Assert.Equal(8, create.MaxPlayers);
     }
 

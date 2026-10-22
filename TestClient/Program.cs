@@ -40,6 +40,10 @@ string? gameRoomId = null;
 string? pendingJoinRoomId = null;
 long pendingJoinDeadline = 0;
 long lastJoinAttempt = 0;
+var roomServers = new Dictionary<string, (string Address, int Port)>();
+string? pendingGameRoomId = null;
+string? gameAddress = null;
+int gamePort = 0;
 
 // ── LobbyServer 消息处理 ─────────────────────────────────────────────
 
@@ -88,7 +92,7 @@ listener.NetworkReceiveEvent += (peer, reader, channel, method) =>
                     Log.Information("[TestClient] 房间创建成功 roomId={RoomId} GameServer={Addr}:{Port}",
                         createRes?.Room.RoomId, createRes?.Room.GameServerAddress, createRes?.Room.GameServerPort);
                     if (createRes?.Room != null)
-                        ConnectGameServer(createRes.Room);
+                        RememberGameServer(createRes.Room);
                 }
                 else
                     Log.Warning("[TestClient] 房间创建失败 reason={Reason}", frame.Code);
@@ -109,7 +113,7 @@ listener.NetworkReceiveEvent += (peer, reader, channel, method) =>
                     }
 
                     if (r != null)
-                        ConnectGameServer(r);
+                        RememberGameServer(r);
                 }
                 else
                     Log.Warning("[TestClient] 房间加入失败 reason={Reason}", frame.Code);
@@ -141,6 +145,7 @@ listener.NetworkReceiveEvent += (peer, reader, channel, method) =>
                 Log.Information("[TestClient] 房间已关闭 roomId={RoomId} reason={Reason}",
                     closedNotify?.RoomId, closedNotify?.Reason);
                 gameRoomId = null;
+                pendingGameRoomId = null;
                 break;
 
             case MessageIds.RoomList:
@@ -182,20 +187,14 @@ gameListener.PeerConnectedEvent += peer =>
     gamePeer = peer;
     Log.Information("[TestClient] GameServer已连接");
 
-    if (gameRoomId != null)
-    {
-        MessageHelper.Send(peer, MessageIds.JoinGame, ReturnCode.Success, new JoinGameRequest
-        {
-            RoomId = gameRoomId,
-            Player = player
-        });
-        Log.Information("[TestClient] 自动加入游戏房间 roomId={RoomId}", gameRoomId);
-    }
+    if (pendingGameRoomId != null)
+        SendJoinGame();
 };
 
 gameListener.PeerDisconnectedEvent += (peer, info) =>
 {
-    gamePeer = null;
+    if (gamePeer == peer)
+        gamePeer = null;
     Log.Information("[TestClient] GameServer连接断开 reason={Reason}", info.Reason);
 };
 
@@ -212,6 +211,7 @@ gameListener.NetworkReceiveEvent += (peer, reader, channel, method) =>
                 if (frame.Code == ReturnCode.Success)
                 {
                     pendingJoinRoomId = null;
+                    pendingGameRoomId = null;
                     Log.Information("[TestClient] 游戏房间加入成功 roomId={RoomId}", joinGameRes?.RoomId);
                 }
                 else if (frame.Code == ReturnCode.RoomNotFound)
@@ -245,6 +245,7 @@ gameListener.NetworkReceiveEvent += (peer, reader, channel, method) =>
                 Log.Information("[TestClient] 游戏房间已关闭 roomId={RoomId} reason={Reason}",
                     gameClosed?.RoomId, gameClosed?.Reason);
                 gameRoomId = null;
+                pendingGameRoomId = null;
                 break;
         }
     }
@@ -287,28 +288,57 @@ void SendGameMessage(ushort messageId, object data)
     MessageHelper.Send(gamePeer, messageId, ReturnCode.Success, data);
 }
 
-void ConnectGameServer(RoomInfo room)
+void RememberGameServer(RoomInfo room)
 {
-    if (gameRoomId != null && gameRoomId != room.RoomId &&
+    roomServers[room.RoomId] = (room.GameServerAddress, room.GameServerPort);
+    Log.Information("[TestClient] 房间 {RoomId} 的 GameServer 为 {Addr}:{Port}，执行 joingame {RoomId} 进入游戏房间",
+        room.RoomId, room.GameServerAddress, room.GameServerPort);
+}
+
+void SendJoinGame()
+{
+    if (gameRoomId == null)
+        return;
+
+    SendGameMessage(MessageIds.JoinGame, new JoinGameRequest
+    {
+        RoomId = gameRoomId,
+        Player = player
+    });
+    Log.Information("[TestClient] 手动加入游戏房间 roomId={RoomId}", gameRoomId);
+}
+
+void JoinGameRoom(string roomId)
+{
+    if (!roomServers.TryGetValue(roomId, out var server))
+    {
+        Log.Warning("[TestClient] 未知房间的游戏服地址，请先 createroom/joinroom roomId={RoomId}", roomId);
+        return;
+    }
+
+    if (gameRoomId != null && gameRoomId != roomId &&
         gamePeer?.ConnectionState == ConnectionState.Connected)
     {
         SendGameMessage(MessageIds.LeaveGame, new LeaveGameRequest());
     }
 
-    gameRoomId = room.RoomId;
+    gameRoomId = roomId;
+    pendingGameRoomId = roomId;
     pendingJoinRoomId = null;
 
-    if (gamePeer?.ConnectionState == ConnectionState.Connected)
+    if (gamePeer?.ConnectionState == ConnectionState.Connected &&
+        gameAddress == server.Address && gamePort == server.Port)
     {
-        SendGameMessage(MessageIds.JoinGame, new JoinGameRequest
-        {
-            RoomId = room.RoomId,
-            Player = player
-        });
+        SendJoinGame();
         return;
     }
 
-    gameClient.Connect(room.GameServerAddress, room.GameServerPort, ConnectionKey);
+    if (gamePeer?.ConnectionState == ConnectionState.Connected)
+        gameClient.DisconnectPeer(gamePeer);
+
+    gameAddress = server.Address;
+    gamePort = server.Port;
+    gameClient.Connect(server.Address, server.Port, ConnectionKey);
 }
 
 // ── 主循环 + 命令行交互 ────────────────────────────────────────────
@@ -316,7 +346,7 @@ using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(15));
 var cts = new CancellationTokenSource();
 var quitFlag = false;
 
-Log.Information("[TestClient] 可用命令: joinlobby | leavelobby | chat <内容> | createroom [quick] [maxPlayers] [roomId] | joinroom <roomId> | leaveroom | rooms | joingame <roomId> | leavegame | status | quit");
+Log.Information("[TestClient] 可用命令: joinlobby | leavelobby | chat <内容> | createroom [maxPlayers] [roomId] | joinroom <roomId> | leaveroom | rooms | joingame <roomId> | leavegame | status | quit");
 
 _ = Task.Run(async () =>
 {
@@ -339,6 +369,7 @@ _ = Task.Run(async () =>
                 if (gamePeer?.ConnectionState == ConnectionState.Connected)
                     SendGameMessage(MessageIds.LeaveGame, new LeaveGameRequest());
                 gameRoomId = null;
+                pendingGameRoomId = null;
                 pendingJoinRoomId = null;
                 SendMessage(MessageIds.LeaveLobby, new LeaveLobbyRequest
                 {
@@ -348,27 +379,23 @@ _ = Task.Run(async () =>
 
             case "createroom":
                 var cArgs = parts.Length > 1 ? parts[1].Split(' ', StringSplitOptions.RemoveEmptyEntries) : [];
-                var roomType = cArgs.Length > 0 && cArgs[0].ToLower() == "quick"
-                    ? RoomType.QuickMatch
-                    : RoomType.Default;
                 var maxPlayers = 0;
                 var roomId = null as string;
-                var idx = 0;
-                if (cArgs.Length > 0 && cArgs[0].ToLower() == "quick")
+                if (cArgs.Length > 0)
                 {
-                    idx = 1;
-                    maxPlayers = 4;
-                }
-                if (cArgs.Length > idx)
-                {
-                    if (int.TryParse(cArgs[idx], out var parsed))
+                    if (int.TryParse(cArgs[0], out var parsed))
                         maxPlayers = parsed;
                     else
-                        roomId = cArgs[idx];
+                        roomId = cArgs[0];
                 }
-                if (cArgs.Length > idx + 1)
-                    roomId = cArgs[idx + 1];
-                SendMessage(MessageIds.CreateRoom, new CreateRoomRequest { RoomId = roomId, RoomType = roomType, MaxPlayers = maxPlayers });
+                if (cArgs.Length > 1)
+                    roomId = cArgs[1];
+                SendMessage(MessageIds.CreateRoom, new CreateRoomRequest
+                {
+                    RoomId = roomId,
+                    RoomType = RoomType.Default,
+                    MaxPlayers = maxPlayers
+                });
                 break;
 
             case "joinroom":
@@ -388,6 +415,7 @@ _ = Task.Run(async () =>
                 if (gamePeer?.ConnectionState == ConnectionState.Connected)
                     SendGameMessage(MessageIds.LeaveGame, new LeaveGameRequest());
                 gameRoomId = null;
+                pendingGameRoomId = null;
                 pendingJoinRoomId = null;
                 SendMessage(MessageIds.LeaveRoom, new LeaveRoomRequest());
                 break;
@@ -402,17 +430,13 @@ _ = Task.Run(async () =>
                     Log.Information("[TestClient] 用法: joingame <RoomId>");
                     break;
                 }
-                gameRoomId = parts[1];
-                SendGameMessage(MessageIds.JoinGame, new JoinGameRequest
-                {
-                    RoomId = parts[1],
-                    Player = player
-                });
+                JoinGameRoom(parts[1]);
                 break;
 
             case "leavegame":
                 SendGameMessage(MessageIds.LeaveGame, new LeaveGameRequest());
                 gameRoomId = null;
+                pendingGameRoomId = null;
                 pendingJoinRoomId = null;
                 break;
 
