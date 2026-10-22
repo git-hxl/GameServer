@@ -21,7 +21,9 @@ namespace SharedLib.Config
         /// </summary>
         public static T Load<T>(string? path = null) where T : new()
         {
-            var filePath = path ?? Path.Combine(AppContext.BaseDirectory, DefaultFileName);
+            var filePath = path ?? DefaultFileName;
+            if (!Path.IsPathRooted(filePath))
+                filePath = Path.Combine(AppContext.BaseDirectory, filePath);
 
             if (!File.Exists(filePath))
             {

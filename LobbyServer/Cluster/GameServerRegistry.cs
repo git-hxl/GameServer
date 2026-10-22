@@ -13,8 +13,11 @@ public class GameServerRegistry
     {
         var key = MakeKey(info.Address, info.Port);
 
-        if (_keyByPeer.TryGetValue(peer, out var oldKey) && oldKey != key)
+        if (_keyByPeer.TryGetValue(peer, out var oldKey) && oldKey != key &&
+            _byKey.TryGetValue(oldKey, out var oldEntry) && oldEntry.Peer == peer)
+        {
             _byKey.TryRemove(oldKey, out _);
+        }
 
         _keyByPeer[peer] = key;
         _byKey[key] = new ServerEntry(peer, info);
@@ -41,8 +44,11 @@ public class GameServerRegistry
 
     public void Remove(NetPeer peer)
     {
-        if (_keyByPeer.TryRemove(peer, out var key))
+        if (_keyByPeer.TryRemove(peer, out var key) &&
+            _byKey.TryGetValue(key, out var entry) && entry.Peer == peer)
+        {
             _byKey.TryRemove(key, out _);
+        }
     }
 
     public GameServerInfo? Get(NetPeer peer)
