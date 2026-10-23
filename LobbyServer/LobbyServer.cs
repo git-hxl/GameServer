@@ -121,19 +121,7 @@ public class LobbyServer
             new GameServerUpdateHandler(_gameServerRegistry)
         );
     }
-
-    /// <summary>服务端内部 API：由外部系统创建房间，首个加入者成为房主</summary>
-    public (CreateRoomResponse Response, ReturnCode Code) CreateSystemRoom(CreateRoomRequest request)
-    {
-        return _roomManager.CreateRoom(request, null);
-    }
-
-    /// <summary>服务端内部 API：关闭房间并同步关闭游戏房间</summary>
-    public ReturnCode CloseRoom(string roomId)
-    {
-        return _roomManager.CloseRoom(roomId, RoomCloseReason.ClosedBySystem);
-    }
-
+    
     /// <summary>
     /// 停止两个 NetManager；不会释放调用方注入的房间存储。
     /// </summary>
@@ -159,6 +147,11 @@ public class LobbyServer
         Log.Information("[LobbyServer] 客户端连接 endpoint={EndPoint}", peer.Address);
     }
 
+    /// <summary>
+    /// 处理客户端断开：任何原因都先移出房间；主动断线额外删除 LobbyPlayer。
+    /// </summary>
+    /// <param name="peer">断开的连接。</param>
+    /// <param name="disconnectInfo">断开原因。</param>
     private void OnClientDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
     {
         if (_stopping)
@@ -168,17 +161,22 @@ public class LobbyServer
         if (player == null)
             return;
 
-        if (PlayerDisconnectPolicy.ShouldKeepPlayer(disconnectInfo.Reason))
+        var userId = player.Info.UserId;
+
+        // 不管什么原因，先从房间移除（房间/Redis 同步更新）。
+        _roomManager.LeaveRoom(userId);
+
+        if (disconnectInfo.Reason == DisconnectReason.RemoteConnectionClose)
         {
-            _players.UnbindPeer(peer);
-            Log.Information("[LobbyServer] 异常断线，保留玩家 userId={UserId} reason={Reason}",
-                player.Info.UserId, disconnectInfo.Reason);
+            _players.Remove(userId);
+            Log.Information("[LobbyServer] 主动断线，移出房间并删除玩家 userId={UserId} reason={Reason}",
+                userId, disconnectInfo.Reason);
         }
         else
         {
-            Log.Information("[LobbyServer] 主动断开，移除玩家 userId={UserId} reason={Reason}",
-                player.Info.UserId, disconnectInfo.Reason);
-            _roomManager.RemovePlayer(player.Info.UserId);
+            _players.UnbindPeer(peer);
+            Log.Information("[LobbyServer] 断线，移出房间并保留离线玩家 userId={UserId} reason={Reason}",
+                userId, disconnectInfo.Reason);
         }
     }
 
