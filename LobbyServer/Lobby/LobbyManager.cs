@@ -28,6 +28,13 @@ public class LobbyManager
         var userId = request.Player.UserId;
         Log.Information("[LobbyManager] 加入大厅 userId={UserId}", userId);
 
+        var boundUserId = _players.GetUserId(peer);
+        if (boundUserId != 0 && boundUserId != userId)
+        {
+            Log.Warning("[LobbyManager] 同一连接切换 userId old={Old} new={New}", boundUserId, userId);
+            _rooms.RemovePlayer(boundUserId);
+        }
+
         var existing = _players.Get(userId);
         if (existing != null)
         {
@@ -74,7 +81,7 @@ public class LobbyManager
             return (new LeaveLobbyResponse { UserId = request.UserId }, ReturnCode.NotInLobby);
         }
 
-        _rooms.RemovePlayer(peer);
+        _rooms.RemovePlayer(request.UserId);
 
         Log.Information("[LobbyManager] 大厅离开 userId={UserId} 在线人数={Count}",
             request.UserId, _players.Count);

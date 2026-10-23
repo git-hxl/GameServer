@@ -22,6 +22,7 @@ public sealed class RedisHelper : IDisposable
         var options = ConfigurationOptions.Parse(connectionString);
         options.AbortOnConnectFail = true;
         options.ConnectTimeout = 5000;
+        options.SyncTimeout = 1000;
 
         _connection = ConnectionMultiplexer.Connect(options);
         _database = _connection.GetDatabase(database);

@@ -45,6 +45,16 @@ public class LobbyRoomStoreTests : IDisposable
     }
 
     [Fact]
+    public void LoadAll_SkipsAndDeletesInvalidSnapshot()
+    {
+        var key = $"{_prefix}:lobby:rooms";
+        _redis.Database.HashSet(key, "bad-empty", "{}");
+
+        Assert.Empty(_store.LoadAll());
+        Assert.False(_redis.Database.HashExists(key, "bad-empty"));
+    }
+
+    [Fact]
     public void Save_WhenStoreDisposed_DoesNotThrow()
     {
         _store.Dispose();

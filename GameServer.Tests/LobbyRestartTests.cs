@@ -75,6 +75,17 @@ public class LobbyRestartTests : IDisposable
         Assert.Equal(5201L, joined.Room.OwnerUserId);
         Assert.Contains(joined.Room.Players, p => p.UserId == 5201);
         Assert.Contains(joined.Room.Players, p => p.UserId == 5202);
+
+        ownerAgain.Send(MessageIds.LeaveRoom, new LeaveRoomRequest());
+        var leave = ownerAgain.WaitMessage(MessageIds.LeaveRoom);
+        Assert.NotNull(leave);
+        Assert.Equal(ReturnCode.Success, leave!.Value.Code);
+
+        using var checker2 = ConnectClient(5204, "checker2");
+        var afterLeave = JoinRoom(checker2, "restart-lobby-room");
+
+        Assert.Equal(3, afterLeave.Room.Players.Count);
+        Assert.Equal(5202L, afterLeave.Room.OwnerUserId);
     }
 
     public void Dispose()

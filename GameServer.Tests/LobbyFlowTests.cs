@@ -61,6 +61,34 @@ public class LobbyFlowTests
     }
 
     [Fact]
+    public void JoinRoom_WhenAlreadyMember_ReturnsSuccess()
+    {
+        using var owner = ConnectClient(2051, "owner");
+        CreateRoom(owner, "room-rejoin-self");
+
+        var joined = JoinRoom(owner, "room-rejoin-self");
+
+        Assert.Equal("room-rejoin-self", joined.Room.RoomId);
+        Assert.Single(joined.Room.Players);
+    }
+
+    [Fact]
+    public void JoinLobby_TwoUserIdsOnSamePeer_RemovesFirst()
+    {
+        using var client = ConnectClient(2061, "first");
+        CreateRoom(client, "room-multi-id");
+
+        client.Send(MessageIds.JoinLobby, new JoinLobbyRequest
+        {
+            Player = new PlayerInfo { UserId = 2062, Nickname = "second" }
+        });
+        Assert.NotNull(client.WaitMessage(MessageIds.JoinLobby));
+
+        using var checker = ConnectClient(2063, "checker");
+        JoinRoom(checker, "room-multi-id", ReturnCode.RoomNotFound);
+    }
+
+    [Fact]
     public void CreateRoom_PlayerCreator_IsOwnerAndMember()
     {
         using var owner = ConnectClient(1101, "owner");

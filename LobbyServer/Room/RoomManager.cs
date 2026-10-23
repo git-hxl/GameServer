@@ -117,18 +117,18 @@ public class RoomManager
             return (new JoinRoomResponse { Room = new RoomInfo { RoomId = request.RoomId } }, ReturnCode.RoomNotFound);
         }
 
+        if (room.PlayerIds.Contains(userId))
+        {
+            Log.Information("[RoomManager] 玩家已在房间中，返回房间信息 roomId={RoomId} userId={UserId}",
+                request.RoomId, userId);
+            return (new JoinRoomResponse { Room = BuildRoomInfo(room) }, ReturnCode.Success);
+        }
+
         if (room.MaxPlayers > 0 && room.PlayerIds.Count >= room.MaxPlayers)
         {
             Log.Warning("[RoomManager] 加入房间失败：房间已满 roomId={RoomId} max={Max}",
                 request.RoomId, room.MaxPlayers);
             return (new JoinRoomResponse { Room = new RoomInfo { RoomId = request.RoomId } }, ReturnCode.RoomFull);
-        }
-
-        if (room.PlayerIds.Contains(userId))
-        {
-            Log.Warning("[RoomManager] 加入房间失败：已在房间中 roomId={RoomId} userId={UserId}",
-                request.RoomId, userId);
-            return (new JoinRoomResponse { Room = BuildRoomInfo(room) }, ReturnCode.AlreadyInRoom);
         }
 
         if (player.CurrentRoomId != null)
@@ -262,7 +262,16 @@ public class RoomManager
         if (player == null)
             return;
 
-        var userId = player.Info.UserId;
+        RemovePlayer(player.Info.UserId);
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void RemovePlayer(long userId)
+    {
+        var player = _players.Get(userId);
+        if (player == null)
+            return;
+
         Log.Information("[RoomManager] 移除玩家 userId={UserId}", userId);
         LeaveRoom(userId);
         _players.Remove(userId);

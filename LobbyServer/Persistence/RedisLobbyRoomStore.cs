@@ -17,7 +17,36 @@ public sealed class RedisLobbyRoomStore : ILobbyRoomStore
 
     public IReadOnlyList<LobbyRoomSnapshot> LoadAll()
     {
-        return _redis.HashGetAll<LobbyRoomSnapshot>(_key).Values.ToList();
+        var entries = _redis.HashGetAll<LobbyRoomSnapshot>(_key);
+        var result = new List<LobbyRoomSnapshot>();
+
+        foreach (var (field, snapshot) in entries)
+        {
+            if (string.IsNullOrWhiteSpace(field) ||
+                snapshot.Version != 1 ||
+                string.IsNullOrWhiteSpace(snapshot.GameServerAddress) ||
+                snapshot.GameServerPort <= 0)
+            {
+                Log.Warning("[Redis] 忽略无效房间快照 field={Field}", field);
+                if (!string.IsNullOrWhiteSpace(field))
+                    _redis.HashDelete(_key, field);
+                continue;
+            }
+
+            if (!string.Equals(snapshot.RoomId, field, StringComparison.Ordinal))
+            {
+                Log.Warning("[Redis] 房间字段与 RoomId 不一致，使用字段名 field={Field} roomId={RoomId}",
+                    field, snapshot.RoomId);
+                snapshot.RoomId = field;
+            }
+
+            if (snapshot.Players == null)
+                snapshot.Players = [];
+
+            result.Add(snapshot);
+        }
+
+        return result;
     }
 
     public void Save(LobbyRoomSnapshot room)
