@@ -26,7 +26,7 @@ public sealed class ServerFixture : IDisposable
     private readonly LobbyServerConfig _lobbyConfig;
     private readonly GameServerConfig _gameConfig;
 
-    public ServerFixture(ILobbyRoomStore? roomStore = null)
+    public ServerFixture(ILobbyRoomStore? roomStore = null, int disconnectTimeoutMs = 5000)
     {
         Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateLogger();
 
@@ -37,12 +37,16 @@ public sealed class ServerFixture : IDisposable
         LobbyServerPort = ports[1];
         GameServerPort = ports[2];
 
+        var pingInterval = Math.Min(1000, Math.Max(50, disconnectTimeoutMs / 2));
+
         _lobbyConfig = new LobbyServerConfig
         {
             ClientPort = LobbyClientPort,
             ServerPort = LobbyServerPort,
             ClientConnectionKey = ClientKey,
-            ServerConnectionKey = ServerKey
+            ServerConnectionKey = ServerKey,
+            DisconnectTimeout = disconnectTimeoutMs,
+            PingInterval = pingInterval
         };
         _lobby = new LobbyServer.LobbyServer(_lobbyConfig, _roomStore);
         _lobby.Start(_lobbyConfig);
@@ -53,7 +57,9 @@ public sealed class ServerFixture : IDisposable
             LobbyAddress = "127.0.0.1",
             LobbyPort = LobbyServerPort,
             LobbyConnectionKey = ServerKey,
-            ClientConnectionKey = ClientKey
+            ClientConnectionKey = ClientKey,
+            DisconnectTimeout = disconnectTimeoutMs,
+            PingInterval = pingInterval
         };
         _game = new global::GameServer.GameServer(_gameConfig);
         _game.Start();

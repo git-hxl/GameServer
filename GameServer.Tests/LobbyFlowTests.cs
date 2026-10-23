@@ -258,36 +258,6 @@ public class LobbyFlowTests
     }
 
     [Fact]
-    public void Disconnect_KeepsRoomMembership_AndReconnectBindsNewPeer()
-    {
-        var owner = ConnectClient(2101, "owner");
-        CreateRoom(owner, "room-disconnect");
-
-        using var member = ConnectClient(2102, "member");
-        JoinRoom(member, "room-disconnect");
-
-        owner.Dispose();
-        Thread.Sleep(300);
-
-        using var checker = ConnectClient(2103, "checker");
-        var joined = JoinRoom(checker, "room-disconnect");
-
-        Assert.Equal(3, joined.Room.Players.Count);
-        Assert.Equal(2101L, joined.Room.OwnerUserId);
-        Assert.Contains(joined.Room.Players, p => p.UserId == 2101);
-
-        using var ownerAgain = ConnectClient(2101, "owner-again");
-        var rejoined = JoinRoom(ownerAgain, "room-disconnect");
-        Assert.Equal(3, rejoined.Room.Players.Count);
-
-        ownerAgain.Send(MessageIds.LeaveRoom, new LeaveRoomRequest());
-        var leave = ownerAgain.WaitMessage(MessageIds.LeaveRoom);
-
-        Assert.NotNull(leave);
-        Assert.Equal(ReturnCode.Success, leave!.Value.Code);
-    }
-
-    [Fact]
     public void CreateRoom_DuplicateRoomId_ReturnsError()
     {
         using var owner = ConnectClient(1901, "owner");

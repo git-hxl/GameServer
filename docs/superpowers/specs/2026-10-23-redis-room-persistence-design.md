@@ -178,7 +178,7 @@ bool IsOnline(long userId);                // Peer 非空且 Connected
 
 关键点：顶号/重连不再把玩家从房间移除；旧连接的断开事件因为 peer 映射已解绑，不会误删新会话。
 
-运行期客户端断开也走 `PlayerManager.UnbindPeer(peer)`：只清 `Peer`，保留房间成员/房主，不写 Redis。重连时 `BindOnline` 只替换 `Peer` 和 `PlayerInfo`；所在房间由 `CurrentRoomId` 保留。
+运行期断线按 `PlayerDisconnectPolicy` 区分：主动断开（`RemoteConnectionClose` / `DisconnectPeerCalled`）从 `_players` 和房间移除并持久化；异常断线（`Timeout` / `ConnectionFailed` 等）只清 `Peer`，保留房间成员/房主，不写 Redis。重连时 `BindOnline` 只替换 `Peer` 和 `PlayerInfo`；所在房间由 `CurrentRoomId` 保留。
 
 ### 6.4 广播与通知过滤
 

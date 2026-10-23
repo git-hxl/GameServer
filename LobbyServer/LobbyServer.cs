@@ -151,10 +151,22 @@ public class LobbyServer
         if (_stopping)
             return;
 
-        Log.Information("[LobbyServer] 客户端断开 endpoint={EndPoint} reason={Reason}",
-            peer.Address, disconnectInfo.Reason);
+        var player = _players.GetByPeer(peer);
+        if (player == null)
+            return;
 
-        _players.UnbindPeer(peer);
+        if (PlayerDisconnectPolicy.ShouldKeepPlayer(disconnectInfo.Reason))
+        {
+            _players.UnbindPeer(peer);
+            Log.Information("[LobbyServer] 异常断线，保留玩家 userId={UserId} reason={Reason}",
+                player.Info.UserId, disconnectInfo.Reason);
+        }
+        else
+        {
+            Log.Information("[LobbyServer] 主动断开，移除玩家 userId={UserId} reason={Reason}",
+                player.Info.UserId, disconnectInfo.Reason);
+            _roomManager.RemovePlayer(player.Info.UserId);
+        }
     }
 
     private void OnServerConnected(NetPeer peer)
