@@ -11,6 +11,18 @@ public class PlayerManager
 
     public int Count => _players.Count;
 
+    public IEnumerable<LobbyPlayer> All => _players.Values;
+
+    public IEnumerable<NetPeer> OnlinePeers
+    {
+        get
+        {
+            return _players.Values
+                .Where(p => p.Peer is { ConnectionState: ConnectionState.Connected })
+                .Select(p => p.Peer!);
+        }
+    }
+
     public LobbyPlayer? Get(long userId)
     {
         _players.TryGetValue(userId, out var player);
@@ -28,8 +40,6 @@ public class PlayerManager
         return userId;
     }
 
-    public IEnumerable<LobbyPlayer> All => _players.Values;
-
     public LobbyPlayer Add(NetPeer peer, PlayerInfo info)
     {
         var player = new LobbyPlayer
@@ -45,14 +55,46 @@ public class PlayerManager
         return player;
     }
 
+    public LobbyPlayer AddOffline(PlayerInfo info, string roomId)
+    {
+        var player = new LobbyPlayer
+        {
+            Info = info,
+            Peer = null,
+            State = PlayerState.InRoom,
+            CurrentRoomId = roomId
+        };
+
+        _players[info.UserId] = player;
+        return player;
+    }
+
+    public void BindOnline(LobbyPlayer player, NetPeer peer, PlayerInfo info)
+    {
+        player.Peer = peer;
+        player.Info = info;
+        _peerToUserId[peer] = player.Info.UserId;
+    }
+
+    public void UnbindPeer(NetPeer peer)
+    {
+        if (_peerToUserId.TryRemove(peer, out var userId) &&
+            _players.TryGetValue(userId, out var player) &&
+            player.Peer == peer)
+        {
+            player.Peer = null;
+        }
+    }
+
     public bool Remove(long userId)
     {
-        if (_players.TryRemove(userId, out var player))
-        {
+        if (!_players.TryRemove(userId, out var player))
+            return false;
+
+        if (player.Peer != null)
             _peerToUserId.TryRemove(player.Peer, out _);
-            return true;
-        }
-        return false;
+
+        return true;
     }
 
     public void RemoveByPeer(NetPeer peer)
@@ -77,6 +119,7 @@ public class PlayerManager
 
     public bool IsOnline(long userId)
     {
-        return _players.TryGetValue(userId, out var player) && player.Peer.ConnectionState == ConnectionState.Connected;
+        return _players.TryGetValue(userId, out var player) &&
+               player.Peer is { ConnectionState: ConnectionState.Connected };
     }
 }

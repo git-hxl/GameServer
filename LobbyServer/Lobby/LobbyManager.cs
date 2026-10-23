@@ -31,11 +31,21 @@ public class LobbyManager
         var existing = _players.Get(userId);
         if (existing != null)
         {
-            Log.Warning("[LobbyManager] 替换已有连接 userId={UserId}", userId);
+            Log.Warning("[LobbyManager] 玩家重新登录 userId={UserId} online={Online}", userId, existing.Peer != null);
 
-            _rooms.RemovePlayer(existing.Peer);
-            if (existing.Peer != peer)
-                _netManager.DisconnectPeer(existing.Peer);
+            var oldPeer = existing.Peer;
+            if (oldPeer != null && oldPeer != peer)
+            {
+                _players.UnbindPeer(oldPeer);
+                _netManager.DisconnectPeer(oldPeer);
+            }
+
+            _players.BindOnline(existing, peer, request.Player);
+
+            Log.Information("[LobbyManager] 玩家恢复会话 userId={UserId} roomId={RoomId}",
+                userId, existing.CurrentRoomId);
+
+            return (new JoinLobbyResponse { Player = request.Player }, ReturnCode.Success);
         }
 
         _players.Add(peer, request.Player);
@@ -96,6 +106,6 @@ public class LobbyManager
     private void Broadcast(ushort messageId, ReturnCode code, object data)
     {
         var frame = MessageHelper.CreateFrame(messageId, code, data);
-        MessageHelper.SendToAll(_players.All.Select(p => p.Peer), frame, DeliveryMethod.ReliableOrdered);
+        MessageHelper.SendToAll(_players.OnlinePeers, frame, DeliveryMethod.ReliableOrdered);
     }
 }

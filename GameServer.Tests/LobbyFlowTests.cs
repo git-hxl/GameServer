@@ -186,7 +186,7 @@ public class LobbyFlowTests
     }
 
     [Fact]
-    public void JoinLobby_Twice_RemovesPreviousRoomMembership()
+    public void JoinLobby_Twice_KeepsRoomMembership()
     {
         using var owner = ConnectClient(1801, "owner");
         using var keeper = ConnectClient(1802, "keeper");
@@ -202,8 +202,31 @@ public class LobbyFlowTests
         Assert.NotNull(owner.WaitMessage(MessageIds.JoinLobby));
 
         var joined = JoinRoom(checker, "room-relogin");
-        Assert.DoesNotContain(joined.Room.Players, p => p.UserId == 1801);
-        Assert.Equal(1802, joined.Room.OwnerUserId);
+        Assert.Equal(3, joined.Room.Players.Count);
+        Assert.Equal(1801L, joined.Room.OwnerUserId);
+    }
+
+    [Fact]
+    public void Takeover_KeepsRoomMembership()
+    {
+        using var owner = ConnectClient(1851, "owner");
+        CreateRoom(owner, "room-takeover");
+
+        using var replacement = new TestClient();
+        replacement.Connect(_fixture.LobbyClientPort, ServerFixture.ClientKey);
+        Assert.True(replacement.WaitConnected());
+        replacement.Send(MessageIds.JoinLobby, new JoinLobbyRequest
+        {
+            Player = new PlayerInfo { UserId = 1851, Nickname = "owner-new" }
+        });
+        Assert.NotNull(replacement.WaitPayload<JoinLobbyResponse>(MessageIds.JoinLobby));
+
+        using var checker = ConnectClient(1852, "checker");
+        var joined = JoinRoom(checker, "room-takeover");
+
+        Assert.Equal(2, joined.Room.Players.Count);
+        Assert.Equal(1851L, joined.Room.OwnerUserId);
+        Assert.Contains(joined.Room.Players, p => p.UserId == 1851 && p.Nickname == "owner-new");
     }
 
     [Fact]
