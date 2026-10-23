@@ -3,11 +3,11 @@ using Serilog;
 using SharedLib.Config;
 using SharedLib.Models;
 using SharedLib.Protocol;
+using SharedLib.Redis;
 using SharedLib.Utils;
 using SharedLib.Handlers;
 using LobbyServer.Cluster;
 using LobbyServer.Lobby;
-using LobbyServer.Persistence;
 using LobbyServer.Player;
 using LobbyServer.Room;
 using LobbyServer.Handlers.Client;
@@ -26,7 +26,7 @@ public class LobbyServer
     private readonly string _serverKey;
 
     private readonly PlayerManager _players = new();
-    private readonly ILobbyRoomStore _roomStore;
+    private readonly RedisHelper _redisHelper;
     private LobbyManager _lobbyManager = null!;
     private RoomManager _roomManager = null!;
     private HandlerRegistry _clientRegistry = null!;
@@ -36,13 +36,13 @@ public class LobbyServer
     private bool _stopping;
 
     /// <summary>
-    /// 创建大厅服务器实例；Redis 存储由调用方注入，构造过程不连接 Redis。
+    /// 创建大厅服务器实例；RedisHelper 由调用方创建，构造过程不连接 Redis。
     /// </summary>
     /// <param name="config">大厅服务器配置。</param>
-    /// <param name="roomStore">房间持久化存储，由调用方负责释放。</param>
-    public LobbyServer(LobbyServerConfig config, ILobbyRoomStore roomStore)
+    /// <param name="redis">进程级共享的 RedisHelper，由调用方负责释放。</param>
+    public LobbyServer(LobbyServerConfig config, RedisHelper redis)
     {
-        _roomStore = roomStore;
+        _redisHelper = redis;
 
         _clientKey = config.ClientConnectionKey;
         _serverKey = config.ServerConnectionKey;
@@ -67,14 +67,14 @@ public class LobbyServer
     }
 
     /// <summary>
-    /// 从存储恢复房间、注册 handler，并启动客户端/GameServer 两个 NetManager。
+    /// 初始化大厅（创建房间存储、恢复房间）、注册 handler，并启动两个 NetManager。
     /// </summary>
     /// <param name="config">大厅服务器配置。</param>
     public void Start(LobbyServerConfig config)
     {
-        _roomManager = new RoomManager(_players, _gameServerRegistry, _roomStore);
-        _roomManager.RestoreFromStore();
-        _lobbyManager = new LobbyManager(_clientNetManager, _players, _roomManager);
+        _lobbyManager = LobbyManager.Create(
+            _clientNetManager, _players, _gameServerRegistry, _redisHelper, config.RedisKeyPrefix);
+        _roomManager = _lobbyManager.Rooms;
 
         _clientRegistry = new HandlerRegistry();
         _serverRegistry = new HandlerRegistry();

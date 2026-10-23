@@ -3,18 +3,29 @@ using SharedLib.Redis;
 
 namespace LobbyServer.Persistence;
 
+/// <summary>
+/// 大厅房间的 Redis 持久化实现；使用注入的 RedisHelper，不拥有连接。
+/// </summary>
 public sealed class RedisLobbyRoomStore : ILobbyRoomStore
 {
     private readonly RedisHelper _redis;
     private readonly string _key;
-    private bool _disposed;
 
-    public RedisLobbyRoomStore(string connectionString, string keyPrefix, int database = 0)
+    /// <summary>
+    /// 使用外部注入的 Redis 连接创建大厅房间存储；不拥有该连接。
+    /// </summary>
+    /// <param name="redis">进程级共享的 RedisHelper。</param>
+    /// <param name="keyPrefix">Redis key 前缀。</param>
+    public RedisLobbyRoomStore(RedisHelper redis, string keyPrefix)
     {
-        _redis = new RedisHelper(connectionString, database);
+        _redis = redis;
         _key = $"{keyPrefix}:lobby:rooms";
     }
 
+    /// <summary>
+    /// 读取并校验全部大厅房间快照；无效条目会从 Redis 删除。
+    /// </summary>
+    /// <returns>有效的大厅房间快照。</returns>
     public IReadOnlyList<LobbyRoomSnapshot> LoadAll()
     {
         var entries = _redis.HashGetAll<LobbyRoomSnapshot>(_key);
@@ -49,6 +60,10 @@ public sealed class RedisLobbyRoomStore : ILobbyRoomStore
         return result;
     }
 
+    /// <summary>
+    /// 保存单个大厅房间快照；Redis 异常记录日志，不抛出。
+    /// </summary>
+    /// <param name="room">房间快照。</param>
     public void Save(LobbyRoomSnapshot room)
     {
         try
@@ -61,6 +76,10 @@ public sealed class RedisLobbyRoomStore : ILobbyRoomStore
         }
     }
 
+    /// <summary>
+    /// 删除大厅房间快照；Redis 异常记录日志，不抛出。
+    /// </summary>
+    /// <param name="roomId">房间 ID。</param>
     public void Delete(string roomId)
     {
         try
@@ -71,14 +90,5 @@ public sealed class RedisLobbyRoomStore : ILobbyRoomStore
         {
             Log.Error(ex, "[Redis] 删除房间失败 roomId={RoomId}", roomId);
         }
-    }
-
-    public void Dispose()
-    {
-        if (_disposed)
-            return;
-
-        _disposed = true;
-        _redis.Dispose();
     }
 }

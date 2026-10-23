@@ -1,6 +1,6 @@
 namespace LobbyServer.Persistence;
 
-public interface ILobbyRoomStore : IDisposable
+public interface ILobbyRoomStore
 {
     IReadOnlyList<LobbyRoomSnapshot> LoadAll();
     void Save(LobbyRoomSnapshot room);

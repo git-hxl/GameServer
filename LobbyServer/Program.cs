@@ -1,6 +1,6 @@
-﻿using LobbyServer.Persistence;
-using Serilog;
+﻿using Serilog;
 using SharedLib.Config;
+using SharedLib.Redis;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console().WriteTo.File("lobby_server_log.txt",
     rollingInterval: RollingInterval.Day,
@@ -10,28 +10,27 @@ Log.Information("正在启动 LobbyServer");
 
 var config = ConfigLoader.Load<LobbyServerConfig>("LobbyServerConfig.json");
 
-// 组合根负责 Redis 连接与存储的创建/释放；LobbyServer 只使用注入的 store。
-ILobbyRoomStore? roomStore = null;
+// 组合根只负责创建 RedisHelper；房间存储由 LobbyManager 初始化时创建。
+RedisHelper? redis = null;
 LobbyServer.LobbyServer? server = null;
 
 try
 {
-    roomStore = new RedisLobbyRoomStore(
-        config.RedisConnection, config.RedisKeyPrefix, config.RedisDatabase);
+    redis = new RedisHelper(config.RedisConnection, config.RedisDatabase);
 
-    server = new LobbyServer.LobbyServer(config, roomStore);
+    server = new LobbyServer.LobbyServer(config, redis);
     server.Start(config);
 }
 catch (Exception ex)
 {
     Log.Fatal(ex, "[LobbyServer] 初始化失败，请检查 Redis 连接");
-    roomStore?.Dispose();
+    redis?.Dispose();
     Environment.ExitCode = 1;
     return;
 }
 
 var lobbyServer = server!;
-var store = roomStore!;
+var redisHelper = redis!;
 
 using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(config.UpdateTime));
 var cts = new CancellationTokenSource();
@@ -56,7 +55,7 @@ catch (OperationCanceledException)
 finally
 {
     lobbyServer.Stop();
-    store.Dispose();
+    redisHelper.Dispose();
 }
 
 Log.Information("[LobbyServer] 已退出");

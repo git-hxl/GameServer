@@ -99,12 +99,12 @@ LobbyServer/
   Handlers/
     Client/        客户端消息 handler、LobbyStateHandler
     Server/        GameServer 注册/更新 handler
-  Lobby/           LobbyManager（Join/Leave/Chat）
+  Lobby/           LobbyManager（Create 初始化存储/RoomManager、Join/Leave/Chat）
   Persistence/     LobbyRoomSnapshot、ILobbyRoomStore、RedisLobbyRoomStore
   Player/          PlayerManager、LobbyPlayer、PlayerDisconnectPolicy
   Room/            RoomManager、LobbyRoom
   LobbyServer.cs   两端 NetManager、handler 注册、外部 API、Stop
-  Program.cs       配置加载、Redis 连接/store 创建、启动、Ctrl+C、停机
+  Program.cs       配置加载、RedisHelper 创建、启动、Ctrl+C、停机
 
 GameServer/
   Handlers/        JoinGame/LeaveGame/同步消息、CreateGameRoom/CloseGameRoom
@@ -516,7 +516,7 @@ public class LobbyRoomSnapshot
 ### 11.4 存储层
 
 ```csharp
-public interface ILobbyRoomStore : IDisposable
+public interface ILobbyRoomStore
 {
     IReadOnlyList<LobbyRoomSnapshot> LoadAll();
     void Save(LobbyRoomSnapshot room);
@@ -524,7 +524,7 @@ public interface ILobbyRoomStore : IDisposable
 }
 ```
 
-- 生产实现：`RedisLobbyRoomStore`。
+- 生产实现：`RedisLobbyRoomStore`，使用注入的 `RedisHelper`，不拥有 Redis 连接。
 - `LoadAll` 校验：
   - `Version == 1`；
   - `GameServerAddress` 非空、`GameServerPort > 0`；
@@ -549,12 +549,14 @@ public interface ILobbyRoomStore : IDisposable
 
 ### 11.6 启动恢复
 
-`LobbyServer.Start`：
+`LobbyManager.Create`（由 `LobbyServer.Start` 调用）：
 
-1. 创建 `PlayerManager`、`RoomManager`（注入 store）；
-2. `RoomManager.RestoreFromStore()`；
-3. 注册 handler；
-4. 启动 NetManager。
+1. 用注入的 `RedisHelper` 创建 `RedisLobbyRoomStore`；
+2. 创建 `RoomManager`（注入 store）；
+3. `RoomManager.RestoreFromStore()`；
+4. 返回已恢复房间的 `LobbyManager`。
+
+`LobbyServer.Start` 随后从 `LobbyManager.Rooms` 取得 `RoomManager`，注册 handler，启动 NetManager。
 
 恢复规则：
 
@@ -568,9 +570,10 @@ public interface ILobbyRoomStore : IDisposable
 
 ### 11.7 失败与停机
 
-- Redis 连接与存储由 `LobbyServer/Program.cs`（组合根）创建：`RedisLobbyRoomStore` 在 `Program` 中实例化并注入 `LobbyServer`；连接失败记录 Fatal 并以非 0 退出。
-- `LobbyServer` 构造时不连接 Redis，只保存注入的 `ILobbyRoomStore`；`Stop()` 只停止两个 NetManager，不释放注入的 store。
-- `Program` 在 `finally` 中先 `lobbyServer.Stop()`，再 `store.Dispose()`；注入存储的生命周期由调用方负责。
+- `LobbyServer/Program.cs` 只创建 `RedisHelper`（组合根）；连接失败记录 Fatal 并以非 0 退出。
+- `LobbyServer` 构造函数接收 `RedisHelper`，不创建 store、不连接 Redis；`Stop()` 只停止两个 NetManager。
+- `LobbyManager.Create` 在初始化时创建 `RedisLobbyRoomStore` 和 `RoomManager`，并用注入的 `RedisHelper` 完成 Redis 访问。
+- `Program` 在 `finally` 中先 `lobbyServer.Stop()`，再 `redisHelper.Dispose()`；`RedisLobbyRoomStore` 不拥有连接，不负责释放。
 - `LobbyServer.Stop()` 设置 `_stopping`：停机期间忽略客户端/GameServer 断开事件，避免把进程退出误判为玩家离开并删除 Redis 房间。
 - `Stop()` 是终止性的；需要重启请创建新的 `LobbyServer` 实例。
 - 运行期写失败：记录 `Log.Error`，内存继续；重启后可能回退到旧快照。
@@ -755,6 +758,7 @@ GameServer: TryAdd 空房间
 | 2026-10-23 | RedisHelper 增加 String/Key/Hash/List/Set 常用接口并补全 XML 注释 |
 | 2026-10-23 | 测试端口改为 UDP 预留；LobbyServer/GameServer 启动校验端口绑定，修复集成测试间歇性串端口 |
 | 2026-10-23 | 删除 `GameServer.Tests`；快速开发阶段不维护自动化测试项目 |
+| 2026-10-23 | `Program` 只创建 RedisHelper；`RedisLobbyRoomStore` 移到 `LobbyManager.Create` 初始化 |
 
 ---
 
