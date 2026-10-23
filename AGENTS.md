@@ -5,12 +5,13 @@
 ## 构建与运行
 
 ```sh
-dotnet build GameServer.sln            # 验证构建；预期 0 警告
-dotnet test GameServer.Tests           # 运行集成测试（真实起服务，走协议流程）
+dotnet build GameServer.sln            # 验证构建；预期 0 警告 0 错误
 dotnet run --project LobbyServer       # 必须先启动（clientPort=6001，serverPort=6002）
 dotnet run --project GameServer        # 启动时连接 LobbyServer 并注册自身（port=7001）
 dotnet run --project TestClient        # 交互式命令行客户端（连接 :6001）
 ```
+
+当前快速开发阶段不维护自动化测试项目；用 `dotnet build` + 手动启动 LobbyServer/GameServer/TestClient 验证。
 
 启动顺序有依赖：Redis → LobbyServer → GameServer → TestClient。LobbyServer 启动时必须能连接 Redis（默认 `localhost:6379`），否则直接退出；GameServer 断线后每 5 秒自动重连 LobbyServer；在至少一个 GameServer 注册之前无法创建房间。
 
@@ -27,7 +28,6 @@ dotnet run --project TestClient        # 交互式命令行客户端（连接 :6
 - `LobbyServer/Handlers/Server/` — GameServer 内部消息 handler（注册、更新）。
 - `GameServer/` — 游戏内房间处理（入口：`GameServer/Program.cs` → `GameServer.cs`）。
 - `TestClient/` — CLI 手动测试客户端，可走完整大厅→房间→游戏流程。
-- `GameServer.Tests/` — xunit 集成测试，真实启动 LobbyServer+GameServer，用协议客户端走完整流程。
 
 配置文件 `LobbyServerConfig.json` / `GameServerConfig.json` 会被复制到输出目录（`CopyToOutputDirectory`）。LobbyServer 按 `ClientConnectionKey`/`ServerConnectionKey` 双端口双 key 校验，GameServer 按 `ClientConnectionKey` 接收客户端、`LobbyConnectionKey` 连大厅。
 

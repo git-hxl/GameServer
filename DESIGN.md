@@ -17,7 +17,6 @@
 - **LobbyServer**：大厅、组队房间、玩家在线状态、Redis 房间持久化。
 - **GameServer**：游戏内房间与玩家、状态同步广播。
 - **TestClient**：交互式命令行测试客户端。
-- **GameServer.Tests**：xunit 集成测试，真实启动 LobbyServer + GameServer。
 - **SharedLib**：协议、模型、消息发送/解析、handler 抽象、配置、Redis 工具。
 
 设计目标是：
@@ -40,7 +39,6 @@
 | Redis 客户端 | StackExchange.Redis 3.4.5 |
 | JSON | Newtonsoft.Json 13.0.4（配置与 Redis 快照） |
 | 日志 | Serilog（Console + File） |
-| 测试 | xunit 2.9.3，真实起服务端，串行执行 |
 
 ---
 
@@ -116,7 +114,6 @@ GameServer/
   Program.cs       配置加载、启动、Ctrl+C
 
 TestClient/        交互式命令行客户端
-GameServer.Tests/  集成测试、Redis 测试、内存存储、端口分配
 ```
 
 ---
@@ -528,7 +525,6 @@ public interface ILobbyRoomStore : IDisposable
 ```
 
 - 生产实现：`RedisLobbyRoomStore`。
-- 测试实现：`InMemoryLobbyRoomStore`（默认 `ServerFixture` 使用，不依赖 Redis）。
 - `LoadAll` 校验：
   - `Version == 1`；
   - `GameServerAddress` 非空、`GameServerPort > 0`；
@@ -610,8 +606,6 @@ public interface ILobbyRoomStore : IDisposable
   - 两个 `NetManager`（客户端口/Lobby 连接），主循环 `PollEvents`。
   - `GameRoomManager`/`GamePlayerManager` 由 poll 线程访问；`_rooms` 为 `ConcurrentDictionary`。
   - 独立的 5 秒 `UpdateLoop` 负责上报/重连；与 poll 线程共享 `PlayerCount` 等只读统计。
-- 测试：
-  - `AssemblyInfo` 禁用 xunit 并行，因为集成测试真实绑定 UDP 端口且共享静态 `Log.Logger`。
 
 ---
 
@@ -652,7 +646,7 @@ public interface ILobbyRoomStore : IDisposable
 
 ---
 
-## 15. 构建、运行与测试
+## 15. 构建、运行与验证
 
 ### 15.1 前置条件
 
@@ -664,7 +658,6 @@ public interface ILobbyRoomStore : IDisposable
 ```sh
 redis-cli ping                        # 期望 PONG
 dotnet build GameServer.sln           # 预期 0 警告 0 错误
-dotnet test GameServer.Tests          # 集成测试
 dotnet run --project LobbyServer      # 先启动
 dotnet run --project GameServer       # 再启动
 dotnet run --project TestClient       # 连接 :6001
@@ -672,23 +665,12 @@ dotnet run --project TestClient       # 连接 :6001
 
 启动顺序：**Redis → LobbyServer → GameServer → TestClient**。
 
-### 15.3 测试
+### 15.3 验证方式
 
-- 当前 **63 个测试**（数量随功能变化同步更新本文件）。
-- 默认 `ServerFixture` 使用 `InMemoryLobbyRoomStore`，不依赖 Redis。
-- `TestPorts` 用 `UdpClient` 预留空闲 UDP 端口；`LobbyServer`/`GameServer` 启动时检查 `NetManager.Start` 返回，绑定失败直接抛异常，避免测试串到旧实例。
-- Redis 相关测试使用唯一 key 前缀，结束时清理：
-  - `RedisHelperTests`
-  - `LobbyRoomStoreTests`
-  - `LobbyRestartTests`
-- 重启测试：
-  - `LobbyRestart_RestoresRoomsAndMembers`：Redis 恢复房间/成员/房主，重连后 `LeaveRoom` 成功。
-  - `GameServerRestart_RecreatesGameRooms`：GS 重启注册后 Lobby 补建房间。
-- 断线测试：
-  - `PlayerDisconnectPolicyTests`：断线原因分类。
-  - `ActiveDisconnect_RemovesPlayerFromRoom`。
-  - `AbnormalDisconnect_KeepsPlayerForReconnect`（1.5s 超时模拟）。
-- 测试串行执行，完整套件约 37 秒。
+- 当前处于快速开发阶段，不维护自动化测试项目（原 `GameServer.Tests` 已删除）。
+- 提交前验证：`dotnet build GameServer.sln` 必须 0 警告 0 错误。
+- 功能验证：启动 Redis、LobbyServer、GameServer，再用一个或多个 TestClient 手动走大厅/房间/游戏流程。
+- 后续需要回归保障时，再重新引入测试项目；在此之前，`DESIGN.md` 第 19 节的检查清单和 code review 是主要质量门禁。
 
 ---
 
@@ -755,7 +737,6 @@ GameServer: TryAdd 空房间
 - **无协议版本协商**：客户端/两个服务端必须锁步发布。
 - **`RoomType` 只有 `Default`**：字段保留，当前不承载分支逻辑。
 - **日志文件路径**：Serilog 文件 sink 仍按进程 CWD 解析；配置路径已固定到程序目录。
-- **测试串行**：为了 UDP 端口和静态 logger 的稳定性，禁用并行。
 
 ---
 
@@ -773,6 +754,7 @@ GameServer: TryAdd 空房间
 | 2026-10-23 | Redis 连接与存储创建/释放从 `LobbyServer` 移到 `Program.cs` 组合根 |
 | 2026-10-23 | RedisHelper 增加 String/Key/Hash/List/Set 常用接口并补全 XML 注释 |
 | 2026-10-23 | 测试端口改为 UDP 预留；LobbyServer/GameServer 启动校验端口绑定，修复集成测试间歇性串端口 |
+| 2026-10-23 | 删除 `GameServer.Tests`；快速开发阶段不维护自动化测试项目 |
 
 ---
 
@@ -788,7 +770,7 @@ GameServer: TryAdd 空房间
 - [ ] 第 11 节：Redis key、快照字段、写点、恢复规则是否变化？
 - [ ] 第 13 节：线程/锁/Redis 阻塞语义是否变化？
 - [ ] 第 14 节：配置项是否有新增/默认值变化？
-- [ ] 第 15 节：测试数量、测试前置条件是否变化？
+- [ ] 第 15 节：构建/运行/验证方式是否变化？
 - [ ] 第 17 节：是否新增/消除已知限制？
 - [ ] 所有新增/修改的方法是否都有中文 XML 注释（含私有方法、局部函数、测试方法）？
 - [ ] 第 18 节：追加变更记录。
