@@ -22,9 +22,10 @@ dotnet run --project TestClient        # 交互式命令行客户端（连接 :6
 
 - `DESIGN.md` — 当前架构、协议、玩家/房间模型、Redis、配置、测试与限制的设计文档；**功能改动/新增必须同步更新**。
 - `SharedLib/` — 共享模型、`MessageIds`、`ReturnCode`、`MessageHelper`、`SharedLib/Handlers`（IHandler/HandlerRegistry/MessageHandler 抽象）、配置加载。网络相关依赖包都在这里（LiteNetLib、MessagePack、Serilog、Newtonsoft.Json、StackExchange.Redis）。
-- `LobbyServer/` — 大厅与房间管理（入口：`LobbyServer/Program.cs` → `LobbyServer.cs`）。
+- `LobbyServer/` — 大厅与房间管理（入口：`LobbyServer/Program.cs` → `LobbyServer/Hosting/LobbyServerHost.cs` → `LobbyServer.cs`）。
 - `LobbyServer/Handlers/Client/` — 客户端消息 handler（含 `LobbyStateHandler`）。
 - `LobbyServer/Handlers/Server/` — GameServer 内部消息 handler（注册、更新）。
+- `LobbyServer/Hosting/` — 大厅组合根：创建 Redis 房间存储、启动/轮询/停机。
 - `GameServer/` — 游戏内房间处理（入口：`GameServer/Program.cs` → `GameServer.cs`）。
 - `TestClient/` — CLI 手动测试客户端，可走完整大厅→房间→游戏流程。
 - `GameServer.Tests/` — xunit 集成测试，真实启动 LobbyServer+GameServer，用协议客户端走完整流程。
@@ -56,7 +57,7 @@ LobbyServer 维护两个 registry：`_clientRegistry`（客户端口消息）和
 - Lobby 重启从 Redis 恢复房间，成员恢复为离线状态；玩家重新 `JoinLobby`（相同 userId）后回到原房间。
 - GameServer 重启后重新注册时，Lobby 按 `Address:Port` 补发 `CreateGameRoom`（幂等）；游戏内玩家需要重新 `JoinGame`。
 - Redis 配置：`RedisConnection`、`RedisKeyPrefix`、`RedisDatabase`（见 `LobbyServerConfig.json`）。
-- Redis 连接与 `ILobbyRoomStore` 由 `LobbyServer/Program.cs`（组合根）创建/释放；`LobbyServer` 只接收注入的 store，构造时不连接 Redis。
+- Redis 连接与 `ILobbyRoomStore` 由 `LobbyServer/Hosting/LobbyServerHost.cs`（大厅组合根）创建/释放；`Program.cs` 只负责日志、配置和调用 Host；`LobbyServer` 只接收注入的 store，构造时不连接 Redis。Redis 连接本身在 `RedisHelper` 中初始化，由 `RedisLobbyRoomStore` 创建并持有。
 - Redis 启动失败：Lobby 退出；运行期写失败：记录日志，内存状态继续。
 - 根目录 `DESIGN.md` 是当前实现的设计文档；任何协议、状态模型、配置、Redis、重连/停机语义的功能改动或新增，必须在同一提交中更新对应章节，并按第 19 节检查清单自检。
 
