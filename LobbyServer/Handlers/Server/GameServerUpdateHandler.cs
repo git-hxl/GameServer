@@ -5,7 +5,7 @@ using SharedLib.Protocol;
 using SharedLib.Handlers;
 using LobbyServer.Cluster;
 
-namespace LobbyServer.Handlers;
+namespace LobbyServer.Handlers.Server;
 
 public class GameServerUpdateHandler : MessageHandler<GameServerInfo>
 {

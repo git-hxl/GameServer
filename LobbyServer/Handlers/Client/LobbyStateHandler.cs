@@ -4,7 +4,7 @@ using SharedLib.Utils;
 using SharedLib.Handlers;
 using LobbyServer.Player;
 
-namespace LobbyServer.Handlers;
+namespace LobbyServer.Handlers.Client;
 
 public abstract class LobbyStateHandler<TRequest> : MessageHandler<TRequest> where TRequest : class
 {

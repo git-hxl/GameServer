@@ -98,7 +98,9 @@ SharedLib/
 
 LobbyServer/
   Cluster/         GameServerRegistry、ServerEntry
-  Handlers/        客户端消息 handler、GameServer 注册/更新 handler
+  Handlers/
+    Client/        客户端消息 handler、LobbyStateHandler
+    Server/        GameServer 注册/更新 handler
   Lobby/           LobbyManager（Join/Leave/Chat）
   Persistence/     LobbyRoomSnapshot、ILobbyRoomStore、RedisLobbyRoomStore
   Player/          PlayerManager、LobbyPlayer、PlayerDisconnectPolicy
@@ -761,6 +763,7 @@ GameServer: TryAdd 空房间
 | 2026-10-23 | 玩家模型简化：移除 `_peerToUserId`，只保留 `_players`；移除 `PlayerState`；主动断开移除、异常断线保留 |
 | 2026-10-23 | TestClient 改为手动 `joingame`；`RoomType` 只保留 `Default` |
 | 2026-10-23 | 增加文档维护约定与“所有方法必须写注释”规范（第 20 节） |
+| 2026-10-23 | LobbyServer Handler 目录按客户端/服务端拆分（`Handlers/Client`、`Handlers/Server`） |
 
 ---
 

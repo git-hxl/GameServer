@@ -23,6 +23,8 @@ dotnet run --project TestClient        # 交互式命令行客户端（连接 :6
 - `DESIGN.md` — 当前架构、协议、玩家/房间模型、Redis、配置、测试与限制的设计文档；**功能改动/新增必须同步更新**。
 - `SharedLib/` — 共享模型、`MessageIds`、`ReturnCode`、`MessageHelper`、`SharedLib/Handlers`（IHandler/HandlerRegistry/MessageHandler 抽象）、配置加载。网络相关依赖包都在这里（LiteNetLib、MessagePack、Serilog、Newtonsoft.Json、StackExchange.Redis）。
 - `LobbyServer/` — 大厅与房间管理（入口：`LobbyServer/Program.cs` → `LobbyServer.cs`）。
+- `LobbyServer/Handlers/Client/` — 客户端消息 handler（含 `LobbyStateHandler`）。
+- `LobbyServer/Handlers/Server/` — GameServer 内部消息 handler（注册、更新）。
 - `GameServer/` — 游戏内房间处理（入口：`GameServer/Program.cs` → `GameServer.cs`）。
 - `TestClient/` — CLI 手动测试客户端，可走完整大厅→房间→游戏流程。
 - `GameServer.Tests/` — xunit 集成测试，真实启动 LobbyServer+GameServer，用协议客户端走完整流程。

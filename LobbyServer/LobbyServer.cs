@@ -11,7 +11,8 @@ using LobbyServer.Lobby;
 using LobbyServer.Persistence;
 using LobbyServer.Player;
 using LobbyServer.Room;
-using LobbyServer.Handlers;
+using LobbyServer.Handlers.Client;
+using LobbyServer.Handlers.Server;
 
 namespace LobbyServer;
 

@@ -5,7 +5,7 @@ using SharedLib.Utils;
 using SharedLib.Handlers;
 using LobbyServer.Lobby;
 
-namespace LobbyServer.Handlers;
+namespace LobbyServer.Handlers.Client;
 
 public class LeaveLobbyHandler : MessageHandler<LeaveLobbyRequest>
 {

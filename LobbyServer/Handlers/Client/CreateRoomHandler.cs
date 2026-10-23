@@ -5,7 +5,7 @@ using SharedLib.Utils;
 using LobbyServer.Player;
 using LobbyServer.Room;
 
-namespace LobbyServer.Handlers;
+namespace LobbyServer.Handlers.Client;
 
 public class CreateRoomHandler : LobbyStateHandler<CreateRoomRequest>
 {

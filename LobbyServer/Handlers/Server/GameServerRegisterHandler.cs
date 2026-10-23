@@ -6,7 +6,7 @@ using SharedLib.Handlers;
 using LobbyServer.Cluster;
 using LobbyServer.Room;
 
-namespace LobbyServer.Handlers;
+namespace LobbyServer.Handlers.Server;
 
 public class GameServerRegisterHandler : MessageHandler<GameServerInfo>
 {

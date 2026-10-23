@@ -5,7 +5,7 @@ using SharedLib.Utils;
 using SharedLib.Handlers;
 using LobbyServer.Room;
 
-namespace LobbyServer.Handlers;
+namespace LobbyServer.Handlers.Client;
 
 public class RoomListHandler : MessageHandler<RoomListRequest>
 {

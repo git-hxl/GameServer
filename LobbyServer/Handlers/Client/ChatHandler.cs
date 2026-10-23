@@ -4,7 +4,7 @@ using SharedLib.Protocol;
 using SharedLib.Handlers;
 using LobbyServer.Lobby;
 
-namespace LobbyServer.Handlers;
+namespace LobbyServer.Handlers.Client;
 
 public class ChatHandler : MessageHandler<ChatRequest>
 {
