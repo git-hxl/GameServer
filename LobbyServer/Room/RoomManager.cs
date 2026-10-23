@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using LiteNetLib;
 using LobbyServer.Cluster;
+using LobbyServer.Persistence;
 using LobbyServer.Player;
 using Serilog;
 using SharedLib.Models;
@@ -13,12 +14,14 @@ public class RoomManager
 {
     private readonly PlayerManager _players;
     private readonly GameServerRegistry _gameServerRegistry;
+    private readonly ILobbyRoomStore _roomStore;
     private readonly Dictionary<string, LobbyRoom> _rooms = new();
 
-    public RoomManager(PlayerManager players, GameServerRegistry gameServerRegistry)
+    public RoomManager(PlayerManager players, GameServerRegistry gameServerRegistry, ILobbyRoomStore roomStore)
     {
         _players = players;
         _gameServerRegistry = gameServerRegistry;
+        _roomStore = roomStore;
     }
 
     [MethodImpl(MethodImplOptions.Synchronized)]
@@ -86,6 +89,7 @@ public class RoomManager
         }
 
         _rooms[roomId] = room;
+        PersistRoom(room);
 
         Log.Information(
             "[RoomManager] 房间创建成功 roomId={RoomId} type={RoomType} owner={Owner} GameServer={Addr}:{Port} 成员数={Count}",
@@ -147,6 +151,7 @@ public class RoomManager
         Log.Information("[RoomManager] 加入房间成功 roomId={RoomId} userId={UserId} 房主={Owner} 房间人数={Count}",
             room.RoomId, userId, room.OwnerUserId, room.PlayerIds.Count);
 
+        PersistRoom(room);
         return (new JoinRoomResponse { Room = BuildRoomInfo(room) }, ReturnCode.Success);
     }
 
@@ -175,6 +180,7 @@ public class RoomManager
         if (remaining == 0)
         {
             _rooms.Remove(roomId);
+            _roomStore.Delete(roomId);
             SendCloseGameRoom(room, RoomCloseReason.Empty);
             Log.Information("[RoomManager] 房间关闭 roomId={RoomId}（无玩家）", roomId);
         }
@@ -196,6 +202,8 @@ public class RoomManager
                 RoomId = roomId,
                 UserId = userId
             });
+
+            PersistRoom(room);
         }
 
         return (new LeaveRoomResponse { RoomId = roomId }, ReturnCode.Success);
@@ -209,6 +217,8 @@ public class RoomManager
             Log.Warning("[RoomManager] 关闭房间失败：房间未找到 roomId={RoomId}", roomId);
             return ReturnCode.RoomNotFound;
         }
+
+        _roomStore.Delete(roomId);
 
         var frame = MessageHelper.CreateFrame(MessageIds.RoomClosedNotify, ReturnCode.Success,
             new RoomClosedNotify { RoomId = roomId, Reason = reason });
@@ -267,6 +277,111 @@ public class RoomManager
             .Select(p => p!.Peer!);
 
         MessageHelper.SendToAll(peers, frame, DeliveryMethod.ReliableOrdered);
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public LobbyRoom? GetRoom(string roomId)
+    {
+        return _rooms.TryGetValue(roomId, out var room) ? room : null;
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void PersistPlayerRoom(long userId)
+    {
+        var player = _players.Get(userId);
+        if (player?.CurrentRoomId is not { } roomId)
+            return;
+
+        if (_rooms.TryGetValue(roomId, out var room))
+            PersistRoom(room);
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void RestoreFromStore()
+    {
+        var snapshots = _roomStore.LoadAll();
+
+        foreach (var snapshot in snapshots)
+        {
+            var snapshotPlayers = snapshot.Players ?? [];
+
+            if (snapshotPlayers.Count == 0 && snapshot.CreatorUserId != null)
+            {
+                Log.Warning("[RoomManager] 恢复时发现空玩家房，删除 roomId={RoomId}", snapshot.RoomId);
+                _roomStore.Delete(snapshot.RoomId);
+                continue;
+            }
+
+            var room = new LobbyRoom
+            {
+                RoomId = snapshot.RoomId,
+                RoomType = snapshot.RoomType,
+                MaxPlayers = snapshot.MaxPlayers,
+                OwnerUserId = snapshot.OwnerUserId,
+                CreatorUserId = snapshot.CreatorUserId,
+                GameServerAddress = snapshot.GameServerAddress,
+                GameServerPort = snapshot.GameServerPort
+            };
+
+            foreach (var info in snapshotPlayers)
+            {
+                if (_players.Get(info.UserId) != null)
+                {
+                    Log.Warning("[RoomManager] 恢复时发现重复玩家 userId={UserId} roomId={RoomId}",
+                        info.UserId, snapshot.RoomId);
+                    continue;
+                }
+
+                room.PlayerIds.Add(info.UserId);
+                _players.AddOffline(info, snapshot.RoomId);
+            }
+
+            if (room.PlayerIds.Count == 0 && room.CreatorUserId != null)
+            {
+                _roomStore.Delete(snapshot.RoomId);
+                continue;
+            }
+
+            if (room.PlayerIds.Count > 0 && !room.PlayerIds.Contains(room.OwnerUserId))
+            {
+                Log.Warning("[RoomManager] 房主不在成员列表，回退到第一个成员 roomId={RoomId}", snapshot.RoomId);
+                room.OwnerUserId = room.PlayerIds[0];
+            }
+
+            _rooms[room.RoomId] = room;
+        }
+
+        Log.Information("[RoomManager] 从存储恢复房间数={Count}", _rooms.Count);
+    }
+
+    private void PersistRoom(LobbyRoom room)
+    {
+        var players = new List<PlayerInfo>();
+
+        foreach (var userId in room.PlayerIds)
+        {
+            var player = _players.Get(userId);
+            if (player == null)
+            {
+                Log.Warning("[RoomManager] 持久化时玩家不存在 userId={UserId} roomId={RoomId}",
+                    userId, room.RoomId);
+                continue;
+            }
+
+            players.Add(player.Info);
+        }
+
+        _roomStore.Save(new LobbyRoomSnapshot
+        {
+            RoomId = room.RoomId,
+            RoomType = room.RoomType,
+            MaxPlayers = room.MaxPlayers,
+            OwnerUserId = room.OwnerUserId,
+            CreatorUserId = room.CreatorUserId,
+            GameServerAddress = room.GameServerAddress,
+            GameServerPort = room.GameServerPort,
+            Players = players
+        });
     }
 
     private void SendCloseGameRoom(LobbyRoom room, RoomCloseReason reason)

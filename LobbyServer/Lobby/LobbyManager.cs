@@ -41,6 +41,7 @@ public class LobbyManager
             }
 
             _players.BindOnline(existing, peer, request.Player);
+            _rooms.PersistPlayerRoom(userId);
 
             Log.Information("[LobbyManager] 玩家恢复会话 userId={UserId} roomId={RoomId}",
                 userId, existing.CurrentRoomId);

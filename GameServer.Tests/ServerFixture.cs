@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using LiteNetLib;
+using LobbyServer.Persistence;
 using Serilog;
 using SharedLib.Config;
 using SharedLib.Models;
@@ -20,27 +21,32 @@ public sealed class ServerFixture : IDisposable
     private global::GameServer.GameServer _game = null!;
     private CancellationTokenSource _cts = new();
     private Task _pollTask = null!;
+    private readonly ILobbyRoomStore _roomStore;
+    private readonly LobbyServerConfig _lobbyConfig;
+    private readonly GameServerConfig _gameConfig;
 
-    public ServerFixture()
+    public ServerFixture(ILobbyRoomStore? roomStore = null)
     {
         Log.Logger = new LoggerConfiguration().WriteTo.Console().CreateLogger();
+
+        _roomStore = roomStore ?? new InMemoryLobbyRoomStore();
 
         var ports = TestPorts.NextFree(3);
         LobbyClientPort = ports[0];
         LobbyServerPort = ports[1];
         GameServerPort = ports[2];
 
-        var lobbyConfig = new LobbyServerConfig
+        _lobbyConfig = new LobbyServerConfig
         {
             ClientPort = LobbyClientPort,
             ServerPort = LobbyServerPort,
             ClientConnectionKey = ClientKey,
             ServerConnectionKey = ServerKey
         };
-        _lobby = new LobbyServer.LobbyServer(lobbyConfig);
-        _lobby.Start(lobbyConfig);
+        _lobby = new LobbyServer.LobbyServer(_lobbyConfig, _roomStore);
+        _lobby.Start(_lobbyConfig);
 
-        var gameConfig = new GameServerConfig
+        _gameConfig = new GameServerConfig
         {
             Port = GameServerPort,
             LobbyAddress = "127.0.0.1",
@@ -48,7 +54,7 @@ public sealed class ServerFixture : IDisposable
             LobbyConnectionKey = ServerKey,
             ClientConnectionKey = ClientKey
         };
-        _game = new global::GameServer.GameServer(gameConfig);
+        _game = new global::GameServer.GameServer(_gameConfig);
         _game.Start();
 
         _pollTask = Task.Run(async () =>

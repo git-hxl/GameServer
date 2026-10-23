@@ -8,6 +8,7 @@ using SharedLib.Utils;
 using SharedLib.Handlers;
 using LobbyServer.Cluster;
 using LobbyServer.Lobby;
+using LobbyServer.Persistence;
 using LobbyServer.Player;
 using LobbyServer.Room;
 using LobbyServer.Handlers;
@@ -25,6 +26,8 @@ public class LobbyServer
     private readonly string _serverKey;
 
     private readonly PlayerManager _players = new();
+    private readonly ILobbyRoomStore _roomStore;
+    private readonly bool _ownsRoomStore;
     private LobbyManager _lobbyManager = null!;
     private RoomManager _roomManager = null!;
     private HandlerRegistry _clientRegistry = null!;
@@ -32,8 +35,12 @@ public class LobbyServer
 
     private readonly GameServerRegistry _gameServerRegistry = new();
 
-    public LobbyServer(LobbyServerConfig config)
+    public LobbyServer(LobbyServerConfig config, ILobbyRoomStore? roomStore = null)
     {
+        _ownsRoomStore = roomStore == null;
+        _roomStore = roomStore ?? new RedisLobbyRoomStore(
+            config.RedisConnection, config.RedisKeyPrefix, config.RedisDatabase);
+
         _clientKey = config.ClientConnectionKey;
         _serverKey = config.ServerConnectionKey;
 
@@ -58,7 +65,8 @@ public class LobbyServer
 
     public void Start(LobbyServerConfig config)
     {
-        _roomManager = new RoomManager(_players, _gameServerRegistry);
+        _roomManager = new RoomManager(_players, _gameServerRegistry, _roomStore);
+        _roomManager.RestoreFromStore();
         _lobbyManager = new LobbyManager(_clientNetManager, _players, _roomManager);
 
         _clientRegistry = new HandlerRegistry();
