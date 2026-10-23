@@ -674,8 +674,9 @@ dotnet run --project TestClient       # 连接 :6001
 
 ### 15.3 测试
 
-- 当前 **58 个测试**（数量随功能变化同步更新本文件）。
+- 当前 **63 个测试**（数量随功能变化同步更新本文件）。
 - 默认 `ServerFixture` 使用 `InMemoryLobbyRoomStore`，不依赖 Redis。
+- `TestPorts` 用 `UdpClient` 预留空闲 UDP 端口；`LobbyServer`/`GameServer` 启动时检查 `NetManager.Start` 返回，绑定失败直接抛异常，避免测试串到旧实例。
 - Redis 相关测试使用唯一 key 前缀，结束时清理：
   - `RedisHelperTests`
   - `LobbyRoomStoreTests`
@@ -687,7 +688,7 @@ dotnet run --project TestClient       # 连接 :6001
   - `PlayerDisconnectPolicyTests`：断线原因分类。
   - `ActiveDisconnect_RemovesPlayerFromRoom`。
   - `AbnormalDisconnect_KeepsPlayerForReconnect`（1.5s 超时模拟）。
-- 测试串行执行，完整套件约 35 秒。
+- 测试串行执行，完整套件约 37 秒。
 
 ---
 
@@ -771,6 +772,7 @@ GameServer: TryAdd 空房间
 | 2026-10-23 | LobbyServer Handler 目录按客户端/服务端拆分（`Handlers/Client`、`Handlers/Server`） |
 | 2026-10-23 | Redis 连接与存储创建/释放从 `LobbyServer` 移到 `Program.cs` 组合根 |
 | 2026-10-23 | RedisHelper 增加 String/Key/Hash/List/Set 常用接口并补全 XML 注释 |
+| 2026-10-23 | 测试端口改为 UDP 预留；LobbyServer/GameServer 启动校验端口绑定，修复集成测试间歇性串端口 |
 
 ---
 

@@ -91,8 +91,15 @@ public class LobbyServer
         _serverListener.PeerDisconnectedEvent += OnServerDisconnected;
         _serverListener.NetworkReceiveEvent += OnServerReceive;
 
-        _clientNetManager.Start(config.ClientPort);
-        _serverNetManager.Start(config.ServerPort);
+        if (!_clientNetManager.Start(config.ClientPort))
+            throw new InvalidOperationException($"LobbyServer 客户端端口启动失败: {config.ClientPort}");
+
+        if (!_serverNetManager.Start(config.ServerPort))
+        {
+            _clientNetManager.Stop();
+            throw new InvalidOperationException($"LobbyServer 服务端口启动失败: {config.ServerPort}");
+        }
+
         Log.Information("[LobbyServer] 大厅服务器启动 clientPort={ClientPort} serverPort={ServerPort}",
             config.ClientPort, config.ServerPort);
     }

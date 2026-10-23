@@ -62,6 +62,9 @@ public class GameServer
         };
     }
 
+    /// <summary>
+    /// 注册 handler、启动游戏客户端端口，并连接 LobbyServer。
+    /// </summary>
     public void Start()
     {
         _roomManager = new GameRoomManager(new GamePlayerManager());
@@ -72,12 +75,20 @@ public class GameServer
         _listener.PeerConnectedEvent += OnPeerConnected;
         _listener.PeerDisconnectedEvent += OnPeerDisconnected;
         _listener.NetworkReceiveEvent += OnNetworkReceive;
-        _netManager.Start(_serverPort);
+
+        if (!_netManager.Start(_serverPort))
+            throw new InvalidOperationException($"GameServer 客户端端口启动失败: {_serverPort}");
 
         _lobbyListener.PeerConnectedEvent += OnLobbyConnected;
         _lobbyListener.PeerDisconnectedEvent += OnLobbyDisconnected;
         _lobbyListener.NetworkReceiveEvent += OnLobbyReceive;
-        _lobbyClient.Start();
+
+        if (!_lobbyClient.Start())
+        {
+            _netManager.Stop();
+            throw new InvalidOperationException("GameServer Lobby 客户端启动失败");
+        }
+
         _lobbyClient.Connect(_lobbyAddress, _lobbyPort, _lobbyKey);
 
         _updateCts = new CancellationTokenSource();

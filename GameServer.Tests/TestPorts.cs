@@ -5,25 +5,29 @@ namespace GameServer.Tests;
 
 public static class TestPorts
 {
+    /// <summary>
+    /// 预留指定数量的空闲 UDP 端口；避免用 TCP 探端口后实际 UDP 端口被占用。
+    /// </summary>
+    /// <param name="count">需要的端口数量。</param>
+    /// <returns>互不相同的空闲 UDP 端口。</returns>
     public static int[] NextFree(int count)
     {
-        var listeners = new List<TcpListener>();
+        var clients = new List<UdpClient>();
         var ports = new List<int>();
 
         try
         {
             for (var i = 0; i < count; i++)
             {
-                var listener = new TcpListener(IPAddress.Loopback, 0);
-                listener.Start();
-                listeners.Add(listener);
-                ports.Add(((IPEndPoint)listener.LocalEndpoint).Port);
+                var udp = new UdpClient(new IPEndPoint(IPAddress.Any, 0));
+                clients.Add(udp);
+                ports.Add(((IPEndPoint)udp.Client.LocalEndPoint!).Port);
             }
         }
         finally
         {
-            foreach (var listener in listeners)
-                listener.Stop();
+            foreach (var udp in clients)
+                udp.Dispose();
         }
 
         return ports.ToArray();
