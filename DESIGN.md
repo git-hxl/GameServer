@@ -506,8 +506,14 @@ public class LobbyRoomSnapshot
 
 `SharedLib/Redis/RedisHelper.cs`：
 
-- `ConnectionMultiplexer`，`AbortOnConnectFail = true`，`ConnectTimeout = 5000`，`SyncTimeout = 1000`。
-- `HashGet<T>` / `HashGetAll<T>` / `HashSet<T>` / `HashDelete` / `Delete` / `ScanKeys` / `Ping`。
+- 连接：`ConnectionMultiplexer`，`AbortOnConnectFail = true`，`ConnectTimeout = 5000`，`SyncTimeout = 1000`；`Ping` / `IsConnected`。
+- String：`StringGet<T>` / `StringSet<T>` / `StringIncrement`。
+- Key：`KeyExists` / `KeyExpire` / `KeyTimeToLive` / `Delete`。
+- Hash：`HashGet<T>` / `HashGetAll<T>` / `HashSet<T>` / `HashSetAll<T>` / `HashDelete` / `HashExists` / `HashLength` / `HashKeys` / `HashIncrement`。
+- List：`ListLeftPush<T>` / `ListRightPush<T>` / `ListRange<T>` / `ListLength` / `ListRemove<T>`。
+- Set：`SetAdd<T>` / `SetRemove<T>` / `SetContains<T>` / `SetMembers<T>` / `SetLength`。
+- 运维/测试：`ScanKeys`、`Database`。
+- 实例应作为进程级单例由组合根创建并注入，避免每次请求新建连接；不建议做成静态全局单例。
 - JSON 使用 Newtonsoft；单条记录反序列化失败会跳过并记录警告。
 
 ### 11.4 存储层
@@ -764,6 +770,7 @@ GameServer: TryAdd 空房间
 | 2026-10-23 | 增加文档维护约定与“所有方法必须写注释”规范（第 20 节） |
 | 2026-10-23 | LobbyServer Handler 目录按客户端/服务端拆分（`Handlers/Client`、`Handlers/Server`） |
 | 2026-10-23 | Redis 连接与存储创建/释放从 `LobbyServer` 移到 `Program.cs` 组合根 |
+| 2026-10-23 | RedisHelper 增加 String/Key/Hash/List/Set 常用接口并补全 XML 注释 |
 
 ---
 
