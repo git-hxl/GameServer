@@ -236,7 +236,7 @@ OnClientConnected(peer)         只打印日志，不写 _players
 
 - 同一连接切换 userId：先 `RoomManager.RemovePlayer(oldUserId)`，再处理新 userId。
 - 重连时如果玩家仍在房间中，`PersistPlayerRoom(userId)` 更新 Redis 里的 PlayerInfo。
-- 运行时断线会先把玩家移出房间，因此异常断线重连后 `CurrentRoomId` 通常为 null；Redis 恢复的离线成员仍有 `CurrentRoomId`。
+- 运行时 `Timeout` 断线会保留 `CurrentRoomId`；其他原因断线会先移出房间，`CurrentRoomId` 被清空。
 - `JoinLobbyResponse` 只返回 `PlayerInfo`，不返回当前房间；客户端需要再发 `JoinRoom` 获取 `RoomInfo`。已在房间的成员调用 `JoinRoom` 返回 `Success + RoomInfo`，不会返回 `AlreadyInRoom`。
 
 ### 7.3 主动退出与断线策略
@@ -244,19 +244,18 @@ OnClientConnected(peer)         只打印日志，不写 _players
 | 事件 | 判定 | 处理 |
 |---|---|---|
 | `LeaveLobby` | 主动退出 | `RoomManager.RemovePlayer(userId)`：离开房间、删除 LobbyPlayer、更新/删除 Redis |
+| `Timeout` | 超时断线 | `UnbindPeer` 只清 Peer；保留 LobbyPlayer 和房间成员身份/`CurrentRoomId`；不写 Redis |
 | `RemoteConnectionClose` | 主动断线 | `LeaveRoom(userId)` 移出房间并更新 Redis，然后从 `PlayerManager` 删除 LobbyPlayer |
 | `DisconnectPeerCalled` | 服务端主动断开 | `LeaveRoom(userId)` 移出房间，`UnbindPeer` 保留离线 LobbyPlayer（`Peer=null`、`CurrentRoomId=null`） |
-| 其他异常断线 | `Timeout`、`ConnectionFailed`、`HostUnreachable`、`NetworkUnreachable`、`ConnectionRejected`、`InvalidProtocol`、`UnknownHost`、`Reconnect`、`PeerToPeerConnection`、`PeerNotFound` | 同上：移出房间，保留离线 LobbyPlayer |
+| 其他异常断线 | `ConnectionFailed`、`HostUnreachable`、`NetworkUnreachable`、`ConnectionRejected`、`InvalidProtocol`、`UnknownHost`、`Reconnect`、`PeerToPeerConnection`、`PeerNotFound` | 同上：移出房间，保留离线 LobbyPlayer |
 
-**任何原因的断线都会先移出房间**；只有 `RemoteConnectionClose` 会进一步从 `PlayerManager` 删除玩家。
+**`Timeout` 不移出房间**；其他原因的断线都会先移出房间，只有 `RemoteConnectionClose` 会进一步从 `PlayerManager` 删除玩家。
 
 断线后重连：
 
-1. 如果 LobbyPlayer 被保留，新 peer 发 `JoinLobby` 时找到它；
-2. `BindOnline` 替换 Peer、更新 Info；
-3. 只恢复大厅身份；`CurrentRoomId` 已在断线时清空，不会自动回到原房间；
-4. 需要重新 `JoinRoom` 加入房间。
-5. 如果原因是 `RemoteConnectionClose`，LobbyPlayer 已删除，重连等同于新玩家加入大厅。
+1. `Timeout`：LobbyPlayer 和房间成员身份都保留，`BindOnline` 替换 Peer 后 `CurrentRoomId` 仍在；发 `JoinRoom` 返回 `Success + RoomInfo`，直接回到原房间。
+2. 其他原因：LobbyPlayer 可能保留，但已移出房间，`CurrentRoomId=null`；重连只恢复大厅身份，需要重新 `JoinRoom`。
+3. `RemoteConnectionClose`：LobbyPlayer 已删除，重连等同于新玩家加入大厅。
 
 ### 7.4 在线人数
 
@@ -362,8 +361,8 @@ LobbyServer.CloseRoom(roomId)  // RoomCloseReason.ClosedBySystem
 
 - `LobbyRoom.PlayerIds` 中的每个 userId 都应该在 `PlayerManager._players` 中存在（在线或离线）。
 - 房间成员变化、房主变化、房间关闭都必须同步 Redis。
-- 任何原因的断线都会把玩家移出房间；`RemoteConnectionClose` 还会删除 LobbyPlayer，其他原因保留离线 LobbyPlayer。
-- 房间为空可能在显式离开、断线离开或关闭时发生；断线离开也可能触发房间关闭。
+- `Timeout` 断线保留房间成员身份；其他原因断线会移出房间，`RemoteConnectionClose` 还会删除 LobbyPlayer，其他原因保留离线 LobbyPlayer。
+- 房间为空可能在显式离开、非 Timeout 断线或关闭时发生；Timeout 不会让房间变空。
 
 ---
 
@@ -544,7 +543,8 @@ public interface ILobbyRoomStore
 | `LeaveRoom` 后房间为空 | `Delete` |
 | `CloseRoom` | `Delete` |
 | 重连/顶号绑定并更新 Info | `PersistPlayerRoom` → `Save` |
-| 异常断线（非 RemoteConnectionClose） | `LeaveRoom` → `Save`/`Delete`；保留离线 LobbyPlayer（`Peer=null`、`CurrentRoomId=null`） |
+| 超时断线（Timeout） | **不写**（保留 LobbyPlayer 和房间成员） |
+| 其他断线（非 Timeout / RemoteConnectionClose） | `LeaveRoom` → `Save`/`Delete`；保留离线 LobbyPlayer（`Peer=null`、`CurrentRoomId=null`） |
 | 主动断开（RemoteConnectionClose） | `LeaveRoom` → `Save`/`Delete`；再从 `PlayerManager` 删除 |
 
 `RoomManager` 的公共方法使用 `[MethodImpl(MethodImplOptions.Synchronized)]`，Redis 写同步发生在锁内。`SyncTimeout = 1000ms` 是 Redis 故障时的最坏阻塞上限。
@@ -698,14 +698,14 @@ GameServer: 校验房间/peer/user → 添加成员 → 广播 JoinGameNotify
 
 ```text
 Client 网络中断
-Lobby: LeaveRoom(userId) → 移出房间，更新/删除 Redis
 Lobby:
-  ├─ RemoteConnectionClose → 从 PlayerManager 删除 LobbyPlayer
-  └─ 其他原因 → UnbindPeer，保留离线 LobbyPlayer（Peer=null、CurrentRoomId=null）
+  ├─ Timeout → UnbindPeer，保留 LobbyPlayer、房间成员和 CurrentRoomId（不写 Redis）
+  ├─ RemoteConnectionClose → LeaveRoom，更新/删除 Redis；从 PlayerManager 删除 LobbyPlayer
+  └─ 其他原因 → LeaveRoom，更新/删除 Redis；UnbindPeer 保留离线 LobbyPlayer（CurrentRoomId=null）
 Client 重连 → JoinLobby
-  ├─ 离线 LobbyPlayer 存在 → BindOnline，仅恢复大厅身份
-  └─ 不存在 → 作为新玩家加入大厅
-Client → Lobby: JoinRoom（重新加入房间）
+  ├─ Timeout：BindOnline → CurrentRoomId 仍在 → JoinRoom 直接回到原房间
+  ├─ 其他原因：BindOnline → 只恢复大厅身份 → 需要重新 JoinRoom
+  └─ RemoteConnectionClose：LobbyPlayer 已删除 → 作为新玩家加入大厅
 ```
 
 ### 16.3 Lobby 重启
@@ -737,7 +737,7 @@ GameServer: TryAdd 空房间
 - **无登录鉴权**：`JoinLobby` 接受任意 `UserId`，知道 `RoomId` 的客户端可以 `JoinGame`；离线玩家身份可被顶替。
 - **GameServer 地址变化不迁移**：LobbyRoom 以 `Address:Port` 关联 GameServer；GS 换地址后旧房间无法匹配。
 - **只补建、不清理**：GS 重连时 Lobby 只补建缺失房间，不关闭 GS 上多余的房间。
-- **离线玩家永久保留（异常断线）**：非 `RemoteConnectionClose` 断线会保留 LobbyPlayer，没有 TTL；但玩家已被移出房间，`CurrentRoomId=null`。Redis 恢复的离线成员仍占用 `MaxPlayers`；运行时断线不会保留房间成员。
+- **离线玩家 / Timeout 房间保留**：`Timeout` 会保留 LobbyPlayer 和房间成员（占用 `MaxPlayers`，没有 TTL）；其他非 `RemoteConnectionClose` 断线保留 LobbyPlayer 但移出房间；Redis 恢复的离线成员同样占用 `MaxPlayers`。
 - **协议不含在线状态**：`RoomInfo.Players` 只有 `PlayerInfo`；`RoomListInfo.PlayerCount` 包含离线成员。
 - **运行期 Redis 写失败**：记录日志，内存继续；重启后可能回退到旧快照，没有异步补偿队列。
 - **Redis 写锁内同步**：Redis 故障时单次房间操作最多阻塞 `SyncTimeout=1000ms`。
@@ -765,6 +765,7 @@ GameServer: TryAdd 空房间
 | 2026-10-23 | `Program` 只创建 RedisHelper；`RedisLobbyRoomStore` 移到 `LobbyManager.Create` 初始化 |
 | 2026-10-23 | 拆分 Lobby 初始化失败日志：RedisHelper 创建失败与大厅服务器初始化失败分开记录 |
 | 2026-10-23 | 断线策略调整：删除 PlayerDisconnectPolicy；任何断线先离开房间，RemoteConnectionClose 删除 LobbyPlayer，其他原因保留离线玩家 |
+| 2026-10-23 | Timeout 断线改为保留 LobbyPlayer 和房间成员身份；其他原因仍移出房间 |
 
 ---
 

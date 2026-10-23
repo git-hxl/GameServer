@@ -148,7 +148,7 @@ public class LobbyServer
     }
 
     /// <summary>
-    /// 处理客户端断开：任何原因都先移出房间；主动断线额外删除 LobbyPlayer。
+    /// 处理客户端断开：Timeout 保留玩家和房间身份；其他原因移出房间，主动断线删除 LobbyPlayer。
     /// </summary>
     /// <param name="peer">断开的连接。</param>
     /// <param name="disconnectInfo">断开原因。</param>
@@ -163,7 +163,15 @@ public class LobbyServer
 
         var userId = player.Info.UserId;
 
-        // 不管什么原因，先从房间移除（房间/Redis 同步更新）。
+        // Timeout：只清 Peer，保留 LobbyPlayer 和房间成员身份，便于原房重连。
+        if (disconnectInfo.Reason == DisconnectReason.Timeout)
+        {
+            _players.UnbindPeer(peer);
+            Log.Information("[LobbyServer] 超时断线，保留玩家和房间身份 userId={UserId}", userId);
+            return;
+        }
+
+        // 其他原因：先移出房间（房间/Redis 同步更新）。
         _roomManager.LeaveRoom(userId);
 
         if (disconnectInfo.Reason == DisconnectReason.RemoteConnectionClose)
