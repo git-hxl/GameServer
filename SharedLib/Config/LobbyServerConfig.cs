@@ -14,5 +14,9 @@ namespace SharedLib.Config
         public int PingInterval { get; set; } = 1000;
         public int DisconnectTimeout { get; set; } = 5000;
         public byte ChannelsCount { get; set; } = 1;
+
+        public string RedisConnection { get; set; } = "localhost:6379";
+        public string RedisKeyPrefix { get; set; } = "gameserver";
+        public int RedisDatabase { get; set; } = 0;
     }
 }

@@ -6,5 +6,8 @@
   "UpdateTime": 15,
   "PingInterval": 1000,
   "DisconnectTimeout": 5000,
-  "ChannelsCount": 1
+  "ChannelsCount": 1,
+  "RedisConnection": "localhost:6379",
+  "RedisKeyPrefix": "gameserver",
+  "RedisDatabase": 0
 }
