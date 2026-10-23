@@ -570,7 +570,7 @@ public interface ILobbyRoomStore
 
 ### 11.7 失败与停机
 
-- `LobbyServer/Program.cs` 只创建 `RedisHelper`（组合根）；连接失败记录 Fatal 并以非 0 退出。
+- `LobbyServer/Program.cs` 只创建 `RedisHelper`（组合根）；RedisHelper 创建失败记录 `Redis 初始化失败`，LobbyServer/Start 失败记录 `大厅服务器初始化失败`（可能是端口绑定、房间恢复等），两者都以非 0 退出。
 - `LobbyServer` 构造函数接收 `RedisHelper`，不创建 store、不连接 Redis；`Stop()` 只停止两个 NetManager。
 - `LobbyManager.Create` 在初始化时创建 `RedisLobbyRoomStore` 和 `RoomManager`，并用注入的 `RedisHelper` 完成 Redis 访问。
 - `Program` 在 `finally` 中先 `lobbyServer.Stop()`，再 `redisHelper.Dispose()`；`RedisLobbyRoomStore` 不拥有连接，不负责释放。
@@ -759,6 +759,7 @@ GameServer: TryAdd 空房间
 | 2026-10-23 | 测试端口改为 UDP 预留；LobbyServer/GameServer 启动校验端口绑定，修复集成测试间歇性串端口 |
 | 2026-10-23 | 删除 `GameServer.Tests`；快速开发阶段不维护自动化测试项目 |
 | 2026-10-23 | `Program` 只创建 RedisHelper；`RedisLobbyRoomStore` 移到 `LobbyManager.Create` 初始化 |
+| 2026-10-23 | 拆分 Lobby 初始化失败日志：RedisHelper 创建失败与大厅服务器初始化失败分开记录 |
 
 ---
 

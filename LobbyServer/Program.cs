@@ -11,26 +11,36 @@ Log.Information("正在启动 LobbyServer");
 var config = ConfigLoader.Load<LobbyServerConfig>("LobbyServerConfig.json");
 
 // 组合根只负责创建 RedisHelper；房间存储由 LobbyManager 初始化时创建。
-RedisHelper? redis = null;
-LobbyServer.LobbyServer? server = null;
+RedisHelper redis;
 
 try
 {
     redis = new RedisHelper(config.RedisConnection, config.RedisDatabase);
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "[LobbyServer] Redis 初始化失败，请检查 Redis 连接");
+    Environment.ExitCode = 1;
+    return;
+}
 
+LobbyServer.LobbyServer? server = null;
+
+try
+{
     server = new LobbyServer.LobbyServer(config, redis);
     server.Start(config);
 }
 catch (Exception ex)
 {
-    Log.Fatal(ex, "[LobbyServer] 初始化失败，请检查 Redis 连接");
-    redis?.Dispose();
+    Log.Fatal(ex, "[LobbyServer] 大厅服务器初始化失败");
+    server?.Stop();
+    redis.Dispose();
     Environment.ExitCode = 1;
     return;
 }
 
 var lobbyServer = server!;
-var redisHelper = redis!;
 
 using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(config.UpdateTime));
 var cts = new CancellationTokenSource();
@@ -55,7 +65,7 @@ catch (OperationCanceledException)
 finally
 {
     lobbyServer.Stop();
-    redisHelper.Dispose();
+    redis.Dispose();
 }
 
 Log.Information("[LobbyServer] 已退出");
