@@ -61,6 +61,7 @@ LobbyServer 维护两个 registry：`_clientRegistry`（客户端口消息）和
 
 - handler 很薄：继承 `MessageHandler<TRequest>`，委托给 `LobbyManager` / `RoomManager`（LobbyServer）或 `GameRoomManager`（GameServer）。房间/玩家状态放在这些 manager 里，而不是 handler 里。
 - 服务端注释和日志是中文，修改相邻代码时保持该风格。
+- 所有方法必须写注释：生产代码与测试中的方法（含 `private`/`static`/局部函数、构造函数）使用中文 XML 文档注释；接口实现/重写可用 `<inheritdoc/>`。新增/修改方法时注释必须与代码同一提交完成。
 - 玩家标识是 `long UserId`；`PlayerManager` 只维护 `userId → LobbyPlayer`，按 `LobbyPlayer.Peer` 反查连接；在线状态由 `Peer != null` 表示，所在房间由 `CurrentRoomId` 表示。
 - 大厅玩家主动 `LeaveLobby` 或主动断开（`RemoteConnectionClose` / `DisconnectPeerCalled`）时从 `_players` 和房间移除；异常断线（`Timeout` / `ConnectionFailed` 等）只清 `Peer`，保留房间成员/房主，重连相同 userId 后绑定新 peer。
 - 房间流程：`RoomManager.PickGameServer` 根据每个 GameServer 周期性 `GameServerUpdate` 上报的 `GameServerInfo.PlayerCount` 做负载均衡。`GameServerRegistry` 以 `Address:Port`（GameServer 上报的广告地址）为唯一 key 定位 GameServer。
