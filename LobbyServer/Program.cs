@@ -40,8 +40,6 @@ catch (Exception ex)
     return;
 }
 
-var lobbyServer = server!;
-
 using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(config.UpdateTime));
 var cts = new CancellationTokenSource();
 
@@ -56,7 +54,7 @@ try
 {
     while (await timer.WaitForNextTickAsync(cts.Token))
     {
-        lobbyServer.PollEvents();
+        server.PollEvents();
     }
 }
 catch (OperationCanceledException)
@@ -64,7 +62,7 @@ catch (OperationCanceledException)
 }
 finally
 {
-    lobbyServer.Stop();
+    server.Stop();
     redis.Dispose();
 }
 
