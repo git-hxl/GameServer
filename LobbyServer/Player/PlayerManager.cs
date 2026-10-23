@@ -45,8 +45,7 @@ public class PlayerManager
         var player = new LobbyPlayer
         {
             Info = info,
-            Peer = peer,
-            State = PlayerState.InLobby
+            Peer = peer
         };
 
         _players[info.UserId] = player;
@@ -59,7 +58,6 @@ public class PlayerManager
         {
             Info = info,
             Peer = null,
-            State = PlayerState.Offline,
             CurrentRoomId = roomId
         };
 
@@ -71,7 +69,6 @@ public class PlayerManager
     {
         player.Peer = peer;
         player.Info = info;
-        player.State = player.CurrentRoomId != null ? PlayerState.InRoom : PlayerState.InLobby;
     }
 
     public void UnbindPeer(NetPeer peer)
@@ -81,7 +78,6 @@ public class PlayerManager
             return;
 
         player.Peer = null;
-        player.State = PlayerState.Offline;
     }
 
     public bool Remove(long userId)
@@ -89,27 +85,16 @@ public class PlayerManager
         return _players.TryRemove(userId, out _);
     }
 
-    public void ClearRoom(long userId)
-    {
-        if (!_players.TryGetValue(userId, out var player))
-            return;
-
-        player.CurrentRoomId = null;
-        player.State = player.Peer == null ? PlayerState.Offline : PlayerState.InLobby;
-    }
-
-    public void SetState(long userId, PlayerState state, string? roomId = null)
+    public void SetRoom(long userId, string roomId)
     {
         if (_players.TryGetValue(userId, out var player))
-        {
-            player.State = state;
-            player.CurrentRoomId = roomId ?? (state == PlayerState.InLobby ? null : player.CurrentRoomId);
-        }
+            player.CurrentRoomId = roomId;
     }
 
-    public PlayerState GetState(long userId)
+    public void ClearRoom(long userId)
     {
-        return _players.TryGetValue(userId, out var player) ? player.State : PlayerState.InLobby;
+        if (_players.TryGetValue(userId, out var player))
+            player.CurrentRoomId = null;
     }
 
     public bool IsOnline(long userId)

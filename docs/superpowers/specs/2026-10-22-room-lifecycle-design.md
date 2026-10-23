@@ -70,13 +70,9 @@ public class GameRoom
 
 删除：`OwnerUserId`、`AllowedPlayerIds`。
 
-### 4.3 PlayerState
+### 4.3 玩家状态
 
-```csharp
-public enum PlayerState { InLobby, InRoom, Offline }
-```
-
-删除：`Ready`、`InGame`。`Offline` 表示连接已断开但 `LobbyPlayer` 仍保留（可能仍在房间中）；它不写入 Redis，重启恢复时由 `AddOffline` 重建。
+不维护独立的 `PlayerState`：在线状态由 `LobbyPlayer.Peer != null` 表示，所在房间由 `LobbyPlayer.CurrentRoomId` 表示。
 
 ## 5. 协议变更
 
@@ -327,7 +323,6 @@ public ReturnCode CloseRoom(string roomId, RoomCloseReason reason)
 - `Handlers/CreateRoomHandler.cs`、`JoinRoomHandler.cs`、`LeaveRoomHandler.cs`
 - 删除 `GameReadyHandler`、`GameUnreadyHandler`、`GameStartHandler`
 - `LobbyServer.cs`（注册表、外部 API）
-- `Player/PlayerState.cs`
 
 **GameServer**
 

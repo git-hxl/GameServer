@@ -43,7 +43,6 @@ public class RoomManagerRestoreTests
         var owner = players.Get(42);
         Assert.NotNull(owner);
         Assert.Null(owner!.Peer);
-        Assert.Equal(PlayerState.Offline, owner.State);
         Assert.Equal("room-1", owner.CurrentRoomId);
         Assert.False(players.IsOnline(42));
     }

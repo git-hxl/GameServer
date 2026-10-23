@@ -145,7 +145,6 @@ public interface ILobbyRoomStore
 - 创建 `LobbyRoom`，恢复 `RoomId/RoomType/MaxPlayers/OwnerUserId/CreatorUserId/GameServerAddress/GameServerPort`，`PlayerIds` 按快照顺序填充。
 - 对每个成员调用 `PlayerManager.AddOffline(playerInfo, roomId)`，创建 `LobbyPlayer`：
   - `Peer = null`
-  - `State = PlayerState.Offline`
   - `CurrentRoomId = roomId`
 - 空房处理：
   - `Players.Count == 0 && CreatorUserId != null`：正常玩家房不应为空，视为脏数据，从 Redis 删除并跳过恢复。
@@ -179,7 +178,7 @@ bool IsOnline(long userId);                // Peer 非空且 Connected
 
 关键点：顶号/重连不再把玩家从房间移除；旧连接的断开事件因为 peer 映射已解绑，不会误删新会话。
 
-运行期客户端断开也走 `PlayerManager.UnbindPeer(peer)`：只清 `Peer` 并置 `State = Offline`，保留房间成员/房主，不写 Redis。重连时 `BindOnline` 根据 `CurrentRoomId` 恢复 `InRoom` 或 `InLobby`。
+运行期客户端断开也走 `PlayerManager.UnbindPeer(peer)`：只清 `Peer`，保留房间成员/房主，不写 Redis。重连时 `BindOnline` 只替换 `Peer` 和 `PlayerInfo`；所在房间由 `CurrentRoomId` 保留。
 
 ### 6.4 广播与通知过滤
 

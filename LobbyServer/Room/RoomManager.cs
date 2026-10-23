@@ -85,7 +85,7 @@ public class RoomManager
         if (creatorUserId.HasValue)
         {
             room.PlayerIds.Add(creatorUserId.Value);
-            _players.SetState(creatorUserId.Value, PlayerState.InRoom, roomId);
+            _players.SetRoom(creatorUserId.Value, roomId);
         }
 
         _rooms[roomId] = room;
@@ -138,7 +138,7 @@ public class RoomManager
         if (room.OwnerUserId == 0)
             room.OwnerUserId = userId;
 
-        _players.SetState(userId, PlayerState.InRoom, request.RoomId);
+        _players.SetRoom(userId, request.RoomId);
 
         var notify = new JoinRoomNotify { RoomId = room.RoomId, Player = player.Info };
         foreach (var otherId in room.PlayerIds.Where(id => id != userId))
@@ -171,7 +171,7 @@ public class RoomManager
         if (!room.PlayerIds.Remove(userId))
             return (new LeaveRoomResponse(), ReturnCode.NotInRoom);
 
-        _players.SetState(userId, PlayerState.InLobby);
+        _players.ClearRoom(userId);
 
         var remaining = room.PlayerIds.Count;
         Log.Information("[RoomManager] 离开房间 roomId={RoomId} userId={UserId} 剩余人数={Count}",

@@ -13,7 +13,6 @@ public class PlayerManagerTests
         var player = manager.AddOffline(new PlayerInfo { UserId = 42, Nickname = "offline" }, "room-1");
 
         Assert.Null(player.Peer);
-        Assert.Equal(PlayerState.Offline, player.State);
         Assert.Equal("room-1", player.CurrentRoomId);
         Assert.False(manager.IsOnline(42));
         Assert.Equal(0, manager.OnlineCount);
