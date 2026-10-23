@@ -1,5 +1,4 @@
 using LiteNetLib;
-using LiteNetLib.Utils;
 using Serilog;
 using SharedLib.Config;
 using SharedLib.Models;
@@ -28,7 +27,6 @@ public class LobbyServer
 
     private readonly PlayerManager _players = new();
     private readonly ILobbyRoomStore _roomStore;
-    private readonly bool _ownsRoomStore;
     private LobbyManager _lobbyManager = null!;
     private RoomManager _roomManager = null!;
     private HandlerRegistry _clientRegistry = null!;
@@ -37,11 +35,14 @@ public class LobbyServer
     private readonly GameServerRegistry _gameServerRegistry = new();
     private bool _stopping;
 
-    public LobbyServer(LobbyServerConfig config, ILobbyRoomStore? roomStore = null)
+    /// <summary>
+    /// 创建大厅服务器实例；Redis 存储由调用方注入，构造过程不连接 Redis。
+    /// </summary>
+    /// <param name="config">大厅服务器配置。</param>
+    /// <param name="roomStore">房间持久化存储，由调用方负责释放。</param>
+    public LobbyServer(LobbyServerConfig config, ILobbyRoomStore roomStore)
     {
-        _ownsRoomStore = roomStore == null;
-        _roomStore = roomStore ?? new RedisLobbyRoomStore(
-            config.RedisConnection, config.RedisKeyPrefix, config.RedisDatabase);
+        _roomStore = roomStore;
 
         _clientKey = config.ClientConnectionKey;
         _serverKey = config.ServerConnectionKey;
@@ -65,6 +66,10 @@ public class LobbyServer
         };
     }
 
+    /// <summary>
+    /// 从存储恢复房间、注册 handler，并启动客户端/GameServer 两个 NetManager。
+    /// </summary>
+    /// <param name="config">大厅服务器配置。</param>
     public void Start(LobbyServerConfig config)
     {
         _roomManager = new RoomManager(_players, _gameServerRegistry, _roomStore);
@@ -122,6 +127,9 @@ public class LobbyServer
         return _roomManager.CloseRoom(roomId, RoomCloseReason.ClosedBySystem);
     }
 
+    /// <summary>
+    /// 停止两个 NetManager；不会释放调用方注入的房间存储。
+    /// </summary>
     public void Stop()
     {
         if (_stopping)
@@ -131,9 +139,6 @@ public class LobbyServer
 
         _clientNetManager.Stop();
         _serverNetManager.Stop();
-
-        if (_ownsRoomStore)
-            _roomStore.Dispose();
     }
 
     public void PollEvents()

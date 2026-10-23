@@ -1,4 +1,5 @@
-﻿using Serilog;
+﻿using LobbyServer.Persistence;
+using Serilog;
 using SharedLib.Config;
 
 Log.Logger = new LoggerConfiguration().WriteTo.Console().WriteTo.File("lobby_server_log.txt",
@@ -9,20 +10,28 @@ Log.Information("正在启动 LobbyServer");
 
 var config = ConfigLoader.Load<LobbyServerConfig>("LobbyServerConfig.json");
 
-LobbyServer.LobbyServer server;
+// 组合根负责 Redis 连接与存储的创建/释放；LobbyServer 只使用注入的 store。
+ILobbyRoomStore? roomStore = null;
+LobbyServer.LobbyServer? server = null;
 
 try
 {
-    server = new LobbyServer.LobbyServer(config);
+    roomStore = new RedisLobbyRoomStore(
+        config.RedisConnection, config.RedisKeyPrefix, config.RedisDatabase);
+
+    server = new LobbyServer.LobbyServer(config, roomStore);
+    server.Start(config);
 }
 catch (Exception ex)
 {
     Log.Fatal(ex, "[LobbyServer] 初始化失败，请检查 Redis 连接");
+    roomStore?.Dispose();
     Environment.ExitCode = 1;
     return;
 }
 
-server.Start(config);
+var lobbyServer = server!;
+var store = roomStore!;
 
 using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(config.UpdateTime));
 var cts = new CancellationTokenSource();
@@ -38,7 +47,7 @@ try
 {
     while (await timer.WaitForNextTickAsync(cts.Token))
     {
-        server.PollEvents();
+        lobbyServer.PollEvents();
     }
 }
 catch (OperationCanceledException)
@@ -46,7 +55,8 @@ catch (OperationCanceledException)
 }
 finally
 {
-    server.Stop();
+    lobbyServer.Stop();
+    store.Dispose();
 }
 
 Log.Information("[LobbyServer] 已退出");

@@ -106,7 +106,7 @@ LobbyServer/
   Player/          PlayerManager、LobbyPlayer、PlayerDisconnectPolicy
   Room/            RoomManager、LobbyRoom
   LobbyServer.cs   两端 NetManager、handler 注册、外部 API、Stop
-  Program.cs       配置加载、启动、Ctrl+C、停机
+  Program.cs       配置加载、Redis 连接/store 创建、启动、Ctrl+C、停机
 
 GameServer/
   Handlers/        JoinGame/LeaveGame/同步消息、CreateGameRoom/CloseGameRoom
@@ -566,13 +566,12 @@ public interface ILobbyRoomStore : IDisposable
 
 ### 11.7 失败与停机
 
-- 启动时 Redis 连接失败：LobbyServer 初始化抛异常，Program 记录 Fatal 并以非 0 退出。
-- 运行期写失败：记录 `Log.Error`，内存继续；重启后可能回退到旧快照。
-- `LobbyServer.Stop()` 设置 `_stopping`：
-  - 停机期间忽略客户端/GameServer 断开事件，避免把进程退出误判为玩家离开并删除 Redis 房间；
-  - 停止两个 NetManager；
-  - 只销毁自己创建的 store（注入的 store 由调用方负责）。
+- Redis 连接与存储由 `LobbyServer/Program.cs`（组合根）创建：`RedisLobbyRoomStore` 在 `Program` 中实例化并注入 `LobbyServer`；连接失败记录 Fatal 并以非 0 退出。
+- `LobbyServer` 构造时不连接 Redis，只保存注入的 `ILobbyRoomStore`；`Stop()` 只停止两个 NetManager，不释放注入的 store。
+- `Program` 在 `finally` 中先 `lobbyServer.Stop()`，再 `store.Dispose()`；注入存储的生命周期由调用方负责。
+- `LobbyServer.Stop()` 设置 `_stopping`：停机期间忽略客户端/GameServer 断开事件，避免把进程退出误判为玩家离开并删除 Redis 房间。
 - `Stop()` 是终止性的；需要重启请创建新的 `LobbyServer` 实例。
+- 运行期写失败：记录 `Log.Error`，内存继续；重启后可能回退到旧快照。
 
 ---
 
@@ -764,6 +763,7 @@ GameServer: TryAdd 空房间
 | 2026-10-23 | TestClient 改为手动 `joingame`；`RoomType` 只保留 `Default` |
 | 2026-10-23 | 增加文档维护约定与“所有方法必须写注释”规范（第 20 节） |
 | 2026-10-23 | LobbyServer Handler 目录按客户端/服务端拆分（`Handlers/Client`、`Handlers/Server`） |
+| 2026-10-23 | Redis 连接与存储创建/释放从 `LobbyServer` 移到 `Program.cs` 组合根 |
 
 ---
 

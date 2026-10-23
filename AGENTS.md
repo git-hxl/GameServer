@@ -56,6 +56,7 @@ LobbyServer 维护两个 registry：`_clientRegistry`（客户端口消息）和
 - Lobby 重启从 Redis 恢复房间，成员恢复为离线状态；玩家重新 `JoinLobby`（相同 userId）后回到原房间。
 - GameServer 重启后重新注册时，Lobby 按 `Address:Port` 补发 `CreateGameRoom`（幂等）；游戏内玩家需要重新 `JoinGame`。
 - Redis 配置：`RedisConnection`、`RedisKeyPrefix`、`RedisDatabase`（见 `LobbyServerConfig.json`）。
+- Redis 连接与 `ILobbyRoomStore` 由 `LobbyServer/Program.cs`（组合根）创建/释放；`LobbyServer` 只接收注入的 store，构造时不连接 Redis。
 - Redis 启动失败：Lobby 退出；运行期写失败：记录日志，内存状态继续。
 - 根目录 `DESIGN.md` 是当前实现的设计文档；任何协议、状态模型、配置、Redis、重连/停机语义的功能改动或新增，必须在同一提交中更新对应章节，并按第 19 节检查清单自检。
 
