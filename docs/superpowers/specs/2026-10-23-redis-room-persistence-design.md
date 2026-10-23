@@ -136,6 +136,8 @@ public interface ILobbyRoomStore
 
 恢复必须在开始接收连接之前完成。
 
+停机时 `LobbyServer.Stop()` 会设置 `_stopping` 标志，并在 `OnClientDisconnected` / `OnServerDisconnected` 中直接返回：进程退出不能被误判为玩家主动离开，否则会把内存中的删除操作写回 Redis，导致重启恢复失效。
+
 ### 6.2 恢复规则
 
 对每个快照：
