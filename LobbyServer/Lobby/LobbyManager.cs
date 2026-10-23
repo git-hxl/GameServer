@@ -14,7 +14,7 @@ public class LobbyManager
     private readonly PlayerManager _players;
     private readonly RoomManager _rooms;
 
-    public int UserCount => _players.Count;
+    public int UserCount => _players.OnlineCount;
 
     public LobbyManager(NetManager netManager, PlayerManager players, RoomManager rooms)
     {
@@ -59,7 +59,7 @@ public class LobbyManager
         _players.Add(peer, request.Player);
 
         Log.Information("[LobbyManager] 大厅加入 userId={UserId} nickname={Nickname} 在线人数={Count}",
-            userId, request.Player.Nickname, _players.Count);
+            userId, request.Player.Nickname, _players.OnlineCount);
 
         return (new JoinLobbyResponse { Player = request.Player }, ReturnCode.Success);
     }
@@ -84,7 +84,7 @@ public class LobbyManager
         _rooms.RemovePlayer(request.UserId);
 
         Log.Information("[LobbyManager] 大厅离开 userId={UserId} 在线人数={Count}",
-            request.UserId, _players.Count);
+            request.UserId, _players.OnlineCount);
 
         return (new LeaveLobbyResponse { UserId = request.UserId }, ReturnCode.Success);
     }

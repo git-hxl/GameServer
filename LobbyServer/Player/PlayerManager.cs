@@ -7,9 +7,10 @@ namespace LobbyServer.Player;
 public class PlayerManager
 {
     private readonly ConcurrentDictionary<long, LobbyPlayer> _players = new();
-    private readonly ConcurrentDictionary<NetPeer, long> _peerToUserId = new();
 
     public int Count => _players.Count;
+
+    public int OnlineCount => _players.Values.Count(p => p.Peer is { ConnectionState: ConnectionState.Connected });
 
     public IEnumerable<LobbyPlayer> All => _players.Values;
 
@@ -31,13 +32,12 @@ public class PlayerManager
 
     public LobbyPlayer? GetByPeer(NetPeer peer)
     {
-        return _peerToUserId.TryGetValue(peer, out var userId) ? Get(userId) : null;
+        return _players.Values.FirstOrDefault(p => ReferenceEquals(p.Peer, peer));
     }
 
     public long GetUserId(NetPeer peer)
     {
-        _peerToUserId.TryGetValue(peer, out var userId);
-        return userId;
+        return GetByPeer(peer)?.Info.UserId ?? 0;
     }
 
     public LobbyPlayer Add(NetPeer peer, PlayerInfo info)
@@ -50,8 +50,6 @@ public class PlayerManager
         };
 
         _players[info.UserId] = player;
-        _peerToUserId[peer] = info.UserId;
-
         return player;
     }
 
@@ -61,7 +59,7 @@ public class PlayerManager
         {
             Info = info,
             Peer = null,
-            State = PlayerState.InRoom,
+            State = PlayerState.Offline,
             CurrentRoomId = roomId
         };
 
@@ -73,34 +71,31 @@ public class PlayerManager
     {
         player.Peer = peer;
         player.Info = info;
-        _peerToUserId[peer] = player.Info.UserId;
+        player.State = player.CurrentRoomId != null ? PlayerState.InRoom : PlayerState.InLobby;
     }
 
     public void UnbindPeer(NetPeer peer)
     {
-        if (_peerToUserId.TryRemove(peer, out var userId) &&
-            _players.TryGetValue(userId, out var player) &&
-            player.Peer == peer)
-        {
-            player.Peer = null;
-        }
+        var player = GetByPeer(peer);
+        if (player == null)
+            return;
+
+        player.Peer = null;
+        player.State = PlayerState.Offline;
     }
 
     public bool Remove(long userId)
     {
-        if (!_players.TryRemove(userId, out var player))
-            return false;
-
-        if (player.Peer != null)
-            _peerToUserId.TryRemove(player.Peer, out _);
-
-        return true;
+        return _players.TryRemove(userId, out _);
     }
 
-    public void RemoveByPeer(NetPeer peer)
+    public void ClearRoom(long userId)
     {
-        if (_peerToUserId.TryRemove(peer, out var userId))
-            _players.TryRemove(userId, out _);
+        if (!_players.TryGetValue(userId, out var player))
+            return;
+
+        player.CurrentRoomId = null;
+        player.State = player.Peer == null ? PlayerState.Offline : PlayerState.InLobby;
     }
 
     public void SetState(long userId, PlayerState state, string? roomId = null)

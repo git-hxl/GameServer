@@ -230,9 +230,8 @@ public class RoomManager
             if (player?.Peer is { ConnectionState: ConnectionState.Connected } playerPeer)
                 peers.Add(playerPeer);
 
-            _players.SetState(userId, PlayerState.InLobby);
+            _players.ClearRoom(userId);
         }
-
         MessageHelper.SendToAll(peers, frame, DeliveryMethod.ReliableOrdered);
         SendCloseGameRoom(room, reason);
 
@@ -253,16 +252,6 @@ public class RoomManager
 
         Log.Information("[RoomManager] 查询房间列表 房间数={Count}", list.Count);
         return new RoomListResponse { Rooms = list };
-    }
-
-    [MethodImpl(MethodImplOptions.Synchronized)]
-    public void RemovePlayer(NetPeer peer)
-    {
-        var player = _players.GetByPeer(peer);
-        if (player == null)
-            return;
-
-        RemovePlayer(player.Info.UserId);
     }
 
     [MethodImpl(MethodImplOptions.Synchronized)]

@@ -73,10 +73,10 @@ public class GameRoom
 ### 4.3 PlayerState
 
 ```csharp
-public enum PlayerState { InLobby, InRoom }
+public enum PlayerState { InLobby, InRoom, Offline }
 ```
 
-删除：`Ready`、`InGame`（大厅不再感知玩家是否进入游戏服）。
+删除：`Ready`、`InGame`。`Offline` 表示连接已断开但 `LobbyPlayer` 仍保留（可能仍在房间中）；它不写入 Redis，重启恢复时由 `AddOffline` 重建。
 
 ## 5. 协议变更
 

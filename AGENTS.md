@@ -59,6 +59,7 @@ LobbyServer 维护两个 registry：`_clientRegistry`（客户端口消息）和
 
 - handler 很薄：继承 `MessageHandler<TRequest>`，委托给 `LobbyManager` / `RoomManager`（LobbyServer）或 `GameRoomManager`（GameServer）。房间/玩家状态放在这些 manager 里，而不是 handler 里。
 - 服务端注释和日志是中文，修改相邻代码时保持该风格。
-- 玩家标识是 `long UserId`；`PlayerManager` 维护 `NetPeer → userId` 映射，并跟踪 `PlayerState`（InLobby/InRoom）。
+- 玩家标识是 `long UserId`；`PlayerManager` 只维护 `userId → LobbyPlayer`，按 `LobbyPlayer.Peer` 反查连接；`PlayerState` 为 InLobby/InRoom/Offline。
+- 大厅玩家掉线只清 `LobbyPlayer.Peer` 并置 `Offline`，房间成员/房主保留；重连相同 userId 后绑定新 peer 并恢复 InRoom/InLobby。
 - 房间流程：`RoomManager.PickGameServer` 根据每个 GameServer 周期性 `GameServerUpdate` 上报的 `GameServerInfo.PlayerCount` 做负载均衡。`GameServerRegistry` 以 `Address:Port`（GameServer 上报的广告地址）为唯一 key 定位 GameServer。
 - GameServer 广告地址：`GameServerInfo.Address` 由 GameServer 在 Register/Update 时自行上报——取 `GameServerConfig.PublicAddress`（可配置覆盖），为空时 `AddressResolver` 自动探测本机首个非回环 IPv4，兜底 127.0.0.1。

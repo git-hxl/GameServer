@@ -154,7 +154,7 @@ public class LobbyServer
         Log.Information("[LobbyServer] 客户端断开 endpoint={EndPoint} reason={Reason}",
             peer.Address, disconnectInfo.Reason);
 
-        _roomManager.RemovePlayer(peer);
+        _players.UnbindPeer(peer);
     }
 
     private void OnServerConnected(NetPeer peer)

@@ -3,5 +3,6 @@ namespace LobbyServer.Player;
 public enum PlayerState
 {
     InLobby,
-    InRoom
+    InRoom,
+    Offline
 }
