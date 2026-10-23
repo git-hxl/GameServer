@@ -144,7 +144,7 @@ public class RoomManager
         foreach (var otherId in room.PlayerIds.Where(id => id != userId))
         {
             var otherPlayer = _players.Get(otherId);
-            if (otherPlayer?.Peer is { ConnectionState: ConnectionState.Connected } otherPeer)
+            if (otherPlayer != null && _players.GetPeer(otherPlayer) is { ConnectionState: ConnectionState.Connected } otherPeer)
                 MessageHelper.Send(otherPeer, MessageIds.JoinRoomNotify, ReturnCode.Success, notify);
         }
 
@@ -227,7 +227,7 @@ public class RoomManager
         foreach (var userId in room.PlayerIds)
         {
             var player = _players.Get(userId);
-            if (player?.Peer is { ConnectionState: ConnectionState.Connected } playerPeer)
+            if (player != null && _players.GetPeer(player) is { ConnectionState: ConnectionState.Connected } playerPeer)
                 peers.Add(playerPeer);
 
             _players.ClearRoom(userId);
@@ -270,9 +270,9 @@ public class RoomManager
     {
         var frame = MessageHelper.CreateFrame(messageId, ReturnCode.Success, data);
         var peers = room.PlayerIds
-            .Select(id => _players.Get(id))
-            .Where(p => p?.Peer is { ConnectionState: ConnectionState.Connected })
-            .Select(p => p!.Peer!);
+            .Select(id => _players.GetPeer(id))
+            .Where(p => p is { ConnectionState: ConnectionState.Connected })
+            .Select(p => p!);
 
         MessageHelper.SendToAll(peers, frame, DeliveryMethod.ReliableOrdered);
     }

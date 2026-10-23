@@ -75,9 +75,9 @@ public class LobbyManager
         var existing = _players.Get(userId);
         if (existing != null)
         {
-            Log.Warning("[LobbyManager] 玩家重新登录 userId={UserId} online={Online}", userId, existing.Peer != null);
+            var oldPeer = _players.GetPeer(existing);
+            Log.Warning("[LobbyManager] 玩家重新登录 userId={UserId} online={Online}", userId, oldPeer != null);
 
-            var oldPeer = existing.Peer;
             if (oldPeer != null && oldPeer != peer)
             {
                 _players.UnbindPeer(oldPeer);
@@ -112,7 +112,7 @@ public class LobbyManager
             return (new LeaveLobbyResponse { UserId = request.UserId }, ReturnCode.NotInLobby);
         }
 
-        if (player.Peer != peer)
+        if (!ReferenceEquals(_players.GetPeer(player), peer))
         {
             Log.Warning("[LobbyManager] 离开大厅失败：Peer不匹配 userId={UserId}", request.UserId);
             return (new LeaveLobbyResponse { UserId = request.UserId }, ReturnCode.NotInLobby);
@@ -131,7 +131,7 @@ public class LobbyManager
         Log.Information("[LobbyManager] 聊天消息 userId={UserId}", request.UserId);
 
         var player = _players.Get(request.UserId);
-        if (player == null || player.Peer != peer)
+        if (player == null || !ReferenceEquals(_players.GetPeer(player), peer))
         {
             Log.Warning("[LobbyManager] 聊天被拒绝：用户不在大厅中 userId={UserId}", request.UserId);
             return;

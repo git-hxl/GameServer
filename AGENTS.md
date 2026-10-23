@@ -65,7 +65,7 @@ LobbyServer 维护两个 registry：`_clientRegistry`（客户端口消息）和
 - handler 很薄：继承 `MessageHandler<TRequest>`，委托给 `LobbyManager` / `RoomManager`（LobbyServer）或 `GameRoomManager`（GameServer）。房间/玩家状态放在这些 manager 里，而不是 handler 里。
 - 服务端注释和日志是中文，修改相邻代码时保持该风格。
 - 所有方法必须写注释：生产代码与测试中的方法（含 `private`/`static`/局部函数、构造函数）使用中文 XML 文档注释；接口实现/重写可用 `<inheritdoc/>`。新增/修改方法时注释必须与代码同一提交完成。
-- 玩家标识是 `long UserId`；`PlayerManager` 只维护 `userId → LobbyPlayer`，按 `LobbyPlayer.Peer` 反查连接；在线状态由 `Peer != null` 表示，所在房间由 `CurrentRoomId` 表示。
-- 大厅玩家断线：`Timeout` 只清 Peer，保留 LobbyPlayer 和房间成员身份，重连可回原房间；其他原因先 `RoomManager.LeaveRoom(userId)` 移出房间，`RemoteConnectionClose` 再从 `_players` 删除，其他原因 `UnbindPeer` 保留离线 LobbyPlayer。
+- 玩家标识是 `long UserId`；`PlayerManager` 维护 `userId → LobbyPlayer` 和 `PeerId → NetPeer` 注册表；`LobbyPlayer` 只保存 `PeerId`（-1 = 离线），在线状态由 `PeerId != -1` 且能解析到连接表示，所在房间由 `CurrentRoomId` 表示。
+- 大厅玩家断线：`Timeout` 只把 `PeerId` 重置为 -1，保留 LobbyPlayer 和房间成员身份，重连可回原房间；其他原因先 `RoomManager.LeaveRoom(userId)` 移出房间，`RemoteConnectionClose` 再从 `_players` 删除，其他原因 `UnbindPeer` 保留离线 LobbyPlayer。
 - 房间流程：`RoomManager.PickGameServer` 根据每个 GameServer 周期性 `GameServerUpdate` 上报的 `GameServerInfo.PlayerCount` 做负载均衡。`GameServerRegistry` 以 `Address:Port`（GameServer 上报的广告地址）为唯一 key 定位 GameServer。
 - GameServer 广告地址：`GameServerInfo.Address` 由 GameServer 在 Register/Update 时自行上报——取 `GameServerConfig.PublicAddress`（可配置覆盖），为空时 `AddressResolver` 自动探测本机首个非回环 IPv4，兜底 127.0.0.1。
