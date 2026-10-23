@@ -8,7 +8,20 @@ Log.Logger = new LoggerConfiguration().WriteTo.Console().WriteTo.File("lobby_ser
 Log.Information("正在启动 LobbyServer");
 
 var config = ConfigLoader.Load<LobbyServerConfig>("LobbyServerConfig.json");
-var server = new LobbyServer.LobbyServer(config);
+
+LobbyServer.LobbyServer server;
+
+try
+{
+    server = new LobbyServer.LobbyServer(config);
+}
+catch (Exception ex)
+{
+    Log.Fatal(ex, "[LobbyServer] 初始化失败，请检查 Redis 连接");
+    Environment.ExitCode = 1;
+    return;
+}
+
 server.Start(config);
 
 using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(config.UpdateTime));
@@ -30,6 +43,10 @@ try
 }
 catch (OperationCanceledException)
 {
+}
+finally
+{
+    server.Stop();
 }
 
 Log.Information("[LobbyServer] 已退出");

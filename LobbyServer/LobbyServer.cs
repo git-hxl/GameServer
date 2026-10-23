@@ -34,6 +34,7 @@ public class LobbyServer
     private HandlerRegistry _serverRegistry = null!;
 
     private readonly GameServerRegistry _gameServerRegistry = new();
+    private bool _stopping;
 
     public LobbyServer(LobbyServerConfig config, ILobbyRoomStore? roomStore = null)
     {
@@ -103,7 +104,7 @@ public class LobbyServer
         );
 
         _serverRegistry.Register(
-            new GameServerRegisterHandler(_gameServerRegistry),
+            new GameServerRegisterHandler(_gameServerRegistry, _roomManager),
             new GameServerUpdateHandler(_gameServerRegistry)
         );
     }
@@ -120,6 +121,20 @@ public class LobbyServer
         return _roomManager.CloseRoom(roomId, RoomCloseReason.ClosedBySystem);
     }
 
+    public void Stop()
+    {
+        if (_stopping)
+            return;
+
+        _stopping = true;
+
+        _clientNetManager.Stop();
+        _serverNetManager.Stop();
+
+        if (_ownsRoomStore)
+            _roomStore.Dispose();
+    }
+
     public void PollEvents()
     {
         _clientNetManager.PollEvents();
@@ -133,6 +148,9 @@ public class LobbyServer
 
     private void OnClientDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
     {
+        if (_stopping)
+            return;
+
         Log.Information("[LobbyServer] 客户端断开 endpoint={EndPoint} reason={Reason}",
             peer.Address, disconnectInfo.Reason);
 
@@ -146,6 +164,9 @@ public class LobbyServer
 
     private void OnServerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
     {
+        if (_stopping)
+            return;
+
         Log.Information("[LobbyServer] GameServer断开 endpoint={EndPoint} reason={Reason}",
             peer.Address, disconnectInfo.Reason);
 

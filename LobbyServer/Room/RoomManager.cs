@@ -280,6 +280,31 @@ public class RoomManager
     }
 
     [MethodImpl(MethodImplOptions.Synchronized)]
+    public void ResyncGameServer(NetPeer peer, GameServerInfo info)
+    {
+        var rooms = _rooms.Values
+            .Where(r => r.GameServerAddress == info.Address && r.GameServerPort == info.Port)
+            .ToList();
+
+        foreach (var room in rooms)
+        {
+            var frame = MessageHelper.CreateFrame(MessageIds.CreateGameRoom, ReturnCode.Success,
+                new CreateGameRoomRequest
+                {
+                    RoomId = room.RoomId,
+                    RoomType = room.RoomType,
+                    MaxPlayers = room.MaxPlayers
+                });
+
+            if (!MessageHelper.TrySend(peer, frame))
+                Log.Warning("[RoomManager] 补建游戏房间失败 roomId={RoomId}", room.RoomId);
+        }
+
+        Log.Information("[RoomManager] GameServer注册补建完成 GameServer={Addr}:{Port} 房间数={Count}",
+            info.Address, info.Port, rooms.Count);
+    }
+
+    [MethodImpl(MethodImplOptions.Synchronized)]
     public LobbyRoom? GetRoom(string roomId)
     {
         return _rooms.TryGetValue(roomId, out var room) ? room : null;

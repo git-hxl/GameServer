@@ -21,6 +21,7 @@ public sealed class ServerFixture : IDisposable
     private global::GameServer.GameServer _game = null!;
     private CancellationTokenSource _cts = new();
     private Task _pollTask = null!;
+    private readonly object _pollGate = new();
     private readonly ILobbyRoomStore _roomStore;
     private readonly LobbyServerConfig _lobbyConfig;
     private readonly GameServerConfig _gameConfig;
@@ -62,8 +63,12 @@ public sealed class ServerFixture : IDisposable
             using var timer = new PeriodicTimer(TimeSpan.FromMilliseconds(5));
             while (!_cts.Token.IsCancellationRequested)
             {
-                _lobby.PollEvents();
-                _game.PollEvents();
+                lock (_pollGate)
+                {
+                    _lobby.PollEvents();
+                    _game.PollEvents();
+                }
+
                 try
                 {
                     await timer.WaitForNextTickAsync(_cts.Token);
@@ -80,8 +85,40 @@ public sealed class ServerFixture : IDisposable
 
     public void StopGameServer()
     {
-        _game.Stop();
+        lock (_pollGate)
+        {
+            _game.Stop();
+        }
+
         Thread.Sleep(300);
+    }
+
+    public void RestartLobby()
+    {
+        lock (_pollGate)
+        {
+            _lobby.Stop();
+            Thread.Sleep(200);
+
+            _lobby = new LobbyServer.LobbyServer(_lobbyConfig, _roomStore);
+            _lobby.Start(_lobbyConfig);
+        }
+
+        Thread.Sleep(500);
+    }
+
+    public void RestartGameServer()
+    {
+        lock (_pollGate)
+        {
+            _game.Stop();
+            Thread.Sleep(200);
+
+            _game = new global::GameServer.GameServer(_gameConfig);
+            _game.Start();
+        }
+
+        Thread.Sleep(1000);
     }
 
     public (CreateRoomResponse Response, ReturnCode Code) CreateSystemRoom(string roomId,
@@ -103,6 +140,7 @@ public sealed class ServerFixture : IDisposable
     public void Dispose()
     {
         _cts.Cancel();
+
         try
         {
             _pollTask.Wait(2000);
@@ -110,6 +148,9 @@ public sealed class ServerFixture : IDisposable
         catch (AggregateException)
         {
         }
+
+        _game.Stop();
+        _lobby.Stop();
     }
 }
 

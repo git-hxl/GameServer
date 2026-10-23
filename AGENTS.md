@@ -12,7 +12,7 @@ dotnet run --project GameServer        # 启动时连接 LobbyServer 并注册�
 dotnet run --project TestClient        # 交互式命令行客户端（连接 :6001）
 ```
 
-启动顺序有依赖：LobbyServer → GameServer → TestClient。GameServer 断线后每 5 秒自动重连 LobbyServer；在至少一个 GameServer 注册之前无法创建房间。
+启动顺序有依赖：Redis → LobbyServer → GameServer → TestClient。LobbyServer 启动时必须能连接 Redis（默认 `localhost:6379`），否则直接退出；GameServer 断线后每 5 秒自动重连 LobbyServer；在至少一个 GameServer 注册之前无法创建房间。
 
 连接 key 分角色：客户端用 `ClientConnectionKey`（客户端口/游戏端口），GameServer 用 `ServerConnectionKey`（serverPort），互不通用。
 
@@ -49,6 +49,11 @@ LobbyServer 维护两个 registry：`_clientRegistry`（客户端口消息）和
 - 房主离开时按 `PlayerIds` 加入顺序转移给下一个成员，并广播 `RoomOwnerChangedNotify`。
 - `MaxPlayers` 只在 Lobby 层校验；GameServer 不限制人数。
 - 玩家离开/切换大厅房间时由客户端先发 `LeaveGame`；GameServer 不会因为游戏房间暂时为空而删除房间，删除只由 Lobby 的 `CloseGameRoom` 触发。
+- LobbyServer 的房间、成员、房主持久化到 Redis（`{RedisKeyPrefix}:lobby:rooms` Hash）；GameServer 不持久化房间。
+- Lobby 重启从 Redis 恢复房间，成员恢复为离线状态；玩家重新 `JoinLobby`（相同 userId）后回到原房间。
+- GameServer 重启后重新注册时，Lobby 按 `Address:Port` 补发 `CreateGameRoom`（幂等）；游戏内玩家需要重新 `JoinGame`。
+- Redis 配置：`RedisConnection`、`RedisKeyPrefix`、`RedisDatabase`（见 `LobbyServerConfig.json`）。
+- Redis 启动失败：Lobby 退出；运行期写失败：记录日志，内存状态继续。
 
 ## 约定
 
