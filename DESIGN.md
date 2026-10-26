@@ -256,6 +256,15 @@ OnClientConnected(peer)         只打印日志，不写 _players
 1. 非 `RemoteConnectionClose`：LobbyPlayer 和房间成员身份都保留，`JoinLobby` 的 `BindOnline` 替换 Peer 后 `CurrentRoomId` 仍在；发 `JoinRoom` 返回 `Success + RoomInfo`，直接回到原房间。
 2. `RemoteConnectionClose`：LobbyPlayer 已删除、房间成员已移除，重连等同于新玩家加入大厅。
 
+房间中离线成员的清理：
+
+- 非 `RemoteConnectionClose` 断线、重启后未确认房间的成员会进入 inactive 状态；
+- `LobbyServer.PollEvents` 每 30 秒调用 `RoomManager.CleanupInactiveMembers()`；
+- 超过 **10 分钟**仍未确认/仍离线的成员会从房间 `PlayerIds` 移除；
+- 移除房主时按顺序转移房主并广播；房间空了则删除 Redis 并发送 `CloseGameRoom`；
+- 玩家资料（`lobby:players`）保留，不随房间成员清理删除；
+- 房间成员缺少玩家资料的场景也走这套清理：10 分钟内不重新加入大厅/确认房间，就会从房间移除，释放名额。
+
 ### 7.4 在线人数
 
 - `PlayerManager.Count`：`_players` 总数，**包含离线玩家**。
@@ -557,6 +566,7 @@ public interface ILobbyPlayerStore
 | `RemoteConnectionClose` | 房间 `LeaveRoom` → `Save`/`Delete`；玩家资料 `Delete` |
 | `JoinLobby` 新玩家 / 重连绑定 | 玩家资料 `Save` |
 | 玩家主动 `LeaveLobby` | 房间 `LeaveRoom`；玩家资料 `Delete` |
+| 房间离线/待确认成员超时清理 | 房间 `Save`/`Delete`；玩家资料保留 |
 
 `RoomManager` 的公共方法使用 `[MethodImpl(MethodImplOptions.Synchronized)]`，Redis 写同步发生在锁内。`SyncTimeout = 1000ms` 是 Redis 故障时的最坏阻塞上限。
 
@@ -577,6 +587,8 @@ public interface ILobbyPlayerStore
 - 空玩家房（`PlayerIds.Count == 0 && CreatorUserId != null`）视为脏数据，删除并跳过；
 - 空系统房（`CreatorUserId == null`）保留；
 - 房主不在成员列表时回退到第一个成员；
+- 所有恢复的房间成员进入 inactive 计时；
+- `LobbyServer.PollEvents` 每 30 秒清理超过 10 分钟未确认/仍离线的成员，避免旧成员永久占位；
 - 恢复完成后等待 GameServer 重连注册补建。
 
 玩家重新 `JoinLobby` 时：
@@ -756,7 +768,7 @@ GameServer: TryAdd 空房间
 - **无登录鉴权**：`JoinLobby` 接受任意 `UserId`，知道 `RoomId` 的客户端可以 `JoinGame`；离线玩家身份可被顶替。
 - **GameServer 地址变化不迁移**：LobbyRoom 以 `Address:Port` 关联 GameServer；GS 换地址后旧房间无法匹配。
 - **只补建、不清理**：GS 重连时 Lobby 只补建缺失房间，不关闭 GS 上多余的房间。
-- **离线玩家 / Timeout 房间保留**：`Timeout` 会保留 LobbyPlayer 和房间成员（占用 `MaxPlayers`，没有 TTL）；其他非 `RemoteConnectionClose` 断线保留 LobbyPlayer 但移出房间；Redis 恢复的 `PlayerIds` 同样占用 `MaxPlayers`。
+- **房间离线成员 10 分钟清理**：非 `RemoteConnectionClose` 断线、重启后未确认房间的成员会在 10 分钟后从房间移除；玩家资料仍永久保留（无 TTL）。房间成员缺少玩家资料时同样走这套清理释放名额。
 - **协议不含在线状态**：`RoomInfo.Players` 只有 `PlayerInfo`；`RoomListInfo.PlayerCount` 包含离线成员。
 - **运行期 Redis 写失败**：记录日志，内存继续；重启后可能回退到旧快照，没有异步补偿队列。
 - **Redis 写锁内同步**：Redis 故障时单次房间操作最多阻塞 `SyncTimeout=1000ms`。
@@ -790,6 +802,7 @@ GameServer: TryAdd 空房间
 | 2026-10-23 | 新增玩家资料持久化（`lobby:players`）；重启恢复离线 LobbyPlayer |
 | 2026-10-23 | 重启后不自动回填房间关系；玩家需显式 JoinRoom 确认，LeaveRoom 支持清理恢复关系 |
 | 2026-10-26 | 删除未接入的 LobbyManager；补 `LobbyServer.CloseRoom` 外部关闭入口；GameServer Program 接入 `Stop()` 优雅停机 |
+| 2026-10-26 | 房间离线/待确认成员由 PollEvents 每 30 秒清理，超过 10 分钟移出房间 |
 
 ---
 

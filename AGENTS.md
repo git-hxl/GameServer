@@ -67,5 +67,6 @@ LobbyServer 维护两个 registry：`_clientRegistry`（客户端口消息）和
 - 所有方法必须写注释：生产代码与测试中的方法（含 `private`/`static`/局部函数、构造函数）使用中文 XML 文档注释；接口实现/重写可用 `<inheritdoc/>`。新增/修改方法时注释必须与代码同一提交完成。
 - 玩家标识是 `long UserId`；`PlayerManager` 维护 `userId → LobbyPlayer`；`LobbyPlayer` 保存 `Info`、`Peer`（null=离线）和 `CurrentRoomId`。玩家资料持久化在 `lobby:players`。
 - 大厅玩家断线：非 `RemoteConnectionClose` 只清 `Peer`，保留 LobbyPlayer 和房间成员身份；`RemoteConnectionClose` 移出房间并删除玩家和玩家资料。
+- 房间中离线/重启后未确认的成员由 `LobbyServer.PollEvents` 每 30 秒检查，超过 10 分钟自动移出房间；玩家资料保留。
 - 房间流程：`RoomManager.PickGameServer` 根据每个 GameServer 周期性 `GameServerUpdate` 上报的 `GameServerInfo.PlayerCount` 做负载均衡。`GameServerRegistry` 以 `Address:Port`（GameServer 上报的广告地址）为唯一 key 定位 GameServer。
 - GameServer 广告地址：`GameServerInfo.Address` 由 GameServer 在 Register/Update 时自行上报——取 `GameServerConfig.PublicAddress`（可配置覆盖），为空时 `AddressResolver` 自动探测本机首个非回环 IPv4，兜底 127.0.0.1。

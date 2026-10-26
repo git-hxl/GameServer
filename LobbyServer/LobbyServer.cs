@@ -33,6 +33,7 @@ public class LobbyServer
 
     private readonly GameServerRegistry _gameServerRegistry = new();
     private bool _stopping;
+    private DateTime _nextRoomCleanup = DateTime.MinValue;
 
     /// <summary>
     /// 创建大厅服务器实例；RedisHelper 由调用方创建，构造过程不连接 Redis。
@@ -110,7 +111,7 @@ public class LobbyServer
     private void RegisterHandlers()
     {
         _clientRegistry.Register(
-            new JoinLobbyHandler(_playerManager),
+            new JoinLobbyHandler(_playerManager, _roomManager),
             new LeaveLobbyHandler(_playerManager, _roomManager),
             new ChatHandler(_playerManager),
             new CreateRoomHandler(_playerManager, _roomManager),
@@ -149,10 +150,20 @@ public class LobbyServer
         _serverNetManager.Stop();
     }
 
+    /// <summary>
+    /// 轮询网络事件，并按固定间隔清理超时未确认的房间成员。
+    /// </summary>
     public void PollEvents()
     {
         _clientNetManager.PollEvents();
         _serverNetManager.PollEvents();
+
+        var now = DateTime.UtcNow;
+        if (now >= _nextRoomCleanup)
+        {
+            _roomManager.CleanupInactiveMembers();
+            _nextRoomCleanup = now.AddSeconds(30);
+        }
     }
 
     private void OnClientConnected(NetPeer peer)
@@ -180,6 +191,7 @@ public class LobbyServer
         if (disconnectInfo.Reason != DisconnectReason.RemoteConnectionClose)
         {
             player.ResetPeer();
+            _roomManager.MarkPlayerInactive(userId);
             Log.Information("[LobbyServer] 断线，保留玩家和房间身份 userId={UserId} reason={Reason}",
                 userId, disconnectInfo.Reason);
             return;

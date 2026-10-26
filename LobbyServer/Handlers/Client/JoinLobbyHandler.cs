@@ -1,5 +1,6 @@
 using LiteNetLib;
 using LobbyServer.Player;
+using LobbyServer.Room;
 using Serilog;
 using SharedLib.Handlers;
 using SharedLib.Models;
@@ -13,10 +14,12 @@ public class JoinLobbyHandler : MessageHandler<JoinLobbyRequest>
     public override ushort MessageId => MessageIds.JoinLobby;
 
     private readonly PlayerManager _players;
+    private readonly RoomManager _rooms;
 
-    public JoinLobbyHandler(PlayerManager players)
+    public JoinLobbyHandler(PlayerManager players, RoomManager rooms)
     {
         _players = players;
+        _rooms = rooms;
     }
 
     /// <summary>
@@ -44,6 +47,7 @@ public class JoinLobbyHandler : MessageHandler<JoinLobbyRequest>
                 oldPeer.NetManager.DisconnectPeer(oldPeer);
 
             _players.BindOnline(player, peer, request.Player);
+            _rooms.RefreshPlayerPending(userId);
 
             Log.Information("[LobbyManager] 玩家恢复会话 userId={UserId} roomId={RoomId}",
                 userId, player.CurrentRoomId);
@@ -53,6 +57,7 @@ public class JoinLobbyHandler : MessageHandler<JoinLobbyRequest>
         }
 
         _players.Add(peer, request.Player);
+        _rooms.RefreshPlayerPending(userId);
 
         Log.Information("[LobbyManager] 大厅加入 userId={UserId} nickname={Nickname} 在线人数={Count}",
             userId, request.Player.Nickname, _players.OnlineCount);

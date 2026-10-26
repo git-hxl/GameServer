@@ -12,10 +12,13 @@ namespace LobbyServer.Room;
 
 public class RoomManager
 {
+    private static readonly TimeSpan InactiveMemberTimeout = TimeSpan.FromMinutes(10);
+
     private readonly PlayerManager _players;
     private readonly GameServerRegistry _gameServerRegistry;
     private readonly ILobbyRoomStore _roomStore;
     private readonly Dictionary<string, LobbyRoom> _rooms = new();
+    private readonly Dictionary<(string RoomId, long UserId), DateTime> _inactiveSince = new();
 
     public RoomManager(PlayerManager players, GameServerRegistry gameServerRegistry, ILobbyRoomStore roomStore)
     {
@@ -126,6 +129,7 @@ public class RoomManager
             Log.Information("[RoomManager] 玩家已在房间中，返回房间信息 roomId={RoomId} userId={UserId}",
                 request.RoomId, userId);
             player.SetRoom(request.RoomId);
+            _inactiveSince.Remove((room.RoomId, userId));
             return (new JoinRoomResponse { Room = BuildRoomInfo(room) }, ReturnCode.Success);
         }
 
@@ -183,6 +187,7 @@ public class RoomManager
             return (new LeaveRoomResponse(), ReturnCode.NotInRoom);
 
         player.ResetRoom();
+        _inactiveSince.Remove((roomId, userId));
 
         var remaining = room.PlayerIds.Count;
         Log.Information("[RoomManager] 离开房间 roomId={RoomId} userId={UserId} 剩余人数={Count}",
@@ -231,6 +236,10 @@ public class RoomManager
 
         _roomStore.Delete(roomId);
 
+        var inactiveKeys = _inactiveSince.Keys.Where(key => key.RoomId == roomId).ToList();
+        foreach (var key in inactiveKeys)
+            _inactiveSince.Remove(key);
+
         var frame = MessageHelper.CreateFrame(MessageIds.RoomClosedNotify, ReturnCode.Success,
             new RoomClosedNotify { RoomId = roomId, Reason = reason });
 
@@ -264,6 +273,126 @@ public class RoomManager
 
         Log.Information("[RoomManager] 查询房间列表 房间数={Count}", list.Count);
         return new RoomListResponse { Rooms = list };
+    }
+
+    /// <summary>
+    /// 标记玩家当前所在的房间为待确认/离线状态，开始 10 分钟计时。
+    /// </summary>
+    /// <param name="userId">玩家 ID。</param>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void MarkPlayerInactive(long userId)
+    {
+        var player = _players.Get(userId);
+        if (player?.CurrentRoomId is { } currentRoomId && _rooms.ContainsKey(currentRoomId))
+        {
+            _inactiveSince[(currentRoomId, userId)] = DateTime.UtcNow;
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        foreach (var room in _rooms.Values.Where(room => room.PlayerIds.Contains(userId)))
+            _inactiveSince[(room.RoomId, userId)] = now;
+    }
+
+    /// <summary>
+    /// 玩家重新加入大厅后刷新待确认房间的计时；已经确认房间则清除计时。
+    /// </summary>
+    /// <param name="userId">玩家 ID。</param>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void RefreshPlayerPending(long userId)
+    {
+        var player = _players.Get(userId);
+        if (player?.CurrentRoomId is { } roomId && _rooms.ContainsKey(roomId))
+        {
+            ClearInactiveForUser(userId);
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        foreach (var room in _rooms.Values.Where(room => room.PlayerIds.Contains(userId)))
+            _inactiveSince[(room.RoomId, userId)] = now;
+    }
+
+    /// <summary>
+    /// 清理超过 10 分钟仍未确认或仍离线的房间成员。
+    /// </summary>
+    [MethodImpl(MethodImplOptions.Synchronized)]
+    public void CleanupInactiveMembers()
+    {
+        var now = DateTime.UtcNow;
+        var expired = _inactiveSince
+            .Where(pair => now - pair.Value >= InactiveMemberTimeout)
+            .Select(pair => pair.Key)
+            .ToList();
+
+        foreach (var key in expired)
+        {
+            if (!_rooms.TryGetValue(key.RoomId, out var room))
+            {
+                _inactiveSince.Remove(key);
+                continue;
+            }
+
+            var player = _players.Get(key.UserId);
+            if (player != null && player.Peer != null && player.CurrentRoomId == key.RoomId)
+            {
+                _inactiveSince.Remove(key);
+                continue;
+            }
+
+            if (!room.PlayerIds.Remove(key.UserId))
+            {
+                _inactiveSince.Remove(key);
+                continue;
+            }
+
+            if (player?.CurrentRoomId == key.RoomId)
+                player.ResetRoom();
+
+            _inactiveSince.Remove(key);
+
+            Log.Information("[RoomManager] 清理超时未确认成员 roomId={RoomId} userId={UserId}",
+                key.RoomId, key.UserId);
+
+            if (room.PlayerIds.Count == 0)
+            {
+                _rooms.Remove(room.RoomId);
+                _roomStore.Delete(room.RoomId);
+                SendCloseGameRoom(room, RoomCloseReason.Empty);
+                Log.Information("[RoomManager] 房间关闭 roomId={RoomId}（无玩家）", room.RoomId);
+            }
+            else
+            {
+                if (room.OwnerUserId == key.UserId)
+                {
+                    room.OwnerUserId = room.PlayerIds[0];
+                    Broadcast(room, MessageIds.RoomOwnerChangedNotify, new RoomOwnerChangedNotify
+                    {
+                        RoomId = room.RoomId,
+                        OwnerUserId = room.OwnerUserId
+                    });
+                }
+
+                Broadcast(room, MessageIds.LeaveRoomNotify, new LeaveRoomNotify
+                {
+                    RoomId = room.RoomId,
+                    UserId = key.UserId
+                });
+
+                PersistRoom(room);
+            }
+        }
+    }
+
+    /// <summary>
+    /// 清除某个玩家的全部待确认计时。
+    /// </summary>
+    /// <param name="userId">玩家 ID。</param>
+    private void ClearInactiveForUser(long userId)
+    {
+        var keys = _inactiveSince.Keys.Where(key => key.UserId == userId).ToList();
+        foreach (var key in keys)
+            _inactiveSince.Remove(key);
     }
 
     /// <summary>
@@ -350,6 +479,10 @@ public class RoomManager
             }
 
             _rooms[room.RoomId] = room;
+
+            var now = DateTime.UtcNow;
+            foreach (var userId in room.PlayerIds)
+                _inactiveSince[(room.RoomId, userId)] = now;
         }
 
         Log.Information("[RoomManager] 从存储恢复房间数={Count}", _rooms.Count);
