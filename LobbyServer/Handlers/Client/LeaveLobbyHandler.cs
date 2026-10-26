@@ -28,15 +28,15 @@ public class LeaveLobbyHandler : MessageHandler<LeaveLobbyRequest>
         Log.Information("[LobbyManager] 离开大厅 userId={UserId}", request.UserId);
 
         var player = _players.Get(request.UserId);
-        if (player == null)
+        if (player == null || !ReferenceEquals(player.Peer, peer))
         {
-            Log.Warning("[LobbyManager] 离开大厅失败：用户不在大厅中 userId={UserId}", request.UserId);
+            Log.Warning("[LobbyManager] 离开大厅失败：用户不在大厅中或 Peer 不匹配 userId={UserId}", request.UserId);
             MessageHelper.Send(peer, MessageId, ReturnCode.NotInLobby, new LeaveLobbyResponse { UserId = request.UserId });
             return;
         }
-        
+
         _rooms.LeaveRoom(request.UserId);
-        
+
         _players.Remove(player.Info.UserId);
         
         Log.Information("[LobbyManager] 大厅离开 userId={UserId} 在线人数={Count}",

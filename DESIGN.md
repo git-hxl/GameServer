@@ -49,6 +49,7 @@
                         │ Redis                       │
                         │  {prefix}:lobby:rooms       │
                         │  Hash<roomId, JSON(LobbyRoom)>│
+                        │  Hash<userId, JSON(PlayerInfo)>│
                         └──────────────▲──────────────┘
                                        │ 启动恢复 / 变更保存
                                        │
@@ -100,7 +101,7 @@ LobbyServer/
     Client/        客户端消息 handler、LobbyStateHandler
     Server/        GameServer 注册/更新 handler
   Lobby/           LobbyManager（Create 初始化存储/RoomManager、Join/Leave/Chat）
-  Persistence/     ILobbyRoomStore、RedisLobbyRoomStore
+  Persistence/     ILobbyRoomStore、RedisLobbyRoomStore、ILobbyPlayerStore、RedisLobbyPlayerStore
   Player/          PlayerManager、LobbyPlayer
   Room/            RoomManager、LobbyRoom
   LobbyServer.cs   两端 NetManager、handler 注册、外部 API、Stop
@@ -211,18 +212,17 @@ ConcurrentDictionary<long, LobbyPlayer> _players;   // userId -> LobbyPlayer
 public class LobbyPlayer
 {
     public PlayerInfo Info { get; set; }       // 昵称、头像等
-    public int PeerId { get; set; } = -1;      // 当前连接 ID；-1 = 离线
-    public string? CurrentRoomId { get; set; } // null = 不在房间
+    public NetPeer? Peer { get; private set; } // null = 离线
+    public string? CurrentRoomId { get; private set; }
 }
 ```
 
-- **没有** `NetPeer` 对象，也没有 `NetPeer → userId` 反向字典。
-- **没有** `PlayerState` 枚举。
-- 在线状态 = `PeerId != -1` 且 `PeerId` 能解析到已连接 `NetPeer`。
+- `LobbyPlayer` 不持有 PeerId 注册表；连接就是 `Peer` 对象本身。
+- 在线状态 = `Peer != null`。
 - 所在房间 = `CurrentRoomId`。
-- `PlayerManager` 维护 `PeerId → NetPeer` 注册表（仅在线连接）和自增 PeerId；LobbyPlayer 只保存 PeerId。
-- `NetPeer.Tag` 指向对应 `LobbyPlayer`，用于 O(1) 反查；`GetByPeer(peer)` 通过 Tag + PeerId 注册表校验。
-- 玩家被移出大厅、主动断线或解除绑定时，`PeerId` 重置为 `-1`。
+- `PlayerManager.GetByPeer(peer)` 线性扫描 `_players`，按 Peer 匹配。
+- 玩家资料持久化在 `{prefix}:lobby:players`；恢复时为离线 LobbyPlayer（`Peer = null`）。
+- 房间成员关系从 `LobbyRoom.PlayerIds` 恢复，并回填到 LobbyPlayer 的 `CurrentRoomId`。
 
 ### 7.2 连接与加入大厅
 
@@ -230,34 +230,31 @@ public class LobbyPlayer
 OnClientConnected(peer)         只打印日志，不写 _players
 收到 JoinLobby
   ├─ userId 已存在
-  │    ├─ PeerId == -1（离线/Redis 恢复）→ BindOnline；如果 CurrentRoomId 非空则保留房间身份
-  │    ├─ 当前连接就是同一个 peer       → 更新 Info；如果仍在房间则保留
-  │    └─ 当前连接是旧 peer（顶号）     → 解绑并断开旧 peer，绑定新 peer；如果仍在房间则保留
-  └─ userId 不存在 → _players.Add(peer, PlayerInfo)，分配新 PeerId
+  │    ├─ Peer == null（离线/Redis 恢复）→ BindOnline；CurrentRoomId 已由房间恢复回填
+  │    ├─ Peer == 同一个 peer         → 更新 Info，保留房间
+  │    └─ Peer != 新 peer（顶号）     → 断开旧 peer，绑定新 peer，保留房间
+  └─ userId 不存在 → _players.Add(peer, PlayerInfo)，并保存玩家资料
 ```
 
 - 同一连接切换 userId：先 `RoomManager.RemovePlayer(oldUserId)`，再处理新 userId。
-- 重连时如果玩家仍在房间中，`PersistPlayerRoom(userId)` 更新 Redis 里的 PlayerInfo。
-- 运行时 `Timeout` 断线会保留 `CurrentRoomId`；其他原因断线会先移出房间，`CurrentRoomId` 被清空。
-- `JoinLobbyResponse` 只返回 `PlayerInfo`，不返回当前房间；客户端需要再发 `JoinRoom` 获取 `RoomInfo`。已在房间的成员调用 `JoinRoom` 返回 `Success + RoomInfo`，不会返回 `AlreadyInRoom`。
+- 重连时 `BindOnline` 更新 PlayerInfo 并写回 `lobby:players`；`CurrentRoomId` 保持不变。
+- 玩家资料恢复后，`JoinLobby` 相当于一次正常的断线重连。
+- `JoinLobbyResponse` 只返回 `PlayerInfo`，不返回当前房间；客户端需要再发 `JoinRoom` 获取 `RoomInfo`。已在房间的成员调用 `JoinRoom` 返回 `Success + RoomInfo`，不会重复加入。
 
 ### 7.3 主动退出与断线策略
 
 | 事件 | 判定 | 处理 |
 |---|---|---|
-| `LeaveLobby` | 主动退出 | `RoomManager.RemovePlayer(userId)`：离开房间、删除 LobbyPlayer、更新/删除 Redis |
-| `Timeout` | 超时断线 | `UnbindPeer` 只清 Peer；保留 LobbyPlayer 和房间成员身份/`CurrentRoomId`；不写 Redis |
-| `RemoteConnectionClose` | 主动断线 | `LeaveRoom(userId)` 移出房间并更新 Redis，然后从 `PlayerManager` 删除 LobbyPlayer |
-| `DisconnectPeerCalled` | 服务端主动断开 | `LeaveRoom(userId)` 移出房间，`UnbindPeer` 保留离线 LobbyPlayer（`PeerId=-1`、`CurrentRoomId=null`） |
-| 其他异常断线 | `ConnectionFailed`、`HostUnreachable`、`NetworkUnreachable`、`ConnectionRejected`、`InvalidProtocol`、`UnknownHost`、`Reconnect`、`PeerToPeerConnection`、`PeerNotFound` | 同上：移出房间，保留离线 LobbyPlayer |
+| `LeaveLobby` | 主动退出 | `LeaveRoom(userId)` 移出房间；`PlayerManager.Remove(userId)` 删除玩家和资料 |
+| 非 `RemoteConnectionClose` 断线 | `Timeout`、`ConnectionFailed` 等 | 只 `ResetPeer()`；保留 LobbyPlayer、房间成员和 `CurrentRoomId`；不写 Redis |
+| `RemoteConnectionClose` | 主动断线 | `LeaveRoom(userId)` 移出房间并更新/删除房间数据；`PlayerManager.Remove(userId)` 删除玩家和资料 |
 
-**`Timeout` 不移出房间**；其他原因的断线都会先移出房间，只有 `RemoteConnectionClose` 会进一步从 `PlayerManager` 删除玩家。
+**非主动断线不移出房间**；只有 `RemoteConnectionClose` 会移出房间并删除玩家。
 
 断线后重连：
 
-1. `Timeout`：LobbyPlayer 和房间成员身份都保留，`BindOnline` 替换 Peer 后 `CurrentRoomId` 仍在；发 `JoinRoom` 返回 `Success + RoomInfo`，直接回到原房间。
-2. 其他原因：LobbyPlayer 可能保留，但已移出房间，`CurrentRoomId=null`；重连只恢复大厅身份，需要重新 `JoinRoom`。
-3. `RemoteConnectionClose`：LobbyPlayer 已删除，重连等同于新玩家加入大厅。
+1. 非 `RemoteConnectionClose`：LobbyPlayer 和房间成员身份都保留，`JoinLobby` 的 `BindOnline` 替换 Peer 后 `CurrentRoomId` 仍在；发 `JoinRoom` 返回 `Success + RoomInfo`，直接回到原房间。
+2. `RemoteConnectionClose`：LobbyPlayer 已删除、房间成员已移除，重连等同于新玩家加入大厅。
 
 ### 7.4 在线人数
 
@@ -467,20 +464,26 @@ RoomManager.ResyncGameServer(peer, info)
 
 ---
 
-## 11. Redis 房间持久化
+## 11. Redis 房间与玩家持久化
 
 ### 11.1 范围
 
-- **只持久化 Lobby 房间**：`LobbyRoom` + 成员 `PlayerInfo` + 房主 + 绑定 GameServer 地址。
+- 持久化 **LobbyRoom**（房间数据、成员 userIds、房主、绑定的 GameServer）和 **PlayerInfo**（玩家资料）。
 - GameServer 不写 Redis。
-- 运行期不在线状态、`NetPeer` 不持久化。
+- 不持久化 `NetPeer` / 在线状态；恢复后玩家为离线，重新 `JoinLobby` 时绑定新连接。
+- 房间成员关系以 `LobbyRoom.PlayerIds` 为准；玩家资料以 `lobby:players` 为准。
+- 玩家重新加入大厅后，走与运行时断线重连相同的“绑定已有离线玩家”逻辑。
 
-### 11.2 Key 与快照
+### 11.2 Key 与数据模型
 
 ```text
 {RedisKeyPrefix}:lobby:rooms    Redis Hash
   field = roomId
   value = JSON(LobbyRoom)
+
+{RedisKeyPrefix}:lobby:players  Redis Hash
+  field = userId
+  value = JSON(PlayerInfo)
 ```
 
 ```csharp
@@ -498,9 +501,9 @@ public class LobbyRoom
 ```
 
 - 直接序列化 `LobbyRoom`，不再使用额外的 Snapshot DTO。
-- 不持久化 `PlayerInfo`；玩家重新 `JoinLobby` 时由请求携带自己的信息。
+- `PlayerInfo` 保存昵称、头像等资料；`UserId` 同时作为玩家 Hash 的 field。
 - 默认 prefix `gameserver`，默认 database 0。
-- 不设 TTL；关房/空房时显式 `HDEL`。
+- 不设 TTL；关房/空房时显式 `HDEL` 房间；玩家离开大厅时 `HDEL` 玩家。
 - 使用 Hash 而非“每房一个 key + 索引 Set”：一次 `HGETALL` 恢复全部，`HSET`/`HDEL` 原子。
 
 ### 11.3 RedisHelper
@@ -526,12 +529,19 @@ public interface ILobbyRoomStore
     void Save(LobbyRoom room);
     void Delete(string roomId);
 }
+
+public interface ILobbyPlayerStore
+{
+    IReadOnlyList<PlayerInfo> LoadAll();
+    void Save(PlayerInfo player);
+    void Delete(long userId);
+}
 ```
 
-- 生产实现：`RedisLobbyRoomStore`，使用注入的 `RedisHelper`，不拥有 Redis 连接。
+- 生产实现：`RedisLobbyRoomStore` / `RedisLobbyPlayerStore`，使用注入的 `RedisHelper`，不拥有 Redis 连接。
 - `LoadAll` 校验：
-  - `GameServerAddress` 非空、`GameServerPort > 0`；
-  - Redis Hash field 作为 `RoomId` 的唯一可信来源；
+  - 房间：`GameServerAddress` 非空、`GameServerPort > 0`；Hash field 作为 `RoomId` 唯一可信来源；
+  - 玩家：field 必须能解析为 `UserId > 0`，并回填 `PlayerInfo.UserId`；
   - 无效条目直接从 Redis 删除。
 - 运行期 `Save`/`Delete` 捕获异常并记录日志，不抛出；内存状态继续。
 
@@ -539,47 +549,53 @@ public interface ILobbyRoomStore
 
 | 操作 | Redis |
 |---|---|
-| `CreateRoom` 成功 | `Save` |
-| `JoinRoom` 成功 | `Save` |
-| `LeaveRoom` 后房间非空 | `Save`（成员/房主变化） |
-| `LeaveRoom` 后房间为空 | `Delete` |
-| `CloseRoom` | `Delete` |
-| 重连/顶号绑定并更新 Info | `PersistPlayerRoom` → `Save` |
-| 超时断线（Timeout） | **不写**（保留 LobbyPlayer 和房间成员） |
-| 其他断线（非 Timeout / RemoteConnectionClose） | `LeaveRoom` → `Save`/`Delete`；保留离线 LobbyPlayer（`PeerId=-1`、`CurrentRoomId=null`） |
-| 主动断开（RemoteConnectionClose） | `LeaveRoom` → `Save`/`Delete`；再从 `PlayerManager` 删除 |
+| `CreateRoom` 成功 | 房间 `Save` |
+| `JoinRoom` 成功 | 房间 `Save` |
+| `LeaveRoom` 后房间非空 | 房间 `Save`（成员/房主变化） |
+| `LeaveRoom` 后房间为空 | 房间 `Delete` |
+| 非 `RemoteConnectionClose` 断线 | **不写**（保留 LobbyPlayer 和房间成员） |
+| `RemoteConnectionClose` | 房间 `LeaveRoom` → `Save`/`Delete`；玩家资料 `Delete` |
+| `JoinLobby` 新玩家 / 重连绑定 | 玩家资料 `Save` |
+| 玩家主动 `LeaveLobby` | 房间 `LeaveRoom`；玩家资料 `Delete` |
 
 `RoomManager` 的公共方法使用 `[MethodImpl(MethodImplOptions.Synchronized)]`，Redis 写同步发生在锁内。`SyncTimeout = 1000ms` 是 Redis 故障时的最坏阻塞上限。
 
 ### 11.6 启动恢复
 
-`LobbyManager.Create`（由 `LobbyServer.Start` 调用）：
+`LobbyServer.Start`：
 
-1. 用注入的 `RedisHelper` 创建 `RedisLobbyRoomStore`；
-2. 创建 `RoomManager`（注入 store）；
-3. `RoomManager.RestoreFromStore()`；
-4. 返回已恢复房间的 `LobbyManager`。
-
-`LobbyServer.Start` 随后从 `LobbyManager.Rooms` 取得 `RoomManager`，注册 handler，启动 NetManager。
+1. 用注入的 `RedisHelper` 创建 `RedisLobbyRoomStore` / `RedisLobbyPlayerStore`；
+2. 创建 `PlayerManager`，`RestoreFromStore()` 恢复全部玩家为离线 LobbyPlayer；
+3. 创建 `RoomManager`，恢复全部 LobbyRoom；
+4. 对每个房间成员：找到对应离线 LobbyPlayer（不存在则创建 UserId 占位），把 `CurrentRoomId` 设为该房间；
+5. 注册 handler、启动 NetManager。
 
 恢复规则：
 
-- 每个成员创建离线 `LobbyPlayer`：`Peer = null`、`CurrentRoomId = roomId`；
-- `PlayerIds` 顺序直接来自持久化的 `LobbyRoom.PlayerIds`；
+- 玩家恢复为离线：`Peer = null`，`CurrentRoomId` 初始为空；
+- 房间成员关系来自 `LobbyRoom.PlayerIds`，恢复时回填到 LobbyPlayer；
+- 房间成员缺少玩家资料时创建占位 `PlayerInfo { UserId }`，玩家重连后更新并保存；
 - 空玩家房（`PlayerIds.Count == 0 && CreatorUserId != null`）视为脏数据，删除并跳过；
 - 空系统房（`CreatorUserId == null`）保留；
 - 房主不在成员列表时回退到第一个成员；
 - 恢复完成后等待 GameServer 重连注册补建。
 
+玩家重新 `JoinLobby` 时：
+
+1. `PlayerManager.Get(userId)` 找到恢复的离线 LobbyPlayer；
+2. `BindOnline` 设置新 Peer、更新 PlayerInfo 并写回玩家 Hash；
+3. `CurrentRoomId` 保持恢复后的房间关联；
+4. 后续 `JoinRoom` 对已在房间的成员返回 `Success + RoomInfo`，不会重复加入。
+
 ### 11.7 失败与停机
 
-- `LobbyServer/Program.cs` 只创建 `RedisHelper`（组合根）；RedisHelper 创建失败记录 `Redis 初始化失败`，LobbyServer/Start 失败记录 `大厅服务器初始化失败`（可能是端口绑定、房间恢复等），两者都以非 0 退出。
+- `LobbyServer/Program.cs` 只创建 `RedisHelper`（组合根）；RedisHelper 创建失败记录 `Redis 初始化失败`，LobbyServer/Start 失败记录 `大厅服务器初始化失败`（可能是端口绑定、玩家/房间恢复等），两者都以非 0 退出。
 - `LobbyServer` 构造函数接收 `RedisHelper`，不创建 store、不连接 Redis；`Stop()` 只停止两个 NetManager。
-- `LobbyManager.Create` 在初始化时创建 `RedisLobbyRoomStore` 和 `RoomManager`，并用注入的 `RedisHelper` 完成 Redis 访问。
-- `Program` 在 `finally` 中先 `lobbyServer.Stop()`，再 `redisHelper.Dispose()`；`RedisLobbyRoomStore` 不拥有连接，不负责释放。
-- `LobbyServer.Stop()` 设置 `_stopping`：停机期间忽略客户端/GameServer 断开事件，避免把进程退出误判为玩家离开并删除 Redis 房间。
+- `LobbyServer.Start` 创建两个 Redis store、`PlayerManager` 和 `RoomManager`，完成玩家/房间恢复。
+- `Program` 在 `finally` 中先 `lobbyServer.Stop()`，再 `redisHelper.Dispose()`；两个 store 都不拥有连接，不负责释放。
+- `LobbyServer.Stop()` 设置 `_stopping`：停机期间忽略客户端/GameServer 断开事件，避免把进程退出误判为玩家离开并删除 Redis 数据。
 - `Stop()` 是终止性的；需要重启请创建新的 `LobbyServer` 实例。
-- 运行期写失败：记录 `Log.Error`，内存继续；重启后可能回退到旧快照。
+- 运行期写失败：记录 `Log.Error`，内存继续；重启后可能回退到旧数据。
 
 ---
 
@@ -769,6 +785,7 @@ GameServer: TryAdd 空房间
 | 2026-10-23 | Timeout 断线改为保留 LobbyPlayer 和房间成员身份；其他原因仍移出房间 |
 | 2026-10-23 | LobbyPlayer 移除 NetPeer，只保存 PeerId（-1=离线）；PlayerManager 维护 PeerId→NetPeer 注册表 |
 | 2026-10-23 | 删除 LobbyRoomSnapshot，Redis 直接持久化 LobbyRoom |
+| 2026-10-23 | 新增玩家资料持久化（`lobby:players`）；重启恢复离线 LobbyPlayer 并回填房间关系 |
 
 ---
 

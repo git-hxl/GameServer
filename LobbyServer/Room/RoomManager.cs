@@ -125,6 +125,7 @@ public class RoomManager
         {
             Log.Information("[RoomManager] 玩家已在房间中，返回房间信息 roomId={RoomId} userId={UserId}",
                 request.RoomId, userId);
+            player.SetRoom(request.RoomId);
             return (new JoinRoomResponse { Room = BuildRoomInfo(room) }, ReturnCode.Success);
         }
 
@@ -327,6 +328,27 @@ public class RoomManager
                 Log.Warning("[RoomManager] 恢复时发现空玩家房，删除 roomId={RoomId}", room.RoomId);
                 _roomStore.Delete(room.RoomId);
                 continue;
+            }
+
+            foreach (var userId in room.PlayerIds)
+            {
+                var player = _players.Get(userId);
+                if (player == null)
+                {
+                    player = _players.AddOffline(new PlayerInfo { UserId = userId });
+                    Log.Warning("[RoomManager] 恢复房间成员缺少玩家资料，创建占位 userId={UserId} roomId={RoomId}",
+                        userId, room.RoomId);
+                }
+
+                if (string.IsNullOrEmpty(player.CurrentRoomId))
+                {
+                    player.SetRoom(room.RoomId);
+                }
+                else if (player.CurrentRoomId != room.RoomId)
+                {
+                    Log.Warning("[RoomManager] 玩家同时出现在多个房间，保留第一个 userId={UserId} roomId={RoomId}",
+                        userId, player.CurrentRoomId);
+                }
             }
 
             if (room.PlayerIds.Count > 0 && !room.PlayerIds.Contains(room.OwnerUserId))

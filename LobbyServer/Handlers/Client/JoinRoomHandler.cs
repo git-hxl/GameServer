@@ -21,7 +21,14 @@ public class JoinRoomHandler : LobbyStateHandler<JoinRoomRequest>
 
     public override void HandleMessage(NetPeer peer, JoinRoomRequest request)
     {
-        var (res, code) = _rooms.JoinRoom(request.UserId, request);
+        var player = Players.GetByPeer(peer);
+        if (player == null)
+        {
+            MessageHelper.Send(peer, MessageId, ReturnCode.NotInLobby, new JoinRoomResponse());
+            return;
+        }
+
+        var (res, code) = _rooms.JoinRoom(player.Info.UserId, request);
         MessageHelper.Send(peer, MessageId, code, res);
     }
 

@@ -70,7 +70,11 @@ public class LobbyServer
     public void Start(LobbyServerConfig config)
     {
         var roomStore = new RedisLobbyRoomStore(_redisHelper, config.RedisKeyPrefix);
-        _playerManager = new PlayerManager();
+        var playerStore = new RedisLobbyPlayerStore(_redisHelper, config.RedisKeyPrefix);
+
+        _playerManager = new PlayerManager(playerStore);
+        _playerManager.RestoreFromStore();
+
         _roomManager = new RoomManager(_playerManager, _gameServerRegistry, roomStore);
 
         _clientRegistry = new HandlerRegistry();
@@ -164,7 +168,8 @@ public class LobbyServer
         if (disconnectInfo.Reason != DisconnectReason.RemoteConnectionClose)
         {
             player.ResetPeer();
-            Log.Information("[LobbyServer] 超时断线，保留玩家和房间身份 userId={UserId}", userId);
+            Log.Information("[LobbyServer] 断线，保留玩家和房间身份 userId={UserId} reason={Reason}",
+                userId, disconnectInfo.Reason);
             return;
         }
 

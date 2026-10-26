@@ -52,11 +52,11 @@ LobbyServer 维护两个 registry：`_clientRegistry`（客户端口消息）和
 - 房主离开时按 `PlayerIds` 加入顺序转移给下一个成员，并广播 `RoomOwnerChangedNotify`。
 - `MaxPlayers` 只在 Lobby 层校验；GameServer 不限制人数。
 - 玩家离开/切换大厅房间时由客户端先发 `LeaveGame`；GameServer 不会因为游戏房间暂时为空而删除房间，删除只由 Lobby 的 `CloseGameRoom` 触发。
-- LobbyServer 的房间、成员、房主持久化到 Redis（`{RedisKeyPrefix}:lobby:rooms` Hash）；GameServer 不持久化房间。
-- Lobby 重启从 Redis 恢复房间，成员恢复为离线状态；玩家重新 `JoinLobby`（相同 userId）后回到原房间。
+- LobbyServer 的房间（`{RedisKeyPrefix}:lobby:rooms` Hash）和玩家资料（`{RedisKeyPrefix}:lobby:players` Hash）持久化到 Redis；GameServer 不持久化。
+- Lobby 重启从 Redis 恢复玩家资料（离线 LobbyPlayer）和房间；房间 `PlayerIds` 回填 `CurrentRoomId`；玩家重新 `JoinLobby` 时走断线重连绑定，不需要重新加入房间。
 - GameServer 重启后重新注册时，Lobby 按 `Address:Port` 补发 `CreateGameRoom`（幂等）；游戏内玩家需要重新 `JoinGame`。
 - Redis 配置：`RedisConnection`、`RedisKeyPrefix`、`RedisDatabase`（见 `LobbyServerConfig.json`）。
-- `Program.cs` 只创建/释放 `RedisHelper`；`LobbyManager.Create` 用注入的 RedisHelper 创建 `RedisLobbyRoomStore` 和 `RoomManager` 并恢复房间；`LobbyServer` 接收 RedisHelper，不直接创建 store。
+- `Program.cs` 只创建/释放 `RedisHelper`；`LobbyServer.Start` 创建 `RedisLobbyRoomStore`、`RedisLobbyPlayerStore`、`PlayerManager`、`RoomManager` 并完成恢复；`LobbyServer` 接收 RedisHelper，不直接持有 Redis 连接。
 - Redis 启动失败：Lobby 退出；运行期写失败：记录日志，内存状态继续。
 - 根目录 `DESIGN.md` 是当前实现的设计文档；任何协议、状态模型、配置、Redis、重连/停机语义的功能改动或新增，必须在同一提交中更新对应章节，并按第 19 节检查清单自检。
 
@@ -65,7 +65,7 @@ LobbyServer 维护两个 registry：`_clientRegistry`（客户端口消息）和
 - handler 很薄：继承 `MessageHandler<TRequest>`，委托给 `LobbyManager` / `RoomManager`（LobbyServer）或 `GameRoomManager`（GameServer）。房间/玩家状态放在这些 manager 里，而不是 handler 里。
 - 服务端注释和日志是中文，修改相邻代码时保持该风格。
 - 所有方法必须写注释：生产代码与测试中的方法（含 `private`/`static`/局部函数、构造函数）使用中文 XML 文档注释；接口实现/重写可用 `<inheritdoc/>`。新增/修改方法时注释必须与代码同一提交完成。
-- 玩家标识是 `long UserId`；`PlayerManager` 维护 `userId → LobbyPlayer` 和 `PeerId → NetPeer` 注册表；`LobbyPlayer` 只保存 `PeerId`（-1 = 离线），在线状态由 `PeerId != -1` 且能解析到连接表示，所在房间由 `CurrentRoomId` 表示。
-- 大厅玩家断线：`Timeout` 只把 `PeerId` 重置为 -1，保留 LobbyPlayer 和房间成员身份，重连可回原房间；其他原因先 `RoomManager.LeaveRoom(userId)` 移出房间，`RemoteConnectionClose` 再从 `_players` 删除，其他原因 `UnbindPeer` 保留离线 LobbyPlayer。
+- 玩家标识是 `long UserId`；`PlayerManager` 维护 `userId → LobbyPlayer`；`LobbyPlayer` 保存 `Info`、`Peer`（null=离线）和 `CurrentRoomId`。玩家资料持久化在 `lobby:players`。
+- 大厅玩家断线：非 `RemoteConnectionClose` 只清 `Peer`，保留 LobbyPlayer 和房间成员身份；`RemoteConnectionClose` 移出房间并删除玩家和玩家资料。
 - 房间流程：`RoomManager.PickGameServer` 根据每个 GameServer 周期性 `GameServerUpdate` 上报的 `GameServerInfo.PlayerCount` 做负载均衡。`GameServerRegistry` 以 `Address:Port`（GameServer 上报的广告地址）为唯一 key 定位 GameServer。
 - GameServer 广告地址：`GameServerInfo.Address` 由 GameServer 在 Register/Update 时自行上报——取 `GameServerConfig.PublicAddress`（可配置覆盖），为空时 `AddressResolver` 自动探测本机首个非回环 IPv4，兜底 127.0.0.1。
