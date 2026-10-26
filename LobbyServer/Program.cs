@@ -10,7 +10,7 @@ Log.Information("正在启动 LobbyServer");
 
 var config = ConfigLoader.Load<LobbyServerConfig>("LobbyServerConfig.json");
 
-// 组合根只负责创建 RedisHelper；房间存储由 LobbyManager 初始化时创建。
+// 组合根只负责创建 RedisHelper；玩家和房间存储由 LobbyServer.Start 创建。
 RedisHelper redis;
 
 try

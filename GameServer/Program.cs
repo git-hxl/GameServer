@@ -34,5 +34,9 @@ try
 catch (OperationCanceledException)
 {
 }
+finally
+{
+    server.Stop();
+}
 
 Log.Information("[GameServer] 已退出");

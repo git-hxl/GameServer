@@ -100,7 +100,6 @@ LobbyServer/
   Handlers/
     Client/        客户端消息 handler、LobbyStateHandler
     Server/        GameServer 注册/更新 handler
-  Lobby/           LobbyManager（Create 初始化存储/RoomManager、Join/Leave/Chat）
   Persistence/     ILobbyRoomStore、RedisLobbyRoomStore、ILobbyPlayerStore、RedisLobbyPlayerStore
   Player/          PlayerManager、LobbyPlayer
   Room/            RoomManager、LobbyRoom
@@ -261,7 +260,7 @@ OnClientConnected(peer)         只打印日志，不写 _players
 
 - `PlayerManager.Count`：`_players` 总数，**包含离线玩家**。
 - `PlayerManager.OnlineCount`：`Peer` 已连接的玩家数。
-- 日志和 `LobbyManager.UserCount` 使用 `OnlineCount`。
+- 日志和 `PlayerManager.OnlineCount` 使用在线人数。
 - `RoomManager` 的广播/通知只发给 `OnlinePeers` 或 `Peer` 已连接的成员。
 
 ---
@@ -790,6 +789,7 @@ GameServer: TryAdd 空房间
 | 2026-10-23 | 删除 LobbyRoomSnapshot，Redis 直接持久化 LobbyRoom |
 | 2026-10-23 | 新增玩家资料持久化（`lobby:players`）；重启恢复离线 LobbyPlayer |
 | 2026-10-23 | 重启后不自动回填房间关系；玩家需显式 JoinRoom 确认，LeaveRoom 支持清理恢复关系 |
+| 2026-10-26 | 删除未接入的 LobbyManager；补 `LobbyServer.CloseRoom` 外部关闭入口；GameServer Program 接入 `Stop()` 优雅停机 |
 
 ---
 
