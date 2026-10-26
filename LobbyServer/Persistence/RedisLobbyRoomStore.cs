@@ -1,10 +1,11 @@
+using LobbyServer.Room;
 using Serilog;
 using SharedLib.Redis;
 
 namespace LobbyServer.Persistence;
 
 /// <summary>
-/// 大厅房间的 Redis 持久化实现；使用注入的 RedisHelper，不拥有连接。
+/// 大厅房间的 Redis 持久化实现；直接序列化 LobbyRoom，使用注入的 RedisHelper。
 /// </summary>
 public sealed class RedisLobbyRoomStore : ILobbyRoomStore
 {
@@ -23,48 +24,47 @@ public sealed class RedisLobbyRoomStore : ILobbyRoomStore
     }
 
     /// <summary>
-    /// 读取并校验全部大厅房间快照；无效条目会从 Redis 删除。
+    /// 读取并校验全部大厅房间；无效条目会从 Redis 删除。
     /// </summary>
-    /// <returns>有效的大厅房间快照。</returns>
-    public IReadOnlyList<LobbyRoomSnapshot> LoadAll()
+    /// <returns>有效的大厅房间。</returns>
+    public IReadOnlyList<LobbyRoom> LoadAll()
     {
-        var entries = _redis.HashGetAll<LobbyRoomSnapshot>(_key);
-        var result = new List<LobbyRoomSnapshot>();
+        var entries = _redis.HashGetAll<LobbyRoom>(_key);
+        var result = new List<LobbyRoom>();
 
-        foreach (var (field, snapshot) in entries)
+        foreach (var (field, room) in entries)
         {
             if (string.IsNullOrWhiteSpace(field) ||
-                snapshot.Version != 1 ||
-                string.IsNullOrWhiteSpace(snapshot.GameServerAddress) ||
-                snapshot.GameServerPort <= 0)
+                string.IsNullOrWhiteSpace(room.GameServerAddress) ||
+                room.GameServerPort <= 0)
             {
-                Log.Warning("[Redis] 忽略无效房间快照 field={Field}", field);
+                Log.Warning("[Redis] 忽略无效房间数据 field={Field}", field);
                 if (!string.IsNullOrWhiteSpace(field))
                     _redis.HashDelete(_key, field);
                 continue;
             }
 
-            if (!string.Equals(snapshot.RoomId, field, StringComparison.Ordinal))
+            if (!string.Equals(room.RoomId, field, StringComparison.Ordinal))
             {
                 Log.Warning("[Redis] 房间字段与 RoomId 不一致，使用字段名 field={Field} roomId={RoomId}",
-                    field, snapshot.RoomId);
-                snapshot.RoomId = field;
+                    field, room.RoomId);
+                room.RoomId = field;
             }
 
-            if (snapshot.Players == null)
-                snapshot.Players = [];
+            if (room.PlayerIds == null)
+                room.PlayerIds = [];
 
-            result.Add(snapshot);
+            result.Add(room);
         }
 
         return result;
     }
 
     /// <summary>
-    /// 保存单个大厅房间快照；Redis 异常记录日志，不抛出。
+    /// 保存单个大厅房间；Redis 异常记录日志，不抛出。
     /// </summary>
-    /// <param name="room">房间快照。</param>
-    public void Save(LobbyRoomSnapshot room)
+    /// <param name="room">大厅房间。</param>
+    public void Save(LobbyRoom room)
     {
         try
         {
@@ -77,7 +77,7 @@ public sealed class RedisLobbyRoomStore : ILobbyRoomStore
     }
 
     /// <summary>
-    /// 删除大厅房间快照；Redis 异常记录日志，不抛出。
+    /// 删除大厅房间；Redis 异常记录日志，不抛出。
     /// </summary>
     /// <param name="roomId">房间 ID。</param>
     public void Delete(string roomId)

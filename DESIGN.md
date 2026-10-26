@@ -48,7 +48,7 @@
                         ┌─────────────────────────────┐
                         │ Redis                       │
                         │  {prefix}:lobby:rooms       │
-                        │  Hash<roomId, JSON snapshot>│
+                        │  Hash<roomId, JSON(LobbyRoom)>│
                         └──────────────▲──────────────┘
                                        │ 启动恢复 / 变更保存
                                        │
@@ -100,7 +100,7 @@ LobbyServer/
     Client/        客户端消息 handler、LobbyStateHandler
     Server/        GameServer 注册/更新 handler
   Lobby/           LobbyManager（Create 初始化存储/RoomManager、Join/Leave/Chat）
-  Persistence/     LobbyRoomSnapshot、ILobbyRoomStore、RedisLobbyRoomStore
+  Persistence/     ILobbyRoomStore、RedisLobbyRoomStore
   Player/          PlayerManager、LobbyPlayer
   Room/            RoomManager、LobbyRoom
   LobbyServer.cs   两端 NetManager、handler 注册、外部 API、Stop
@@ -480,24 +480,25 @@ RoomManager.ResyncGameServer(peer, info)
 ```text
 {RedisKeyPrefix}:lobby:rooms    Redis Hash
   field = roomId
-  value = JSON(LobbyRoomSnapshot)
+  value = JSON(LobbyRoom)
 ```
 
 ```csharp
-public class LobbyRoomSnapshot
+public class LobbyRoom
 {
-    public int Version = 1;
     public string RoomId;
     public RoomType RoomType;
     public int MaxPlayers;
+    public List<long> PlayerIds;       // 按加入顺序
     public long OwnerUserId;
     public long? CreatorUserId;
     public string GameServerAddress;
     public int GameServerPort;
-    public List<PlayerInfo> Players;   // 按加入顺序
 }
 ```
 
+- 直接序列化 `LobbyRoom`，不再使用额外的 Snapshot DTO。
+- 不持久化 `PlayerInfo`；玩家重新 `JoinLobby` 时由请求携带自己的信息。
 - 默认 prefix `gameserver`，默认 database 0。
 - 不设 TTL；关房/空房时显式 `HDEL`。
 - 使用 Hash 而非“每房一个 key + 索引 Set”：一次 `HGETALL` 恢复全部，`HSET`/`HDEL` 原子。
@@ -521,15 +522,14 @@ public class LobbyRoomSnapshot
 ```csharp
 public interface ILobbyRoomStore
 {
-    IReadOnlyList<LobbyRoomSnapshot> LoadAll();
-    void Save(LobbyRoomSnapshot room);
+    IReadOnlyList<LobbyRoom> LoadAll();
+    void Save(LobbyRoom room);
     void Delete(string roomId);
 }
 ```
 
 - 生产实现：`RedisLobbyRoomStore`，使用注入的 `RedisHelper`，不拥有 Redis 连接。
 - `LoadAll` 校验：
-  - `Version == 1`；
   - `GameServerAddress` 非空、`GameServerPort > 0`；
   - Redis Hash field 作为 `RoomId` 的唯一可信来源；
   - 无效条目直接从 Redis 删除。
@@ -565,11 +565,10 @@ public interface ILobbyRoomStore
 恢复规则：
 
 - 每个成员创建离线 `LobbyPlayer`：`Peer = null`、`CurrentRoomId = roomId`；
-- `PlayerIds` 顺序来自快照 `Players` 顺序；
-- 空玩家房（`Players.Count == 0 && CreatorUserId != null`）视为脏数据，删除并跳过；
+- `PlayerIds` 顺序直接来自持久化的 `LobbyRoom.PlayerIds`；
+- 空玩家房（`PlayerIds.Count == 0 && CreatorUserId != null`）视为脏数据，删除并跳过；
 - 空系统房（`CreatorUserId == null`）保留；
 - 房主不在成员列表时回退到第一个成员；
-- 重复 userId 只保留第一个，后续跳过；
 - 恢复完成后等待 GameServer 重连注册补建。
 
 ### 11.7 失败与停机
@@ -739,7 +738,7 @@ GameServer: TryAdd 空房间
 - **无登录鉴权**：`JoinLobby` 接受任意 `UserId`，知道 `RoomId` 的客户端可以 `JoinGame`；离线玩家身份可被顶替。
 - **GameServer 地址变化不迁移**：LobbyRoom 以 `Address:Port` 关联 GameServer；GS 换地址后旧房间无法匹配。
 - **只补建、不清理**：GS 重连时 Lobby 只补建缺失房间，不关闭 GS 上多余的房间。
-- **离线玩家 / Timeout 房间保留**：`Timeout` 会保留 LobbyPlayer 和房间成员（占用 `MaxPlayers`，没有 TTL）；其他非 `RemoteConnectionClose` 断线保留 LobbyPlayer 但移出房间；Redis 恢复的离线成员同样占用 `MaxPlayers`。
+- **离线玩家 / Timeout 房间保留**：`Timeout` 会保留 LobbyPlayer 和房间成员（占用 `MaxPlayers`，没有 TTL）；其他非 `RemoteConnectionClose` 断线保留 LobbyPlayer 但移出房间；Redis 恢复的 `PlayerIds` 同样占用 `MaxPlayers`。
 - **协议不含在线状态**：`RoomInfo.Players` 只有 `PlayerInfo`；`RoomListInfo.PlayerCount` 包含离线成员。
 - **运行期 Redis 写失败**：记录日志，内存继续；重启后可能回退到旧快照，没有异步补偿队列。
 - **Redis 写锁内同步**：Redis 故障时单次房间操作最多阻塞 `SyncTimeout=1000ms`。
@@ -769,6 +768,7 @@ GameServer: TryAdd 空房间
 | 2026-10-23 | 断线策略调整：删除 PlayerDisconnectPolicy；任何断线先离开房间，RemoteConnectionClose 删除 LobbyPlayer，其他原因保留离线玩家 |
 | 2026-10-23 | Timeout 断线改为保留 LobbyPlayer 和房间成员身份；其他原因仍移出房间 |
 | 2026-10-23 | LobbyPlayer 移除 NetPeer，只保存 PeerId（-1=离线）；PlayerManager 维护 PeerId→NetPeer 注册表 |
+| 2026-10-23 | 删除 LobbyRoomSnapshot，Redis 直接持久化 LobbyRoom |
 
 ---
 

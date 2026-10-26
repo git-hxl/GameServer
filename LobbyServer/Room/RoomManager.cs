@@ -311,56 +311,27 @@ public class RoomManager
     }
     
     /// <summary>
-    /// 从快照中恢复
+    /// 从存储恢复房间数据；只恢复房间本身，玩家关系在重新 JoinLobby 后处理。
     /// </summary>
     [MethodImpl(MethodImplOptions.Synchronized)]
     public void RestoreFromStore()
     {
-        var snapshots = _roomStore.LoadAll();
+        var rooms = _roomStore.LoadAll();
 
-        foreach (var snapshot in snapshots)
+        foreach (var room in rooms)
         {
-            var snapshotPlayers = snapshot.Players ?? [];
-
-            if (snapshotPlayers.Count == 0 && snapshot.CreatorUserId != null)
-            {
-                Log.Warning("[RoomManager] 恢复时发现空玩家房，删除 roomId={RoomId}", snapshot.RoomId);
-                _roomStore.Delete(snapshot.RoomId);
-                continue;
-            }
-
-            var room = new LobbyRoom
-            {
-                RoomId = snapshot.RoomId,
-                RoomType = snapshot.RoomType,
-                MaxPlayers = snapshot.MaxPlayers,
-                OwnerUserId = snapshot.OwnerUserId,
-                CreatorUserId = snapshot.CreatorUserId,
-                GameServerAddress = snapshot.GameServerAddress,
-                GameServerPort = snapshot.GameServerPort
-            };
-
-            foreach (var info in snapshotPlayers)
-            {
-                if (_players.Get(info.UserId) != null)
-                {
-                    Log.Warning("[RoomManager] 恢复时发现重复玩家 userId={UserId} roomId={RoomId}",
-                        info.UserId, snapshot.RoomId);
-                    continue;
-                }
-
-                room.PlayerIds.Add(info.UserId);
-            }
+            room.PlayerIds ??= [];
 
             if (room.PlayerIds.Count == 0 && room.CreatorUserId != null)
             {
-                _roomStore.Delete(snapshot.RoomId);
+                Log.Warning("[RoomManager] 恢复时发现空玩家房，删除 roomId={RoomId}", room.RoomId);
+                _roomStore.Delete(room.RoomId);
                 continue;
             }
 
             if (room.PlayerIds.Count > 0 && !room.PlayerIds.Contains(room.OwnerUserId))
             {
-                Log.Warning("[RoomManager] 房主不在成员列表，回退到第一个成员 roomId={RoomId}", snapshot.RoomId);
+                Log.Warning("[RoomManager] 房主不在成员列表，回退到第一个成员 roomId={RoomId}", room.RoomId);
                 room.OwnerUserId = room.PlayerIds[0];
             }
 
@@ -371,37 +342,12 @@ public class RoomManager
     }
 
     /// <summary>
-    /// 更新房间快照
+    /// 保存房间数据。
     /// </summary>
-    /// <param name="room"></param>
+    /// <param name="room">大厅房间。</param>
     private void PersistRoom(LobbyRoom room)
     {
-        var players = new List<PlayerInfo>();
-
-        foreach (var userId in room.PlayerIds)
-        {
-            var player = _players.Get(userId);
-            if (player == null)
-            {
-                Log.Warning("[RoomManager] 持久化时玩家不存在 userId={UserId} roomId={RoomId}",
-                    userId, room.RoomId);
-                continue;
-            }
-
-            players.Add(player.Info);
-        }
-
-        _roomStore.Save(new LobbyRoomSnapshot
-        {
-            RoomId = room.RoomId,
-            RoomType = room.RoomType,
-            MaxPlayers = room.MaxPlayers,
-            OwnerUserId = room.OwnerUserId,
-            CreatorUserId = room.CreatorUserId,
-            GameServerAddress = room.GameServerAddress,
-            GameServerPort = room.GameServerPort,
-            Players = players
-        });
+        _roomStore.Save(room);
     }
 
     private void SendCloseGameRoom(LobbyRoom room, RoomCloseReason reason)
