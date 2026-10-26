@@ -323,24 +323,6 @@ public class RoomManager
         Log.Information("[RoomManager] GameServer注册补建完成 GameServer={Addr}:{Port} 房间数={Count}",
             info.Address, info.Port, rooms.Count);
     }
-
-    [MethodImpl(MethodImplOptions.Synchronized)]
-    public LobbyRoom? GetRoom(string roomId)
-    {
-        return _rooms.TryGetValue(roomId, out var room) ? room : null;
-    }
-    
-    
-    [MethodImpl(MethodImplOptions.Synchronized)]
-    public void PersistPlayerRoom(long userId)
-    {
-        var player = _players.Get(userId);
-        if (player?.CurrentRoomId is not { } roomId)
-            return;
-
-        if (_rooms.TryGetValue(roomId, out var room))
-            PersistRoom(room);
-    }
     
     /// <summary>
     /// 从存储恢复房间数据；只恢复房间本身，不自动把玩家放回房间。
