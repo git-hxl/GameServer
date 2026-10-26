@@ -230,16 +230,17 @@ public class LobbyPlayer
 OnClientConnected(peer)         只打印日志，不写 _players
 收到 JoinLobby
   ├─ userId 已存在
-  │    ├─ Peer == null（离线/Redis 恢复）→ BindOnline；CurrentRoomId 已由房间恢复回填
+  │    ├─ Peer == null（离线/Redis 恢复）→ BindOnline；CurrentRoomId 不自动恢复
   │    ├─ Peer == 同一个 peer         → 更新 Info，保留房间
   │    └─ Peer != 新 peer（顶号）     → 断开旧 peer，绑定新 peer，保留房间
   └─ userId 不存在 → _players.Add(peer, PlayerInfo)，并保存玩家资料
 ```
 
 - 同一连接切换 userId：先 `RoomManager.RemovePlayer(oldUserId)`，再处理新 userId。
-- 重连时 `BindOnline` 更新 PlayerInfo 并写回 `lobby:players`；`CurrentRoomId` 保持不变。
-- 玩家资料恢复后，`JoinLobby` 相当于一次正常的断线重连。
+- 运行时断线重连：`BindOnline` 更新 PlayerInfo 并写回 `lobby:players`；如果运行期保留了房间成员身份，`CurrentRoomId` 仍在。
+- Lobby 重启恢复：`BindOnline` 只恢复大厅身份，`CurrentRoomId` 为空；玩家需要发一次幂等 `JoinRoom` 确认房间。
 - `JoinLobbyResponse` 只返回 `PlayerInfo`，不返回当前房间；客户端需要再发 `JoinRoom` 获取 `RoomInfo`。已在房间的成员调用 `JoinRoom` 返回 `Success + RoomInfo`，不会重复加入。
+- 玩家选择其他房间/创建新房间时，会先清理该 userId 在所有旧房间中的成员关系。
 
 ### 7.3 主动退出与断线策略
 
@@ -566,15 +567,14 @@ public interface ILobbyPlayerStore
 
 1. 用注入的 `RedisHelper` 创建 `RedisLobbyRoomStore` / `RedisLobbyPlayerStore`；
 2. 创建 `PlayerManager`，`RestoreFromStore()` 恢复全部玩家为离线 LobbyPlayer；
-3. 创建 `RoomManager`，恢复全部 LobbyRoom；
-4. 对每个房间成员：找到对应离线 LobbyPlayer（不存在则创建 UserId 占位），把 `CurrentRoomId` 设为该房间；
-5. 注册 handler、启动 NetManager。
+3. 创建 `RoomManager`，恢复全部 LobbyRoom；**不自动把玩家放回房间**；
+4. 注册 handler、启动 NetManager。
 
 恢复规则：
 
-- 玩家恢复为离线：`Peer = null`，`CurrentRoomId` 初始为空；
-- 房间成员关系来自 `LobbyRoom.PlayerIds`，恢复时回填到 LobbyPlayer；
-- 房间成员缺少玩家资料时创建占位 `PlayerInfo { UserId }`，玩家重连后更新并保存；
+- 玩家恢复为离线：`Peer = null`，`CurrentRoomId` 为空；
+- 房间成员关系保留在 `LobbyRoom.PlayerIds` 中，但不自动绑定到 LobbyPlayer；
+- 房间成员缺少玩家资料时，不影响房间数据；玩家重新加入大厅后由 `JoinLobby` 创建/更新资料；
 - 空玩家房（`PlayerIds.Count == 0 && CreatorUserId != null`）视为脏数据，删除并跳过；
 - 空系统房（`CreatorUserId == null`）保留；
 - 房主不在成员列表时回退到第一个成员；
@@ -584,8 +584,11 @@ public interface ILobbyPlayerStore
 
 1. `PlayerManager.Get(userId)` 找到恢复的离线 LobbyPlayer；
 2. `BindOnline` 设置新 Peer、更新 PlayerInfo 并写回玩家 Hash；
-3. `CurrentRoomId` 保持恢复后的房间关联；
-4. 后续 `JoinRoom` 对已在房间的成员返回 `Success + RoomInfo`，不会重复加入。
+3. `CurrentRoomId` 仍为空，不会自动回到原房间；
+4. 玩家如果仍想回原房间，发一次幂等 `JoinRoom`：
+   - `room.PlayerIds.Contains(userId)` → `SetRoom(roomId)` + `Success + RoomInfo`，不会重复加入；
+5. 如果玩家已经不想回原房间，可以什么都不发，或发 `LeaveRoom` 清理旧房间关系；
+6. 如果玩家选择加入其他房间/创建新房间，`RoomManager` 会先把这个 userId 从旧房间移出，避免幽灵成员。
 
 ### 11.7 失败与停机
 
@@ -785,7 +788,8 @@ GameServer: TryAdd 空房间
 | 2026-10-23 | Timeout 断线改为保留 LobbyPlayer 和房间成员身份；其他原因仍移出房间 |
 | 2026-10-23 | LobbyPlayer 移除 NetPeer，只保存 PeerId（-1=离线）；PlayerManager 维护 PeerId→NetPeer 注册表 |
 | 2026-10-23 | 删除 LobbyRoomSnapshot，Redis 直接持久化 LobbyRoom |
-| 2026-10-23 | 新增玩家资料持久化（`lobby:players`）；重启恢复离线 LobbyPlayer 并回填房间关系 |
+| 2026-10-23 | 新增玩家资料持久化（`lobby:players`）；重启恢复离线 LobbyPlayer |
+| 2026-10-23 | 重启后不自动回填房间关系；玩家需显式 JoinRoom 确认，LeaveRoom 支持清理恢复关系 |
 
 ---
 

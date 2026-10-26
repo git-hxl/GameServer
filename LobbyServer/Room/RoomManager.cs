@@ -70,8 +70,8 @@ public class RoomManager
             return (new CreateRoomResponse(), ReturnCode.GameServerOffline);
         }
 
-        if (creatorUserId.HasValue && _players.Get(creatorUserId.Value)?.CurrentRoomId != null)
-            LeaveRoom(creatorUserId.Value);
+        if (creatorUserId.HasValue)
+            LeaveAllRoomsOf(creatorUserId.Value);
 
         var room = new LobbyRoom
         {
@@ -136,8 +136,7 @@ public class RoomManager
             return (new JoinRoomResponse { Room = new RoomInfo { RoomId = request.RoomId } }, ReturnCode.RoomFull);
         }
 
-        if (player.CurrentRoomId != null)
-            LeaveRoom(userId);
+        LeaveAllRoomsOf(userId, request.RoomId);
 
         room.PlayerIds.Add(userId);
         if (room.OwnerUserId == 0)
@@ -166,15 +165,24 @@ public class RoomManager
         Log.Information("[RoomManager] 离开房间 userId={UserId}", userId);
 
         var player = _players.Get(userId);
-        if (player == null || player.CurrentRoomId == null)
+        if (player == null)
             return (new LeaveRoomResponse(), ReturnCode.NotInRoom);
 
-        var roomId = player.CurrentRoomId;
-        if (!_rooms.TryGetValue(roomId, out var room))
+        LobbyRoom? room = null;
+        if (player.CurrentRoomId is { } currentRoomId)
+            _rooms.TryGetValue(currentRoomId, out room);
+
+        if (room == null || !room.PlayerIds.Contains(userId))
+            room = _rooms.Values.FirstOrDefault(r => r.PlayerIds.Contains(userId));
+
+        if (room == null)
             return (new LeaveRoomResponse(), ReturnCode.NotInRoom);
 
+        var roomId = room.RoomId;
         if (!room.PlayerIds.Remove(userId))
             return (new LeaveRoomResponse(), ReturnCode.NotInRoom);
+
+        player.ResetRoom();
 
         var remaining = room.PlayerIds.Count;
         Log.Information("[RoomManager] 离开房间 roomId={RoomId} userId={UserId} 剩余人数={Count}",
@@ -258,6 +266,29 @@ public class RoomManager
         return new RoomListResponse { Rooms = list };
     }
 
+    /// <summary>
+    /// 把玩家从除 exceptRoomId 外的所有房间移出；用于重启后玩家重新选择房间时清理旧关系。
+    /// </summary>
+    /// <param name="userId">玩家 ID。</param>
+    /// <param name="exceptRoomId">要保留的目标房间，可为 null。</param>
+    private void LeaveAllRoomsOf(long userId, string? exceptRoomId = null)
+    {
+        var player = _players.Get(userId);
+        if (player == null)
+            return;
+
+        var roomIds = _rooms.Values
+            .Where(room => room.RoomId != exceptRoomId && room.PlayerIds.Contains(userId))
+            .Select(room => room.RoomId)
+            .ToList();
+
+        foreach (var roomId in roomIds)
+        {
+            player.SetRoom(roomId);
+            LeaveRoom(userId);
+        }
+    }
+
     private void Broadcast(LobbyRoom room, ushort messageId, object data)
     {
         var frame = MessageHelper.CreateFrame(messageId, ReturnCode.Success, data);
@@ -312,7 +343,7 @@ public class RoomManager
     }
     
     /// <summary>
-    /// 从存储恢复房间数据；只恢复房间本身，玩家关系在重新 JoinLobby 后处理。
+    /// 从存储恢复房间数据；只恢复房间本身，不自动把玩家放回房间。
     /// </summary>
     [MethodImpl(MethodImplOptions.Synchronized)]
     public void RestoreFromStore()
@@ -328,27 +359,6 @@ public class RoomManager
                 Log.Warning("[RoomManager] 恢复时发现空玩家房，删除 roomId={RoomId}", room.RoomId);
                 _roomStore.Delete(room.RoomId);
                 continue;
-            }
-
-            foreach (var userId in room.PlayerIds)
-            {
-                var player = _players.Get(userId);
-                if (player == null)
-                {
-                    player = _players.AddOffline(new PlayerInfo { UserId = userId });
-                    Log.Warning("[RoomManager] 恢复房间成员缺少玩家资料，创建占位 userId={UserId} roomId={RoomId}",
-                        userId, room.RoomId);
-                }
-
-                if (string.IsNullOrEmpty(player.CurrentRoomId))
-                {
-                    player.SetRoom(room.RoomId);
-                }
-                else if (player.CurrentRoomId != room.RoomId)
-                {
-                    Log.Warning("[RoomManager] 玩家同时出现在多个房间，保留第一个 userId={UserId} roomId={RoomId}",
-                        userId, player.CurrentRoomId);
-                }
             }
 
             if (room.PlayerIds.Count > 0 && !room.PlayerIds.Contains(room.OwnerUserId))

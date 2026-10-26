@@ -53,7 +53,7 @@ LobbyServer 维护两个 registry：`_clientRegistry`（客户端口消息）和
 - `MaxPlayers` 只在 Lobby 层校验；GameServer 不限制人数。
 - 玩家离开/切换大厅房间时由客户端先发 `LeaveGame`；GameServer 不会因为游戏房间暂时为空而删除房间，删除只由 Lobby 的 `CloseGameRoom` 触发。
 - LobbyServer 的房间（`{RedisKeyPrefix}:lobby:rooms` Hash）和玩家资料（`{RedisKeyPrefix}:lobby:players` Hash）持久化到 Redis；GameServer 不持久化。
-- Lobby 重启从 Redis 恢复玩家资料（离线 LobbyPlayer）和房间；房间 `PlayerIds` 回填 `CurrentRoomId`；玩家重新 `JoinLobby` 时走断线重连绑定，不需要重新加入房间。
+- Lobby 重启从 Redis 恢复玩家资料（离线 LobbyPlayer）和房间；**不自动把玩家放回房间**，玩家重新 `JoinLobby` 后需发一次幂等 `JoinRoom` 确认；如果选择其他房间会先清理旧关系。
 - GameServer 重启后重新注册时，Lobby 按 `Address:Port` 补发 `CreateGameRoom`（幂等）；游戏内玩家需要重新 `JoinGame`。
 - Redis 配置：`RedisConnection`、`RedisKeyPrefix`、`RedisDatabase`（见 `LobbyServerConfig.json`）。
 - `Program.cs` 只创建/释放 `RedisHelper`；`LobbyServer.Start` 创建 `RedisLobbyRoomStore`、`RedisLobbyPlayerStore`、`PlayerManager`、`RoomManager` 并完成恢复；`LobbyServer` 接收 RedisHelper，不直接持有 Redis 连接。
