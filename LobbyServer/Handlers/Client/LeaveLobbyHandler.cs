@@ -34,11 +34,11 @@ public class LeaveLobbyHandler : MessageHandler<LeaveLobbyRequest>
             MessageHelper.Send(peer, MessageId, ReturnCode.NotInLobby, new LeaveLobbyResponse { UserId = request.UserId });
             return;
         }
-
-        _players.Remove(player.Info.UserId);
-
+        
         _rooms.LeaveRoom(request.UserId);
-
+        
+        _players.Remove(player.Info.UserId);
+        
         Log.Information("[LobbyManager] 大厅离开 userId={UserId} 在线人数={Count}",
             request.UserId, _players.OnlineCount);
         

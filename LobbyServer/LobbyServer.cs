@@ -24,7 +24,7 @@ public class LobbyServer
     private readonly string _serverKey;
 
     private readonly RedisHelper _redisHelper;
-    private PlayerManager _playerManager = null;
+    private PlayerManager _playerManager = null!;
     private RoomManager _roomManager = null!;
     private HandlerRegistry _clientRegistry = null!;
     private HandlerRegistry _serverRegistry = null!;
