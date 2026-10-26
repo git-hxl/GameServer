@@ -12,15 +12,21 @@ public class CreateRoomHandler : LobbyStateHandler<CreateRoomRequest>
     public override ushort MessageId => MessageIds.CreateRoom;
 
     private readonly RoomManager _rooms;
+    private readonly PlayerManager _players;
 
     public CreateRoomHandler(PlayerManager players, RoomManager rooms) : base(players)
     {
+        _players = players;
         _rooms = rooms;
     }
 
     public override void HandleMessage(NetPeer peer, CreateRoomRequest request)
     {
-        var userId = Players.GetUserId(peer);
+        var player = _players.GetByPeer(peer);
+        if (player == null)
+            return;
+
+        var userId = player.Info.UserId;
         var (res, code) = _rooms.CreateRoom(request, userId);
         MessageHelper.Send(peer, MessageId, code, res);
     }

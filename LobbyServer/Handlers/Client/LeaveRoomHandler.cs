@@ -20,8 +20,10 @@ public class LeaveRoomHandler : LobbyStateHandler<LeaveRoomRequest>
 
     public override void HandleMessage(NetPeer peer, LeaveRoomRequest request)
     {
-        var userId = Players.GetUserId(peer);
-        var (res, code) = _rooms.LeaveRoom(userId);
+        var player = Players.GetByPeer(peer);
+        if (player == null)
+            return;
+        var (res, code) = _rooms.LeaveRoom(player.Info.UserId);
         MessageHelper.Send(peer, MessageId, code, res);
     }
 

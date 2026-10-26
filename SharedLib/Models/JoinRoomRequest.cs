@@ -10,5 +10,6 @@ namespace SharedLib.Models
     public class JoinRoomRequest
     {
         [Key(0)] public string RoomId { get; set; } = string.Empty;
+        [Key(1)] public long UserId { get; set; }
     }
 }

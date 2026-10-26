@@ -4,6 +4,7 @@ using SharedLib.Protocol;
 using SharedLib.Utils;
 using LobbyServer.Player;
 using LobbyServer.Room;
+using Serilog;
 
 namespace LobbyServer.Handlers.Client;
 
@@ -20,8 +21,7 @@ public class JoinRoomHandler : LobbyStateHandler<JoinRoomRequest>
 
     public override void HandleMessage(NetPeer peer, JoinRoomRequest request)
     {
-        var userId = Players.GetUserId(peer);
-        var (res, code) = _rooms.JoinRoom(userId, request);
+        var (res, code) = _rooms.JoinRoom(request.UserId, request);
         MessageHelper.Send(peer, MessageId, code, res);
     }
 

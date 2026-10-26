@@ -16,5 +16,6 @@ namespace SharedLib.Protocol
         RoomFull = 10,
         GameServerOffline = 11,
         NotAuthorized = 12,
+        AlreadyInLobby = 13,
     }
 }

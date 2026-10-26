@@ -1,17 +1,15 @@
 using LiteNetLib;
 using Serilog;
 using SharedLib.Config;
-using SharedLib.Models;
-using SharedLib.Protocol;
 using SharedLib.Redis;
 using SharedLib.Utils;
 using SharedLib.Handlers;
 using LobbyServer.Cluster;
-using LobbyServer.Lobby;
 using LobbyServer.Player;
 using LobbyServer.Room;
 using LobbyServer.Handlers.Client;
 using LobbyServer.Handlers.Server;
+using LobbyServer.Persistence;
 
 namespace LobbyServer;
 
@@ -25,9 +23,8 @@ public class LobbyServer
     private readonly EventBasedNetListener _serverListener;
     private readonly string _serverKey;
 
-    private readonly PlayerManager _players = new();
     private readonly RedisHelper _redisHelper;
-    private LobbyManager _lobbyManager = null!;
+    private PlayerManager _playerManager = null;
     private RoomManager _roomManager = null!;
     private HandlerRegistry _clientRegistry = null!;
     private HandlerRegistry _serverRegistry = null!;
@@ -72,9 +69,9 @@ public class LobbyServer
     /// <param name="config">大厅服务器配置。</param>
     public void Start(LobbyServerConfig config)
     {
-        _lobbyManager = LobbyManager.Create(
-            _clientNetManager, _players, _gameServerRegistry, _redisHelper, config.RedisKeyPrefix);
-        _roomManager = _lobbyManager.Rooms;
+        var roomStore = new RedisLobbyRoomStore(_redisHelper, config.RedisKeyPrefix);
+        _playerManager = new PlayerManager();
+        _roomManager = new RoomManager(_playerManager, _gameServerRegistry, roomStore);
 
         _clientRegistry = new HandlerRegistry();
         _serverRegistry = new HandlerRegistry();
@@ -107,12 +104,12 @@ public class LobbyServer
     private void RegisterHandlers()
     {
         _clientRegistry.Register(
-            new JoinLobbyHandler(_lobbyManager),
-            new LeaveLobbyHandler(_lobbyManager),
-            new ChatHandler(_lobbyManager),
-            new CreateRoomHandler(_players, _roomManager),
-            new JoinRoomHandler(_players, _roomManager),
-            new LeaveRoomHandler(_players, _roomManager),
+            new JoinLobbyHandler(_playerManager),
+            new LeaveLobbyHandler(_playerManager, _roomManager),
+            new ChatHandler(_playerManager),
+            new CreateRoomHandler(_playerManager, _roomManager),
+            new JoinRoomHandler(_playerManager, _roomManager),
+            new LeaveRoomHandler(_playerManager, _roomManager),
             new RoomListHandler(_roomManager)
         );
 
@@ -121,7 +118,7 @@ public class LobbyServer
             new GameServerUpdateHandler(_gameServerRegistry)
         );
     }
-    
+
     /// <summary>
     /// 停止两个 NetManager；不会释放调用方注入的房间存储。
     /// </summary>
@@ -157,7 +154,7 @@ public class LobbyServer
         if (_stopping)
             return;
 
-        var player = _players.GetByPeer(peer);
+        var player = _playerManager.GetByPeer(peer);
         if (player == null)
             return;
 
@@ -166,26 +163,16 @@ public class LobbyServer
         // Timeout：只清 Peer，保留 LobbyPlayer 和房间成员身份，便于原房重连。
         if (disconnectInfo.Reason == DisconnectReason.Timeout)
         {
-            _players.UnbindPeer(peer);
+            player.ResetPeer();
             Log.Information("[LobbyServer] 超时断线，保留玩家和房间身份 userId={UserId}", userId);
             return;
         }
 
-        // 其他原因：先移出房间（房间/Redis 同步更新）。
         _roomManager.LeaveRoom(userId);
+        _playerManager.Remove(userId);
 
-        if (disconnectInfo.Reason == DisconnectReason.RemoteConnectionClose)
-        {
-            _players.Remove(userId);
-            Log.Information("[LobbyServer] 主动断线，移出房间并删除玩家 userId={UserId} reason={Reason}",
-                userId, disconnectInfo.Reason);
-        }
-        else
-        {
-            _players.UnbindPeer(peer);
-            Log.Information("[LobbyServer] 断线，移出房间并保留离线玩家 userId={UserId} reason={Reason}",
-                userId, disconnectInfo.Reason);
-        }
+        Log.Information("[LobbyServer] 主动断线，移出房间并删除玩家 userId={UserId} reason={Reason}",
+            userId, disconnectInfo.Reason);
     }
 
     private void OnServerConnected(NetPeer peer)

@@ -22,6 +22,8 @@ public class RoomManager
         _players = players;
         _gameServerRegistry = gameServerRegistry;
         _roomStore = roomStore;
+
+        RestoreFromStore();
     }
 
     [MethodImpl(MethodImplOptions.Synchronized)]
@@ -85,7 +87,9 @@ public class RoomManager
         if (creatorUserId.HasValue)
         {
             room.PlayerIds.Add(creatorUserId.Value);
-            _players.SetRoom(creatorUserId.Value, roomId);
+
+            var player = _players.Get(creatorUserId.Value);
+            player?.SetRoom(roomId);
         }
 
         _rooms[roomId] = room;
@@ -138,14 +142,14 @@ public class RoomManager
         if (room.OwnerUserId == 0)
             room.OwnerUserId = userId;
 
-        _players.SetRoom(userId, request.RoomId);
+        player.SetRoom(request.RoomId);
 
         var notify = new JoinRoomNotify { RoomId = room.RoomId, Player = player.Info };
         foreach (var otherId in room.PlayerIds.Where(id => id != userId))
         {
             var otherPlayer = _players.Get(otherId);
-            if (otherPlayer != null && _players.GetPeer(otherPlayer) is { ConnectionState: ConnectionState.Connected } otherPeer)
-                MessageHelper.Send(otherPeer, MessageIds.JoinRoomNotify, ReturnCode.Success, notify);
+            if (otherPlayer != null && otherPlayer.Peer != null)
+                MessageHelper.Send(otherPlayer.Peer, MessageIds.JoinRoomNotify, ReturnCode.Success, notify);
         }
 
         Log.Information("[RoomManager] 加入房间成功 roomId={RoomId} userId={UserId} 房主={Owner} 房间人数={Count}",
@@ -170,8 +174,6 @@ public class RoomManager
 
         if (!room.PlayerIds.Remove(userId))
             return (new LeaveRoomResponse(), ReturnCode.NotInRoom);
-
-        _players.ClearRoom(userId);
 
         var remaining = room.PlayerIds.Count;
         Log.Information("[RoomManager] 离开房间 roomId={RoomId} userId={UserId} 剩余人数={Count}",
@@ -227,11 +229,12 @@ public class RoomManager
         foreach (var userId in room.PlayerIds)
         {
             var player = _players.Get(userId);
-            if (player != null && _players.GetPeer(player) is { ConnectionState: ConnectionState.Connected } playerPeer)
-                peers.Add(playerPeer);
+            if (player != null && player.Peer != null)
+                peers.Add(player.Peer);
 
-            _players.ClearRoom(userId);
+            player?.ResetRoom();
         }
+
         MessageHelper.SendToAll(peers, frame, DeliveryMethod.ReliableOrdered);
         SendCloseGameRoom(room, reason);
 
@@ -254,26 +257,13 @@ public class RoomManager
         return new RoomListResponse { Rooms = list };
     }
 
-    [MethodImpl(MethodImplOptions.Synchronized)]
-    public void RemovePlayer(long userId)
-    {
-        var player = _players.Get(userId);
-        if (player == null)
-            return;
-
-        Log.Information("[RoomManager] 移除玩家 userId={UserId}", userId);
-        LeaveRoom(userId);
-        _players.Remove(userId);
-    }
-
     private void Broadcast(LobbyRoom room, ushort messageId, object data)
     {
         var frame = MessageHelper.CreateFrame(messageId, ReturnCode.Success, data);
         var peers = room.PlayerIds
-            .Select(id => _players.GetPeer(id))
-            .Where(p => p is { ConnectionState: ConnectionState.Connected })
+            .Select(id => _players.Get(id)?.Peer)
+            .Where(p => p!= null && p is { ConnectionState: ConnectionState.Connected })
             .Select(p => p!);
-
         MessageHelper.SendToAll(peers, frame, DeliveryMethod.ReliableOrdered);
     }
 
@@ -307,7 +297,8 @@ public class RoomManager
     {
         return _rooms.TryGetValue(roomId, out var room) ? room : null;
     }
-
+    
+    
     [MethodImpl(MethodImplOptions.Synchronized)]
     public void PersistPlayerRoom(long userId)
     {
@@ -318,7 +309,10 @@ public class RoomManager
         if (_rooms.TryGetValue(roomId, out var room))
             PersistRoom(room);
     }
-
+    
+    /// <summary>
+    /// 从快照中恢复
+    /// </summary>
     [MethodImpl(MethodImplOptions.Synchronized)]
     public void RestoreFromStore()
     {
@@ -356,7 +350,6 @@ public class RoomManager
                 }
 
                 room.PlayerIds.Add(info.UserId);
-                _players.AddOffline(info, snapshot.RoomId);
             }
 
             if (room.PlayerIds.Count == 0 && room.CreatorUserId != null)
@@ -377,6 +370,10 @@ public class RoomManager
         Log.Information("[RoomManager] 从存储恢复房间数={Count}", _rooms.Count);
     }
 
+    /// <summary>
+    /// 更新房间快照
+    /// </summary>
+    /// <param name="room"></param>
     private void PersistRoom(LobbyRoom room)
     {
         var players = new List<PlayerInfo>();

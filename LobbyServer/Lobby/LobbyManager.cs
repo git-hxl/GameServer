@@ -55,8 +55,6 @@ public class LobbyManager
     {
         var roomStore = new RedisLobbyRoomStore(redis, keyPrefix);
         var rooms = new RoomManager(players, gameServerRegistry, roomStore);
-        rooms.RestoreFromStore();
-
         return new LobbyManager(netManager, players, rooms);
     }
 
@@ -64,33 +62,11 @@ public class LobbyManager
     {
         var userId = request.Player.UserId;
         Log.Information("[LobbyManager] 加入大厅 userId={UserId}", userId);
-
-        var boundUserId = _players.GetUserId(peer);
-        if (boundUserId != 0 && boundUserId != userId)
-        {
-            Log.Warning("[LobbyManager] 同一连接切换 userId old={Old} new={New}", boundUserId, userId);
-            _rooms.RemovePlayer(boundUserId);
-        }
-
+        
         var existing = _players.Get(userId);
         if (existing != null)
         {
-            var oldPeer = _players.GetPeer(existing);
-            Log.Warning("[LobbyManager] 玩家重新登录 userId={UserId} online={Online}", userId, oldPeer != null);
-
-            if (oldPeer != null && oldPeer != peer)
-            {
-                _players.UnbindPeer(oldPeer);
-                _netManager.DisconnectPeer(oldPeer);
-            }
-
-            _players.BindOnline(existing, peer, request.Player);
-            _rooms.PersistPlayerRoom(userId);
-
-            Log.Information("[LobbyManager] 玩家恢复会话 userId={UserId} roomId={RoomId}",
-                userId, existing.CurrentRoomId);
-
-            return (new JoinLobbyResponse { Player = request.Player }, ReturnCode.Success);
+            return (new JoinLobbyResponse { Player = request.Player }, ReturnCode.AlreadyInLobby);
         }
 
         _players.Add(peer, request.Player);
@@ -112,13 +88,18 @@ public class LobbyManager
             return (new LeaveLobbyResponse { UserId = request.UserId }, ReturnCode.NotInLobby);
         }
 
-        if (!ReferenceEquals(_players.GetPeer(player), peer))
+        if (!ReferenceEquals(player.Peer, peer))
         {
             Log.Warning("[LobbyManager] 离开大厅失败：Peer不匹配 userId={UserId}", request.UserId);
             return (new LeaveLobbyResponse { UserId = request.UserId }, ReturnCode.NotInLobby);
         }
 
-        _rooms.RemovePlayer(request.UserId);
+        if (!string.IsNullOrEmpty(player.CurrentRoomId))
+        {
+            _rooms.LeaveRoom(player.Info.UserId);
+        }
+
+        player.ResetRoom();
 
         Log.Information("[LobbyManager] 大厅离开 userId={UserId} 在线人数={Count}",
             request.UserId, _players.OnlineCount);
@@ -131,7 +112,7 @@ public class LobbyManager
         Log.Information("[LobbyManager] 聊天消息 userId={UserId}", request.UserId);
 
         var player = _players.Get(request.UserId);
-        if (player == null || !ReferenceEquals(_players.GetPeer(player), peer))
+        if (player == null || !ReferenceEquals(player.Peer, peer))
         {
             Log.Warning("[LobbyManager] 聊天被拒绝：用户不在大厅中 userId={UserId}", request.UserId);
             return;

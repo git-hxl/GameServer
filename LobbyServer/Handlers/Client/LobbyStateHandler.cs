@@ -17,7 +17,7 @@ public abstract class LobbyStateHandler<TRequest> : MessageHandler<TRequest> whe
 
     protected override bool TryAuthorize(NetPeer peer)
     {
-        return Players.GetUserId(peer) != 0;
+        return Players.GetByPeer(peer) != null;
     }
 
     protected override void OnUnauthorized(NetPeer peer)
