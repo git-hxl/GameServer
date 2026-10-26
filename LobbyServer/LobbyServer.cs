@@ -160,8 +160,8 @@ public class LobbyServer
 
         var userId = player.Info.UserId;
 
-        // Timeout：只清 Peer，保留 LobbyPlayer 和房间成员身份，便于原房重连。
-        if (disconnectInfo.Reason == DisconnectReason.Timeout)
+        //异常关闭：只清 Peer，保留 LobbyPlayer 和房间成员身份，便于原房重连。
+        if (disconnectInfo.Reason != DisconnectReason.RemoteConnectionClose)
         {
             player.ResetPeer();
             Log.Information("[LobbyServer] 超时断线，保留玩家和房间身份 userId={UserId}", userId);
