@@ -313,16 +313,7 @@ RoomManager.CreateRoom(CreateRoomRequest request, long? creatorUserId)
 7. `_players.SetRoom(userId, roomId)`；
 8. 保存 Redis 快照。
 
-系统/外部创建：
-
-```csharp
-LobbyServer.CreateSystemRoom(CreateRoomRequest request)
-```
-
-- `creatorUserId = null`；
-- 房间为空，`OwnerUserId = 0`；
-- 第一个 `JoinRoom` 的玩家成为房主；
-- 通过服务端内部 API 调用，不新增网络入口。
+当前只支持玩家创建房间，不提供系统/外部建房入口。
 
 没有可用 GameServer 返回 `NoGameServerAvailable`。
 
@@ -797,6 +788,7 @@ GameServer: TryAdd 空房间
 | 2026-10-26 | 删除未接入的 LobbyManager；补 `LobbyServer.CloseRoom` 外部关闭入口；GameServer Program 接入 `Stop()` 优雅停机 |
 | 2026-10-26 | 房间离线/待确认成员由 PollEvents 每 30 秒清理，超过 10 分钟移出房间 |
 | 2026-10-28 | 移除 `LobbyServer.CloseRoom` 外部关闭入口（当前不需要） |
+| 2026-10-28 | 文档移除 `CreateSystemRoom` 描述；当前只支持玩家建房 |
 
 ---
 

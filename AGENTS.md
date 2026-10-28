@@ -46,7 +46,7 @@ LobbyServer 维护两个 registry：`_clientRegistry`（客户端口消息）和
 房间相关内部消息：`CreateGameRoom = 102`、`CloseGameRoom = 103`；客户端通知：`RoomOwnerChangedNotify = 16`、`RoomClosedNotify = 17`。
 
 大厅房间是组队房，没有准备/开始/授权流程：
-- 玩家 `CreateRoom` 时自动入房并成为房主；外部/系统通过 `LobbyServer.CreateSystemRoom` 创建空房，第一个 `JoinRoom` 的玩家成为房主。
+- 玩家 `CreateRoom` 时自动入房并成为房主；当前只支持玩家创建房间，不提供系统/外部建房入口。
 - 建房时 LobbyServer 立即向选中的 GameServer 发 `CreateGameRoom`（幂等）；房间空了时发 `CloseGameRoom`，GameServer 通知并移出仍在游戏内的玩家。
 - 玩家拿到 `JoinRoomResponse` 里的 GameServer 地址后直接连游戏服发 `JoinGame`，GameServer 不校验授权。
 - 房主离开时按 `PlayerIds` 加入顺序转移给下一个成员，并广播 `RoomOwnerChangedNotify`。
