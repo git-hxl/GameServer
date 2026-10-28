@@ -4,7 +4,7 @@
 >
 > 任何功能改动或新增——包括协议消息、玩家/房间状态、Redis 结构、配置项、重连与停机语义、测试策略——都必须在**同一个提交**中同步更新本文件 `DESIGN.md`。
 >
-> 所有方法必须写注释：生产代码与测试中的方法（含 `private` / `static` / 局部函数、构造函数）使用中文 XML 文档注释；接口实现/重写可用 `<inheritdoc/>`。详见第 20 节。
+> 所有方法必须写注释：生产代码与测试中的方法（含 `private` / `static` / 局部函数、构造函数）使用中文 XML 文档注释；接口实现/重写可用 `<inheritdoc/>`。详见第 19 节。
 >
 > 文档描述的是当前实现，不是历史计划。代码与文档不一致时，先判断哪边是错的，再一起修正；不要只改代码。
 
@@ -690,7 +690,7 @@ dotnet run --project TestClient       # 连接 :6001
 - 当前处于快速开发阶段，不维护自动化测试项目（原 `GameServer.Tests` 已删除）。
 - 提交前验证：`dotnet build GameServer.sln` 必须 0 警告 0 错误。
 - 功能验证：启动 Redis、LobbyServer、GameServer，再用一个或多个 TestClient 手动走大厅/房间/游戏流程。
-- 后续需要回归保障时，再重新引入测试项目；在此之前，`DESIGN.md` 第 19 节的检查清单和 code review 是主要质量门禁。
+- 后续需要回归保障时，再重新引入测试项目；在此之前，`DESIGN.md` 第 18 节的检查清单和 code review 是主要质量门禁。
 
 ---
 
@@ -762,37 +762,7 @@ GameServer: TryAdd 空房间
 
 ---
 
-## 18. 变更记录
-
-| 日期 | 变更 |
-|---|---|
-| 2026-10-22 | 房间生命周期改造：删除准备/开始/授权；大厅房改为组队房；建房即同步 GameRoom；房主按加入顺序继承 |
-| 2026-10-23 | Redis 房间持久化：Lobby 启动恢复、GameServer 注册补建、停机保护、消息 ID 重排（`CreateGameRoom=102`、`CloseGameRoom=103`） |
-| 2026-10-23 | 配置路径修复；GameServer 重连注册误删修复 |
-| 2026-10-23 | 玩家模型简化：移除 `_peerToUserId`，只保留 `_players`；移除 `PlayerState`；主动断开移除、异常断线保留 |
-| 2026-10-23 | TestClient 改为手动 `joingame`；`RoomType` 只保留 `Default` |
-| 2026-10-23 | 增加文档维护约定与“所有方法必须写注释”规范（第 20 节） |
-| 2026-10-23 | LobbyServer Handler 目录按客户端/服务端拆分（`Handlers/Client`、`Handlers/Server`） |
-| 2026-10-23 | Redis 连接与存储创建/释放从 `LobbyServer` 移到 `Program.cs` 组合根 |
-| 2026-10-23 | RedisHelper 增加 String/Key/Hash/List/Set 常用接口并补全 XML 注释 |
-| 2026-10-23 | 测试端口改为 UDP 预留；LobbyServer/GameServer 启动校验端口绑定，修复集成测试间歇性串端口 |
-| 2026-10-23 | 删除 `GameServer.Tests`；快速开发阶段不维护自动化测试项目 |
-| 2026-10-23 | `Program` 只创建 RedisHelper；`RedisLobbyRoomStore` 移到 `LobbyManager.Create` 初始化 |
-| 2026-10-23 | 拆分 Lobby 初始化失败日志：RedisHelper 创建失败与大厅服务器初始化失败分开记录 |
-| 2026-10-23 | 断线策略调整：删除 PlayerDisconnectPolicy；任何断线先离开房间，RemoteConnectionClose 删除 LobbyPlayer，其他原因保留离线玩家 |
-| 2026-10-23 | Timeout 断线改为保留 LobbyPlayer 和房间成员身份；其他原因仍移出房间 |
-| 2026-10-23 | LobbyPlayer 移除 NetPeer，只保存 PeerId（-1=离线）；PlayerManager 维护 PeerId→NetPeer 注册表 |
-| 2026-10-23 | 删除 LobbyRoomSnapshot，Redis 直接持久化 LobbyRoom |
-| 2026-10-23 | 新增玩家资料持久化（`lobby:players`）；重启恢复离线 LobbyPlayer |
-| 2026-10-23 | 重启后不自动回填房间关系；玩家需显式 JoinRoom 确认，LeaveRoom 支持清理恢复关系 |
-| 2026-10-26 | 删除未接入的 LobbyManager；补 `LobbyServer.CloseRoom` 外部关闭入口；GameServer Program 接入 `Stop()` 优雅停机 |
-| 2026-10-26 | 房间离线/待确认成员由 PollEvents 每 30 秒清理，超过 10 分钟移出房间 |
-| 2026-10-28 | 移除 `LobbyServer.CloseRoom` 外部关闭入口（当前不需要） |
-| 2026-10-28 | 文档移除 `CreateSystemRoom` 描述；当前只支持玩家建房 |
-
----
-
-## 19. 文档维护检查清单
+## 18. 文档维护检查清单
 
 功能改动/新增提交前逐项确认：
 
@@ -807,14 +777,13 @@ GameServer: TryAdd 空房间
 - [ ] 第 15 节：构建/运行/验证方式是否变化？
 - [ ] 第 17 节：是否新增/消除已知限制？
 - [ ] 所有新增/修改的方法是否都有中文 XML 注释（含私有方法、局部函数、测试方法）？
-- [ ] 第 18 节：追加变更记录。
 - [ ] `AGENTS.md` 是否也需要同步（构建、运行、协议约定、维护规则）。
 
 ---
 
-## 20. 代码注释规范
+## 19. 代码注释规范
 
-### 20.1 强制规则
+### 19.1 强制规则
 
 **所有方法都必须有注释**，包括：
 
@@ -825,7 +794,7 @@ GameServer: TryAdd 空房间
 - 测试方法、测试辅助方法；
 - 接口方法的实现/重写。
 
-### 20.2 格式
+### 19.2 格式
 
 使用中文 XML 文档注释：
 
@@ -847,9 +816,9 @@ public bool RestorePlayer(long userId)
 - 接口实现/重写：优先使用 `/// <inheritdoc/>`，避免重复接口注释。
 - 复杂逻辑可在方法内部加行内注释，解释“为什么”，而不是逐行翻译代码。
 
-### 20.3 执行方式
+### 19.3 执行方式
 
 - 新增或修改方法时，注释必须与代码在同一个提交中完成。
 - Code review / 自检时，方法没有注释视为未完成。
-- 当前没有编译器强制（未启用 CS1591 等 analyzer），依靠 `DESIGN.md` 第 19 节检查清单和 review 保证。
+- 当前没有编译器强制（未启用 CS1591 等 analyzer），依靠 `DESIGN.md` 第 18 节检查清单和 review 保证。
 - 历史方法在后续被修改时补注释；如需一次性补齐存量方法，单独提交，避免和功能改动混在一起。
