@@ -1,8 +1,6 @@
 using LiteNetLib;
 using Serilog;
 using SharedLib.Config;
-using SharedLib.Models;
-using SharedLib.Protocol;
 using SharedLib.Redis;
 using SharedLib.Utils;
 using SharedLib.Handlers;
@@ -124,16 +122,6 @@ public class LobbyServer
             new GameServerRegisterHandler(_gameServerRegistry, _roomManager),
             new GameServerUpdateHandler(_gameServerRegistry)
         );
-    }
-
-    /// <summary>
-    /// 服务端内部 API：关闭指定房间，并同步关闭 GameServer 上的游戏房间。
-    /// </summary>
-    /// <param name="roomId">房间 ID。</param>
-    /// <returns>关闭结果。</returns>
-    public ReturnCode CloseRoom(string roomId)
-    {
-        return _roomManager.CloseRoom(roomId, RoomCloseReason.ClosedBySystem);
     }
 
     /// <summary>

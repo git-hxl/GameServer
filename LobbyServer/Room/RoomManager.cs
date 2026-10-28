@@ -226,42 +226,6 @@ public class RoomManager
     }
 
     [MethodImpl(MethodImplOptions.Synchronized)]
-    public ReturnCode CloseRoom(string roomId, RoomCloseReason reason)
-    {
-        if (!_rooms.Remove(roomId, out var room))
-        {
-            Log.Warning("[RoomManager] 关闭房间失败：房间未找到 roomId={RoomId}", roomId);
-            return ReturnCode.RoomNotFound;
-        }
-
-        _roomStore.Delete(roomId);
-
-        var inactiveKeys = _inactiveSince.Keys.Where(key => key.RoomId == roomId).ToList();
-        foreach (var key in inactiveKeys)
-            _inactiveSince.Remove(key);
-
-        var frame = MessageHelper.CreateFrame(MessageIds.RoomClosedNotify, ReturnCode.Success,
-            new RoomClosedNotify { RoomId = roomId, Reason = reason });
-
-        var peers = new List<NetPeer>();
-        foreach (var userId in room.PlayerIds)
-        {
-            var player = _players.Get(userId);
-            if (player != null && player.Peer != null)
-                peers.Add(player.Peer);
-
-            player?.ResetRoom();
-        }
-
-        MessageHelper.SendToAll(peers, frame, DeliveryMethod.ReliableOrdered);
-        SendCloseGameRoom(room, reason);
-
-        Log.Information("[RoomManager] 房间关闭 roomId={RoomId} reason={Reason} 成员数={Count}",
-            roomId, reason, peers.Count);
-        return ReturnCode.Success;
-    }
-
-    [MethodImpl(MethodImplOptions.Synchronized)]
     public RoomListResponse GetRoomList()
     {
         var list = _rooms.Values.Select(r => new RoomListInfo

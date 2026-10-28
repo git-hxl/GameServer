@@ -352,14 +352,7 @@ LobbyServer.CreateSystemRoom(CreateRoomRequest request)
 
 ### 8.5 外部关闭房间
 
-```csharp
-LobbyServer.CloseRoom(roomId)  // RoomCloseReason.ClosedBySystem
-```
-
-- 删除大厅房间和 Redis 快照；
-- 向在线大厅成员发 `RoomClosedNotify`；
-- 清空所有成员的 `CurrentRoomId`；
-- 发 `CloseGameRoom`，GameServer 通知并移出游戏内玩家（保留连接）。
+当前不提供外部关闭房间的 API；房间只在最后一名成员离开时自动关闭。`RoomCloseReason.ClosedBySystem` 暂时保留，供后续需要时使用。
 
 ### 8.6 房间列表
 
@@ -803,6 +796,7 @@ GameServer: TryAdd 空房间
 | 2026-10-23 | 重启后不自动回填房间关系；玩家需显式 JoinRoom 确认，LeaveRoom 支持清理恢复关系 |
 | 2026-10-26 | 删除未接入的 LobbyManager；补 `LobbyServer.CloseRoom` 外部关闭入口；GameServer Program 接入 `Stop()` 优雅停机 |
 | 2026-10-26 | 房间离线/待确认成员由 PollEvents 每 30 秒清理，超过 10 分钟移出房间 |
+| 2026-10-28 | 移除 `LobbyServer.CloseRoom` 外部关闭入口（当前不需要） |
 
 ---
 
